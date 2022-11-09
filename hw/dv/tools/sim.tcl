@@ -29,6 +29,11 @@ global waves
 global simulator
 global tb_top
 
+source "${dv_root}/xlm.tcl"
+
+# simvision -submit waveform new -reuse -name waveforms
+# simvision -submit waveform loadsignals -using waveforms  "${dv_root}/signals.svwf"
+
 # Dumping waves in specific hierarchies (example):
 # wavedumpScope $waves $simulator tb.dut.foo.bar 12
 # wavedumpScope $waves $simulator tb.dut.baz 0

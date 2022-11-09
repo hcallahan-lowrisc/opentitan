@@ -1,0 +1,202 @@
+
+#
+# Mnemonic Maps
+#
+mmap new  -reuse -name {Boolean as Logic} -radix %b -contents {{%c=FALSE -edgepriority 1 -shape low}
+{%c=TRUE -edgepriority 1 -shape high}}
+mmap new  -reuse -name {Example Map} -radix %x -contents {{%b=11???? -bgcolor orange -label REG:%x -linecolor yellow -shape bus}
+{%x=1F -bgcolor red -label ERROR -linecolor white -shape EVENT}
+{%x=2C -bgcolor red -label ERROR -linecolor white -shape EVENT}
+{%x=* -label %x -linecolor gray -shape bus}}
+
+array unset createdGroup
+array set createdGroup {}
+#
+# Groups
+#
+if {[catch {group get -using [list {Sd_O_A contributors}]}]} {
+set createdGroup([list {Sd_O_A contributors}]) 1
+catch {group new -name {Sd_O_A contributors} -overlay 0}
+}
+if {[catch {group get -using [list {Sd_I_A contributors}]}]} {
+set createdGroup([list {Sd_I_A contributors}]) 1
+catch {group new -name {Sd_I_A contributors} -overlay 0}
+}
+if {[catch {group get -using [list {Sck_En_A contributors}]}]} {
+set createdGroup([list {Sck_En_A contributors}]) 1
+catch {group new -name {Sck_En_A contributors} -overlay 0}
+}
+if {[catch {group get -using [list {Sck_A contributors}]}]} {
+set createdGroup([list {Sck_A contributors}]) 1
+catch {group new -name {Sck_A contributors} -overlay 0}
+}
+if {[catch {group get -using [list {S_En_A contributors}]}]} {
+set createdGroup([list {S_En_A contributors}]) 1
+catch {group new -name {S_En_A contributors} -overlay 0}
+}
+if {[catch {group get -using [list {Csb_En_A contributors}]}]} {
+set createdGroup([list {Csb_En_A contributors}]) 1
+catch {group new -name {Csb_En_A contributors} -overlay 0}
+}
+if {[catch {group get -using [list {Csb_A contributors}]}]} {
+set createdGroup([list {Csb_A contributors}]) 1
+catch {group new -name {Csb_A contributors} -overlay 0}
+}
+if {[catch {group get -using [list {spi_host_tb}]}]} {
+set createdGroup([list {spi_host_tb}]) 1
+catch {group new -name spi_host_tb -overlay 0}
+}
+if {[catch {group get -using [list {spi_if}]}]} {
+set createdGroup([list {spi_if}]) 1
+catch {group new -name spi_if -overlay 0}
+}
+if {[info exists createdGroup([list {Sd_O_A contributors}])]} {
+group using {Sd_O_A contributors}
+group set -overlay 0
+group set -comment {simulator::tb.Sd_O_A contributors}
+group clear 0 end
+group insert \
+    [subst  {[format {tb.clk}]} ] \
+    [subst  {[format {tb.passthrough_i.passthrough_en}]} ] \
+    [subst  {[format {tb.passthrough_i.s}]} ] \
+    [subst  {[format {tb.cio_sd_o[3:0]}]} ] \
+    [subst  {[format {tb.rst_n}]} ]
+}
+
+if {[info exists createdGroup([list {Sd_I_A contributors}])]} {
+group using {Sd_I_A contributors}
+group set -overlay 0
+group set -comment {simulator::tb.Sd_I_A contributors}
+group clear 0 end
+group insert \
+    [subst  {[format {tb.clk}]} ] \
+    [subst  {[format {tb.passthrough_i.passthrough_en}]} ] \
+    [subst  {[format {tb.passthrough_o.s}]} ] \
+    [subst  {[format {tb.cio_sd_i[3:0]}]} ] \
+    [subst  {[format {tb.rst_n}]} ]
+}
+
+if {[info exists createdGroup([list {Sck_En_A contributors}])]} {
+group using {Sck_En_A contributors}
+group set -overlay 0
+group set -comment {simulator::tb.Sck_En_A contributors}
+group clear 0 end
+group insert \
+    [subst  {[format {tb.clk}]} ] \
+    [subst  {[format {tb.passthrough_i.passthrough_en}]} ] \
+    [subst  {[format {tb.passthrough_i.sck_en}]} ] \
+    [subst  {[format {tb.cio_sck_en_o}]} ] \
+    [subst  {[format {tb.rst_n}]} ]
+}
+
+if {[info exists createdGroup([list {Sck_A contributors}])]} {
+group using {Sck_A contributors}
+group set -overlay 0
+group set -comment {simulator::tb.Sck_A contributors}
+group clear 0 end
+group insert \
+    [subst  {[format {tb.clk}]} ] \
+    [subst  {[format {tb.passthrough_i.passthrough_en}]} ] \
+    [subst  {[format {tb.passthrough_i.sck}]} ] \
+    [subst  {[format {tb.cio_sck_o}]} ] \
+    [subst  {[format {tb.rst_n}]} ]
+}
+
+if {[info exists createdGroup([list {S_En_A contributors}])]} {
+group using {S_En_A contributors}
+group set -overlay 0
+group set -comment {simulator::tb.S_En_A contributors}
+group clear 0 end
+group insert \
+    [subst  {[format {tb.clk}]} ] \
+    [subst  {[format {tb.passthrough_i.passthrough_en}]} ] \
+    [subst  {[format {tb.passthrough_i.s_en}]} ] \
+    [subst  {[format {tb.cio_sd_en_o[3:0]}]} ] \
+    [subst  {[format {tb.rst_n}]} ]
+}
+
+if {[info exists createdGroup([list {Csb_En_A contributors}])]} {
+group using {Csb_En_A contributors}
+group set -overlay 0
+group set -comment {simulator::tb.Csb_En_A contributors}
+group clear 0 end
+group insert \
+    [subst  {[format {tb.clk}]} ] \
+    [subst  {[format {tb.passthrough_i.passthrough_en}]} ] \
+    [subst  {[format {tb.passthrough_i.csb_en}]} ] \
+    [subst  {[format {tb.cio_csb_en_o[0:0]}]} ] \
+    [subst  {[format {tb.rst_n}]} ]
+}
+
+if {[info exists createdGroup([list {Csb_A contributors}])]} {
+group using {Csb_A contributors}
+group set -overlay 0
+group set -comment {simulator::tb.Csb_A contributors}
+group clear 0 end
+group insert \
+    [subst  {[format {tb.clk}]} ] \
+    [subst  {[format {tb.passthrough_i.passthrough_en}]} ] \
+    [subst  {[format {tb.passthrough_i.csb}]} ] \
+    [subst  {[format {tb.cio_csb_o[0:0]}]} ] \
+    [subst  {[format {tb.rst_n}]} ]
+}
+
+if {[info exists createdGroup([list {spi_host_tb}])]} {
+group using spi_host_tb
+group set -overlay 0
+group set -comment {}
+group clear 0 end
+group insert \
+    [subst  {[format {tb.so_pulldown[3:0]}]} ] \
+    [subst  {[format {tb.si_pulldown[3:0]}]} ] \
+    [subst  {[format {tb.scanmode_i[3:0]}]} ] \
+    [subst  {[format {tb.rst_n}]} ] \
+    [subst  {[format {tb.passthrough_o}]} ] \
+    [subst  {[format {tb.passthrough_i}]} ] \
+    [subst  {[format {tb.intr_event}]} ] \
+    [subst  {[format {tb.intr_error}]} ] \
+    [subst  {[format {tb.interrupts[31:0]}]} ] \
+    [subst  {[format {tb.devmode}]} ] \
+    [subst  {[format {tb.clk}]} ] \
+    [subst  {[format {tb.cio_sd_o[3:0]}]} ] \
+    [subst  {[format {tb.cio_sd_i[3:0]}]} ] \
+    [subst  {[format {tb.cio_sd_en_o[3:0]}]} ] \
+    [subst  {[format {tb.cio_sck_o}]} ] \
+    [subst  {[format {tb.cio_sck_en_o}]} ] \
+    [subst  {[format {tb.cio_csb_o[0:0]}]} ] \
+    [subst  {[format {tb.cio_csb_en_o[0:0]}]} ] \
+    [subst  {[format {tb.alert_tx[0:0]}]} ] \
+    [subst  {[format {tb.alert_rx[0:0]}]} ]
+}
+
+if {[info exists createdGroup([list {spi_if}])]} {
+group using spi_if
+group set -overlay 0
+group set -comment {}
+group clear 0 end
+group insert \
+    [subst  {[format {tb.spi_if.csb[1:0]}]} ] \
+    [subst  {[format {tb.spi_if.device_bit}]} ] \
+    [subst  {[format {tb.spi_if.device_byte[7:0]}]} ] \
+    [subst  {[format {tb.spi_if.disconnected}]} ] \
+    [subst  {[format {tb.spi_if.en_chk}]} ] \
+    [subst  {[format {tb.spi_if.host_bit}]} ] \
+    [subst  {[format {tb.spi_if.host_byte[7:0]}]} ] \
+    [subst  {[format {tb.spi_if.msg_id}]} ] \
+    [subst  {[format {tb.spi_if.rst_n}]} ] \
+    [subst  {[format {tb.spi_if.sck}]} ] \
+    [subst  {[format {tb.spi_if.sck_phase}]} ] \
+    [subst  {[format {tb.spi_if.sck_polarity}]} ] \
+    [subst  {[format {tb.spi_if.sck_pulses}]} ] \
+    [subst  {[format {tb.spi_if.sio[3:0]}]} ] \
+    [subst  {[format {tb.spi_if.sio_out[3:0]}]} ]
+}
+
+
+set groupId0 [waveform add -groups spi_host_tb]
+
+
+set groupId0 [waveform add -groups spi_if]
+
+
+waveform xview limits 0 77835.727ns

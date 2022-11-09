@@ -112,7 +112,7 @@ if {$waves ne "none"} {
 
     "shm" {
       checkEq simulator "xcelium"
-      database -open $wavedump_db -default -shm
+      # database -open $wavedump_db -default -shm
     }
 
     "vpd" {
