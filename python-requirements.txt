@@ -35,8 +35,10 @@ termcolor==1.1.0
 
 # Linters
 flake8==5.0.4
+gitlint==0.19
 isort==5.10.1
 mypy==0.971
+pre-commit==3.2
 yapf==0.32.0
 
 # Type stubs for mypy checking.
