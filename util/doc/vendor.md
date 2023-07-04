@@ -8,7 +8,7 @@ The `util/vendor` tool can go beyond simply copying in source files: it can patc
 
 ## Tool usage overview
 
-```text
+```
 usage: vendor [-h] [--refresh-patches] [--commit] [--verbose] file
 
 vendor, copy source code from upstream into this repository
@@ -130,7 +130,7 @@ Once the lock file exists, the vendor tool will only use the upstream informatio
 
 ### Re-clone code and apply new file exclusions or patches
 
-```command
+```bash
 $ cd $REPO_TOP
 $ ./util/vendor.py hw/vendor/google_riscv-dv.vendor.hjson -v
 ```
@@ -140,7 +140,7 @@ $ ./util/vendor.py hw/vendor/google_riscv-dv.vendor.hjson -v
 This will generate a commit message based off the git shortlog between the
 previously cloned revision and the newly cloned revision of the repository.
 
-```command
+```bash
 $ cd $REPO_TOP
 $ ./util/vendor.py hw/vendor/google_riscv-dv.vendor.hjson -v --update --commit
 ```

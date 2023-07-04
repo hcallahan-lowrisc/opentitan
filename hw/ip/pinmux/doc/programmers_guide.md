@@ -120,7 +120,7 @@ The tables below summarize the pinout and pinmux connectivity for certain top-le
 ## Register Table
 
 The register description below matches the instance in the [Earl Grey top level
-design](../../../top_earlgrey/doc/specification.md).
+design](../../../top_earlgrey/doc/design/README.md).
 
 Similar register descriptions can be generated with different parameterizations.
 
