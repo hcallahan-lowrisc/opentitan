@@ -34,6 +34,9 @@ additional-css = [
     "./site/book-theme/recursive.css",
 ]
 
+[output.html.redirect]
+"/book/hw/top_earlgrey/doc/specification.html" = "/book/hw/top_earlgrey/doc/datasheet.html"
+
 [output.html.print]
 enable = false
 
