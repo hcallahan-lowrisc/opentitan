@@ -15,6 +15,7 @@
     - [Top Generation](./hw/top_earlgrey/doc/design/top_generation.md)
     - [Earl Grey HWIP]()
       - [Analog Sensor Top](./hw/top_earlgrey/ip/ast/README.md)
+        - [Interface Signals](./hw/top_earlgrey/ip/ast/doc/interfaces.md)
       - [Alert Handler](./hw/top_earlgrey/ip_autogen/alert_handler/README.md)
         - [Theory of Operation](./hw/top_earlgrey/ip_autogen/alert_handler/doc/theory_of_operation.md)
         - [Design Verification](./hw/top_earlgrey/ip_autogen/alert_handler/dv/README.md)
@@ -44,7 +45,7 @@
           - [CW310 Target Pinout and Pinmux Connectivity](./hw/top_earlgrey/ip/pinmux/doc/autogen/pinout_cw310.md)
 
 - [Cores](./hw/doc/cores.md)
-  - [Ibex RISC-V Core Wrapper](./hw/ip/rv_core_ibex/README.md)
+  - [Ibex RISC-V Core](./hw/ip/rv_core_ibex/README.md)
     - [Theory of Operation](./hw/ip/rv_core_ibex/doc/theory_of_operation.md)
     - [Design Verification](./hw/ip/rv_core_ibex/dv/README.md)
     - [Programmer's Guide](./hw/ip/rv_core_ibex/doc/programmers_guide.md)
