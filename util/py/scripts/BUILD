@@ -4,6 +4,8 @@
 
 load("@rules_python//python:defs.bzl", "py_binary")
 
+load("@ot_python_deps//:requirements.bzl", "requirement")
+
 py_binary(
     name = "object_size",
     srcs = ["object_size.py"],
@@ -14,5 +16,7 @@ py_binary(
         "//util/py/packages/impl/object_size:types",
         "//util/py/packages/lib:bazel",
         "//util/py/packages/lib:ot_logging",
+        requirement("typer"),
+        requirement("pyelftools"),
     ],
 )
