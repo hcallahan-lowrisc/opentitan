@@ -4,6 +4,8 @@
 
 package(default_visibility = ["//visibility:public"])
 
+# Use --config=nix to select a platform which meets these constraints
+
 py_binary(
     name = "hello",
     srcs = ["hello.py"],

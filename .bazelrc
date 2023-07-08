@@ -150,8 +150,4 @@ try-import .bazelrc-site
 
 # https://bazel.build/run/bazelrc#config
 # --config=nix
-# build:nix --host_platform=@io_tweag_rules_nixpkgs//nixpkgs/platforms:host
 build:nix --host_platform=@io_tweag_rules_nixpkgs//nixpkgs/platforms:host
-
-# @io_tweag_rules_nixpkgs//nixpkgs/platforms:host is an alias for @rules_nixpkgs_core//platforms:host
-# build:nix --host_platform=@rules_nixpkgs_core//platforms:host

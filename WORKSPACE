@@ -35,23 +35,23 @@ nixpkgs_git_repository(
 ###########
 
 # Configure a python toolchain
-# load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_python_configure")
-# nixpkgs_python_configure(
-#     # """Define and register a Python toolchain provided by nixpkgs.
-#     #
-#     # Creates `nixpkgs_package`s for Python 2 or 3 `py_runtime` instances and a
-#     # corresponding `py_runtime_pair` and `toolchain`.
-#     #
-#     # The toolchain is automatically registered and uses the constraint:
-#     # ```
-#     # "@io_tweag_rules_nixpkgs//nixpkgs/constraints:support_nix"
-#     # ```
-#     #
-#     # """
-#     name = "nixpkgs_python_toolchain",
-#     python3_attribute_path = "python39.withPackages(ps: [ ps.flask ])",
-#     repository = "@nixpkgs",
-# )
+load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_python_configure")
+nixpkgs_python_configure(
+    # """Define and register a Python toolchain provided by nixpkgs.
+    #
+    # Creates `nixpkgs_package`s for Python 2 or 3 `py_runtime` instances and a
+    # corresponding `py_runtime_pair` and `toolchain`.
+    #
+    # The toolchain is automatically registered and uses the constraint:
+    # ```
+    # "@io_tweag_rules_nixpkgs//nixpkgs/constraints:support_nix"
+    # ```
+    #
+    # """
+    name = "nixpkgs_python_toolchain",
+    python3_attribute_path = "python39.withPackages(ps: [ ps.flask ])",
+    repository = "@nixpkgs",
+)
 
 # rules_nixpkgs/core/platforms/BUILD.bazel
 ##########################################
