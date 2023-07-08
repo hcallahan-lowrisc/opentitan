@@ -7,6 +7,72 @@
 
 workspace(name = "lowrisc_opentitan")
 
+######################
+#----- NIXPKGS ------#
+######################
+# https://github.com/tweag/rules_nixpkgs
+
+# Import the rules_nixpkgs repository.
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+# 420370f6 - Jun 22, 2023
+http_archive(
+    name = "io_tweag_rules_nixpkgs",
+    strip_prefix = "rules_nixpkgs-420370f64f03ed9c1ff9b5e2994d06c0439cb1f2",
+    urls = ["https://github.com/tweag/rules_nixpkgs/archive/420370f64f03ed9c1ff9b5e2994d06c0439cb1f2.tar.gz"],
+    sha256 = "5270e14b2965408f4ea51b2f76774525b086be6f00de0da4082d14a69017c5e4"
+)
+# Import the transitive dependencies of rules_nixpkgs.
+load("@io_tweag_rules_nixpkgs//nixpkgs:repositories.bzl", "rules_nixpkgs_dependencies")
+rules_nixpkgs_dependencies()
+
+# Create "@nixpkgs" as a specific revision of Nixpkgs on GitHub
+load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_git_repository")
+nixpkgs_git_repository(
+    name = "nixpkgs",
+    revision = "23.05",
+)
+
+###########
+
+# Configure a python toolchain
+# load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_python_configure")
+# nixpkgs_python_configure(
+#     # """Define and register a Python toolchain provided by nixpkgs.
+#     #
+#     # Creates `nixpkgs_package`s for Python 2 or 3 `py_runtime` instances and a
+#     # corresponding `py_runtime_pair` and `toolchain`.
+#     #
+#     # The toolchain is automatically registered and uses the constraint:
+#     # ```
+#     # "@io_tweag_rules_nixpkgs//nixpkgs/constraints:support_nix"
+#     # ```
+#     #
+#     # """
+#     name = "nixpkgs_python_toolchain",
+#     python3_attribute_path = "python39.withPackages(ps: [ ps.flask ])",
+#     repository = "@nixpkgs",
+# )
+
+# rules_nixpkgs/core/platforms/BUILD.bazel
+##########################################
+# > platform(
+# >     name = "host",
+# >     constraint_values = ["@rules_nixpkgs_core//constraints:support_nix"],
+# >     parents = ["@local_config_platform//:host"],
+# >     visibility = ["//visibility:public"],
+# > )
+##########################################
+
+# rules_nixpkgs/core/constraints/BUILD.bazel
+############################################
+# > constraint_setting(name = "nix")
+#
+# > constraint_value(
+# >     name = "support_nix",
+# >     constraint_setting = ":nix",
+# > )
+############################################
+
 # CRT is the Compiler Repository Toolkit.  It contains the configuration for
 # the windows compiler.
 load("//third_party/crt:repos.bzl", "crt_repos")
@@ -126,51 +192,6 @@ hyperdebug_repos()
 load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
 bazel_skylib_workspace()
 
-######################
-#----- NIXPKGS ------#
-######################
-# https://github.com/tweag/rules_nixpkgs
-
-# Import the rules_nixpkgs repository.
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-# 420370f6 - Jun 22, 2023
-http_archive(
-    name = "io_tweag_rules_nixpkgs",
-    strip_prefix = "rules_nixpkgs-420370f64f03ed9c1ff9b5e2994d06c0439cb1f2",
-    urls = ["https://github.com/tweag/rules_nixpkgs/archive/420370f64f03ed9c1ff9b5e2994d06c0439cb1f2.tar.gz"],
-    sha256 = "5270e14b2965408f4ea51b2f76774525b086be6f00de0da4082d14a69017c5e4"
-)
-# Import the transitive dependencies of rules_nixpkgs.
-load("@io_tweag_rules_nixpkgs//nixpkgs:repositories.bzl", "rules_nixpkgs_dependencies")
-rules_nixpkgs_dependencies()
-
-# Create a target "nixpkgs" as a specific revision of Nixpkgs on GitHub
-load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_git_repository")
-nixpkgs_git_repository(
-    name = "nixpkgs",
-    revision = "23.05",
-)
-
-###########
-
-# Configure python
-load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_python_configure")
-#     """Define and register a Python toolchain provided by nixpkgs.
-#
-#     Creates `nixpkgs_package`s for Python 2 or 3 `py_runtime` instances and a
-#     corresponding `py_runtime_pair` and `toolchain`.
-#
-#     The toolchain is automatically registered and uses the constraint:
-#     ```
-#     "@io_tweag_rules_nixpkgs//nixpkgs/constraints:support_nix"
-#     ```
-
-#     """
-nixpkgs_python_configure(
-    name = "nixpkgs_python_toolchain",
-    python3_attribute_path = "python39.withPackages(ps: [ ps.flask ])",
-    repository = "@nixpkgs",
-)
 
 
 # load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_package")
@@ -178,15 +199,6 @@ nixpkgs_python_configure(
 #     name = "hello",
 #     repositories = { "nixpkgs": "@nixpkgs//:default.nix" }
 # )
-
-
-# load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl",
-#      "nixpkgs_python_configure")
-# nixpkgs_python_configure(
-#     python3_attribute_path = "python39.withPackages(ps: with ps; [ numpy ])",
-#     repository = "@nixpkgs",
-# )
-
 
 # load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl",
 #      "nixpkgs_git_repository",
