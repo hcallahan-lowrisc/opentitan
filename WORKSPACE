@@ -15,11 +15,15 @@ workspace(name = "lowrisc_opentitan")
 # Import the rules_nixpkgs repository.
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 # 420370f6 - Jun 22, 2023
+NIXPKGS_HASH="420370f64f03ed9c1ff9b5e2994d06c0439cb1f2"
+NIXPKGS_SHA_OF_HASH="5270e14b2965408f4ea51b2f76774525b086be6f00de0da4082d14a69017c5e4"
 http_archive(
     name = "io_tweag_rules_nixpkgs",
-    strip_prefix = "rules_nixpkgs-420370f64f03ed9c1ff9b5e2994d06c0439cb1f2",
-    urls = ["https://github.com/tweag/rules_nixpkgs/archive/420370f64f03ed9c1ff9b5e2994d06c0439cb1f2.tar.gz"],
-    sha256 = "5270e14b2965408f4ea51b2f76774525b086be6f00de0da4082d14a69017c5e4"
+    strip_prefix = "rules_nixpkgs-%s" % NIXPKGS_HASH,
+    urls = [
+        "https://github.com/tweag/rules_nixpkgs/archive/%s.tar.gz" % NIXPKGS_HASH
+    ],
+    sha256 = NIXPKGS_SHA_OF_HASH,
 )
 # Import the transitive dependencies of rules_nixpkgs.
 load("@io_tweag_rules_nixpkgs//nixpkgs:repositories.bzl", "rules_nixpkgs_dependencies")
@@ -31,6 +35,10 @@ nixpkgs_git_repository(
     name = "nixpkgs",
     revision = "23.05",
 )
+
+nix_repos = {
+    "nixpkgs": "@nixpkgs",
+}
 
 ###########
 
@@ -72,6 +80,51 @@ nixpkgs_python_configure(
 # >     constraint_setting = ":nix",
 # > )
 ############################################
+
+UNPACK_SINGLE_BIN_BUILD_FILE = """
+filegroup(
+    name = "bin",
+    srcs = glob([ "**/bin/*" ]),
+    )
+
+genrule(
+  visibility = ["//visibility:public"],
+  name = "unpack_binaries",
+  cmd = \"\"\"\
+  #!/bin/bash
+
+  # Copy binaries to the output location
+  cp external/{bin_path} $(location :{bin_name});
+
+  \"\"\",
+  srcs = [ ":bin" ],
+  outs = [ "{bin_name}" ],
+  )
+"""
+
+load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_package")
+[nixpkgs_package(
+    name = a,
+    attribute_path = a,
+    build_file_content=UNPACK_SINGLE_BIN_BUILD_FILE.format(
+        bin_path="{}/bin/{}".format(a,a),
+        bin_name=a,
+    ),
+    repositories = nix_repos
+) for a in ["doxygen", "mdbook", "hugo"]]
+
+
+
+############################################
+
+http_archive(
+    name = "rules_sh",
+    sha256 = "d668bb32f112ead69c58bde2cae62f6b8acefe759a8c95a2d80ff6a85af5ac5e",
+    strip_prefix = "rules_sh-0.3.0",
+    urls = ["https://github.com/tweag/rules_sh/archive/v0.3.0.tar.gz"],
+)
+load("@rules_sh//sh:repositories.bzl", "rules_sh_dependencies")
+rules_sh_dependencies()
 
 # CRT is the Compiler Repository Toolkit.  It contains the configuration for
 # the windows compiler.
@@ -191,16 +244,3 @@ hyperdebug_repos()
 # Bazel skylib library
 load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
 bazel_skylib_workspace()
-
-
-
-# load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_package")
-# nixpkgs_package(
-#     name = "hello",
-#     repositories = { "nixpkgs": "@nixpkgs//:default.nix" }
-# )
-
-# load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl",
-#      "nixpkgs_git_repository",
-#      "nixpkgs_package",
-#      "nixpkgs_cc_configure")

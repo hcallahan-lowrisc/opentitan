@@ -148,14 +148,14 @@ buildSite () {
     echo "Building doxygen..."
     pushd "${this_dir}" >/dev/null
     # shellcheck disable=SC2086
-    ${doxygen_env} doxygen ${doxygen_args}
+    # ${doxygen_env} doxygen ${doxygen_args}
     popd >/dev/null
     echo "Doxygen build complete."
 
     # shellcheck disable=SC2086
-    ${book_env} ./bazelisk.sh run --experimental_convenience_symlinks=ignore @crate_index//:mdbook__mdbook -- ${book_args}
+    ${book_env} mdbook ${book_args}
     # shellcheck disable=SC2086
-    ${gettingstarted_book_env} ./bazelisk.sh run --experimental_convenience_symlinks=ignore @crate_index//:mdbook__mdbook -- ${gettingstarted_book_args}
+    ${gettingstarted_book_env} mdbook ${gettingstarted_book_args}
     # Copy additional font files to output directory, as currently mdBook does not have a way to specify them as part of the build.
     local font="Recursive_wght,CASL@300__800,0_5.woff2"
     cp "${proj_root}/site/book-theme/${font}" "${build_dir}/book/site/book-theme/${font}"
@@ -192,6 +192,7 @@ buildSite () {
     rm -rf "${build_dir}/book/sw/vendor/wycheproof/testvectors"
     # -------
 }
+set -x
 buildSite
 
 ###########
