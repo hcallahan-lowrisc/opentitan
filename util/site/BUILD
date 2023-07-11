@@ -35,19 +35,28 @@ sh_binaries(
     name = "build-docs-tools",
     srcs = [
         "@doxygen//:doxygen",
-        "@mdbook//:mdbook",
+        # "@mdbook//:mdbook",
+        "@crate_index//:mdbook__mdbook",
         "@hugo//:hugo",
     ]
 )
+
+# load("@aspect_bazel_lib//lib:run_binary.bzl", "run_binary")
 
 genrule(
     name = "build-docs-gen",
     srcs = [
         ":build-script",
+        "//:mdbook_files",
+        "//doc/guides/getting_started:mdbook_files_gettingstarted",
         "//hw:all_files",
-        "//:markdown",
+        "//sw:all_files",
+        "//sw/device/silicon_creator/manuf/data:all_files",
+        "//sw/device/silicon_creator/rom/data:all_files",
         "//site:files",
         "//util/doxygen:files",
+        "//util:mdbook_preprocessors",
+        "//util:all_files",
     ],
     tools = [ ":sh-lib" ],
     toolchains = [":build-docs-tools"], # Gives us _BUILD_DOCS_TOOLS_PATH
@@ -59,4 +68,24 @@ export PATH="$$(make_all_absolute "$(_BUILD_DOCS_TOOLS_PATH)"):$$PATH"
 $(location :build-script) build > $@
 """,
     outs = [ "out.txt" ],
+)
+
+load (":defs.bzl", "custom_rule")
+
+custom_rule(
+    name = "custom_rule",
+    tools = ":build-docs-tools",
+    srcs = [
+        "//:mdbook_files",
+        "//doc/guides/getting_started:mdbook_files_gettingstarted",
+        "//hw:all_files",
+        "//sw:all_files",
+        "//sw/device/silicon_creator/manuf/data:all_files",
+        "//sw/device/silicon_creator/rom/data:all_files",
+        "//site:files",
+        "//util/doxygen:files",
+        "//util:mdbook_preprocessors",
+        "//util:all_files",
+    ],
+    build_docs = ":build-script",
 )

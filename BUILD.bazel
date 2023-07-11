@@ -24,6 +24,30 @@ alias(
 )
 
 filegroup(
+    name = "all_files",
+    srcs = glob([
+        "doc/**/*",
+        "hw/**/*",
+        "quality/**/*",
+        "release/**/*",
+        "rules/**/*",
+        "signing/**/*",
+        "site/**/*",
+        "sw/**/*",
+        "third_part/**/*",
+        "util/**/*",
+    ]),
+)
+
+filegroup(
     name = "markdown",
     srcs = glob([ "**/*.md" ]),
+)
+
+filegroup(
+    name = "mdbook_files",
+    srcs = [
+        "book.toml",
+        "SUMMARY.md",
+    ],
 )

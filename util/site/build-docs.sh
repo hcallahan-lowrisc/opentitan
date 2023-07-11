@@ -105,14 +105,13 @@ doxygen_args="${proj_root}/util/doxygen/Doxyfile"
 # Each book should only be passed the preprocessors it specifies inside the book.toml
 # ./book.toml
 book_env="env"
-book_env+=" MDBOOK_PREPROCESSOR__TESTPLAN__COMMAND=${proj_root}/util/mdbook_testplan.py"
-book_env+=" MDBOOK_PREPROCESSOR__OTBN__COMMAND=${proj_root}/util/mdbook_otbn.py"
-book_env+=" MDBOOK_PREPROCESSOR__DOXYGEN__COMMAND=${proj_root}/util/mdbook_doxygen.py"
-book_env+=" MDBOOK_PREPROCESSOR__REGGEN__COMMAND=${proj_root}/util/mdbook_reggen.py"
-book_env+=" MDBOOK_PREPROCESSOR__WAVEJSON__COMMAND=${proj_root}/util/mdbook_wavejson.py"
-book_env+=" MDBOOK_PREPROCESSOR__README2INDEX__COMMAND=${proj_root}/util/mdbook_readme2index.py"
-book_env+=" MDBOOK_PREPROCESSOR__DASHBOARD__COMMAND=${proj_root}/util/mdbook_dashboard.py"
-book_env+=" MDBOOK_PREPROCESSOR__BLOCK_DASHBOARD__COMMAND=${proj_root}/util/mdbook-block-dashboard.py"
+# book_env+=" MDBOOK_PREPROCESSOR__TESTPLAN__COMMAND=${proj_root}/util/mdbook_testplan.py"
+# book_env+=" MDBOOK_PREPROCESSOR__OTBN__COMMAND=${proj_root}/util/mdbook_otbn.py"
+# book_env+=" MDBOOK_PREPROCESSOR__REGGEN__COMMAND=${proj_root}/util/mdbook_reggen.py"
+# book_env+=" MDBOOK_PREPROCESSOR__WAVEJSON__COMMAND=${proj_root}/util/mdbook_wavejson.py"
+# book_env+=" MDBOOK_PREPROCESSOR__README2INDEX__COMMAND=${proj_root}/util/mdbook_readme2index.py"
+# book_env+=" MDBOOK_PREPROCESSOR__DASHBOARD__COMMAND=${proj_root}/util/mdbook_dashboard.py"
+# book_env+=" MDBOOK_PREPROCESSOR__BLOCK_DASHBOARD__COMMAND=${proj_root}/util/mdbook-block-dashboard.py"
 book_env+=" MDBOOK_OUTPUT__HTML__THEME=$proj_root/site/book-theme/"
 book_env+=" MDBOOK_OUTPUT__HTML__DEFAULT_THEME=unicorn-vomit-light"
 book_env+=" MDBOOK_OUTPUT__HTML__PREFERRED_DARK_THEME=unicorn-vomit-light"
@@ -121,8 +120,8 @@ book_args+=" --dest-dir ${build_dir}/book/"
 book_args+=" ${proj_root}"
 # ./doc/guides/getting_started/book.toml
 gettingstarted_book_env="env"
-gettingstarted_book_env+=" MDBOOK_PREPROCESSOR__TOOLVERSION__COMMAND=${proj_root}/util/mdbook_toolversion.py"
-gettingstarted_book_env+=" MDBOOK_PREPROCESSOR__README2INDEX__COMMAND=${proj_root}/util/mdbook_readme2index.py"
+# gettingstarted_book_env+=" MDBOOK_PREPROCESSOR__TOOLVERSION__COMMAND=${proj_root}/util/mdbook_toolversion.py"
+# gettingstarted_book_env+=" MDBOOK_PREPROCESSOR__README2INDEX__COMMAND=${proj_root}/util/mdbook_readme2index.py"
 gettingstarted_book_env+=" MDBOOK_OUTPUT__HTML__THEME=${proj_root}/doc/guides/getting_started/book-theme/"
 gettingstarted_book_env+=" MDBOOK_OUTPUT__HTML__DEFAULT_THEME=unicorn-vomit-light"
 gettingstarted_book_env+=" MDBOOK_OUTPUT__HTML__PREFERRED_DARK_THEME=unicorn-vomit-light"
@@ -141,7 +140,14 @@ hugo_args+=" --baseURL ${base_url}"
 ############
 
 buildSite () {
+    echo "this_dir : ${this_dir}"
+    echo "proj_root : ${proj_root}"
     echo "Build Directory : ${build_dir}"
+
+    tool="${proj_root}/util/mdbook_readme2index.py"
+    echo "tool=${tool}"
+    echo "util=${proj_root}/util"
+
     mkdir -p "${build_dir}"
     mkdir -p "${build_dir}/gen/doxy"
 
@@ -152,10 +158,15 @@ buildSite () {
     popd >/dev/null
     echo "Doxygen build complete."
 
+    pushd "${proj_root}"
     # shellcheck disable=SC2086
-    ${book_env} mdbook ${book_args}
+    ${book_env} mdbook__bin ${book_args}
+    popd
+    pushd "${proj_root}/doc/guides/getting_started"
     # shellcheck disable=SC2086
-    ${gettingstarted_book_env} mdbook ${gettingstarted_book_args}
+    ${gettingstarted_book_env} mdbook__bin ${gettingstarted_book_args}
+    popd
+
     # Copy additional font files to output directory, as currently mdBook does not have a way to specify them as part of the build.
     local font="Recursive_wght,CASL@300__800,0_5.woff2"
     cp "${proj_root}/site/book-theme/${font}" "${build_dir}/book/site/book-theme/${font}"
@@ -193,6 +204,7 @@ buildSite () {
     # -------
 }
 set -x
+echo "${PATH}"
 buildSite
 
 ###########

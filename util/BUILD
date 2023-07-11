@@ -94,3 +94,13 @@ py_binary(
         requirement("pluralizer"),
     ],
 )
+
+filegroup(
+    name = "mdbook_preprocessors",
+    srcs = glob([ "mdbook*.py" ]),
+)
+
+filegroup(
+    name = "all_files",
+    srcs = glob([ "**" ]),
+)

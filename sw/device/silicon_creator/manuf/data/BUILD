@@ -5,3 +5,8 @@
 package(default_visibility = ["//visibility:public"])
 
 exports_files(["lc_raw_unlock_token.rs.tpl"])
+
+filegroup(
+    name = "all_files",
+    srcs = glob([ "**" ]),
+)

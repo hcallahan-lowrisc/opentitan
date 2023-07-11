@@ -8,3 +8,8 @@ exports_files([
     "rom_e2e_testplan.hjson",
     "rom_manual_testplan.hjson",
 ])
+
+filegroup(
+    name = "all_files",
+    srcs = glob([ "**" ]),
+)

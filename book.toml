@@ -62,11 +62,5 @@ command = "./util/mdbook_otbn.py"
 [preprocessor.dashboard]
 command = "./util/mdbook_dashboard.py"
 
-[preprocessor.doxygen]
-command = "./util/mdbook_doxygen.py"
-out-dir = "build-site/gen"
-html-out-dir = "gen/doxy"
-dif-src-py-regex = 'dif_\S*\.h'
-
 [preprocessor.block-dashboard]
 command = "./util/mdbook-block-dashboard.py"
