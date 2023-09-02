@@ -75,7 +75,7 @@
        markerUnits="strokeWidth"
        id="FilledArrow_Marker"
        stroke-linejoin="miter"
-       stroke-miterlimit="10"
+      
        viewBox="-1 -3 7 6"
        markerWidth="7"
        markerHeight="6"
