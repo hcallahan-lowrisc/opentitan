@@ -336,5 +336,17 @@
         {{/if}}
         {{/if}}
 
+        <!-- From site/book-theme/image_tweaks.js -->
+        <!-- Post-process the generated HTML to add some extra image
+             features to the content of the pages.
+             - Add lightbox to all non-svg <img> tags using tobii
+             - Convert linked .svg in <img> tags to inline <svg>
+             - render all wavejson
+             - make all inline <svg> within content pannable+zoomable
+        -->
+        <script>
+        image_tweaks();
+        </script>
+
     </body>
 </html>

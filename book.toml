@@ -20,8 +20,10 @@ mathjax-support = true
 additional-js = [
     "./util/mdbook/wavejson/default.js",
     "./util/mdbook/wavejson/wavedrom.min.js",
-    "./util/mdbook/wavejson/wavejson.js",
     "./site/book-theme/pagetoc.js",
+    "./site/book-theme/svg.panzoom.js/svg.panzoom.min.js",
+    "./site/book-theme/tobii-2.5.0/dist/tobii.min.js",
+    "./site/book-theme/image_tweaks.js",
 ]
 
 additional-css = [
@@ -29,6 +31,7 @@ additional-css = [
     "./site/book-theme/pagetoc.css",
     "./site/book-theme/recursive.css",
     "./site/book-theme/tweaks.css",
+    "./site/book-theme/tobii-2.5.0/dist/tobii.min.css",
 ]
 
 [output.html.print]
