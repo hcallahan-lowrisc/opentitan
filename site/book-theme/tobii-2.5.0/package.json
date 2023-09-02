@@ -1,0 +1,75 @@
+{
+  "name": "@midzer/tobii",
+  "version": "2.5.0",
+  "description": "An accessible, open-source lightbox with no dependencies.",
+  "main": "dist/tobii.js",
+  "module": "dist/tobii.module.js",
+  "umd:main": "dist/tobii.umd.js",
+  "unpkg": "dist/tobii.min.js",
+  "source": "src/js/index.js",
+  "exports": {
+    ".": {
+      "browser": "./dist/tobii.module.js",
+      "umd": "./dist/tobii.umd.js",
+      "import": "./dist/tobii.modern.js",
+      "require": "./dist/tobii.js"
+    },
+    "./package.json": "./package.json",
+    "./": "./"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "eslint": "^8.32.0",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-standard": "^5.0.0",
+    "microbundle": "^0.15.1",
+    "node-sass": "^7.0.3",
+    "rimraf": "^3.0.2",
+    "standard": "^17.0.0",
+    "stylelint": "^14.16.1"
+  },
+  "browserslist": {
+    "browser": [
+      "last 2 versions",
+      "not <= 1%",
+      "IE >= 11"
+    ],
+    "main": [
+      "last 2 versions",
+      "not <= 1%"
+    ]
+  },
+  "scripts": {
+    "build": "npm run clean && npm run build:main && npm run build:browser",
+    "build:main": "cross-env BROWSERSLIST_ENV=main microbundle build --raw --no-sourcemap --name Tobii",
+    "build:browser": "cross-env BROWSERSLIST_ENV=browser microbundle build --raw -f iife src/js/browser.js -o dist/tobii.min.js --no-sourcemap --name Tobii",
+    "clean": "rimraf dist",
+    "dev": "microbundle watch --raw --format cjs",
+    "dev-modern": "microbundle watch --raw --format esm",
+    "lint": "eslint src",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/midzer/tobii.git"
+  },
+  "files": [
+    "src",
+    "dist"
+  ],
+  "keywords": [
+    "lightbox",
+    "accessible",
+    "a11y",
+    "javascript",
+    "vanilla",
+    "scss",
+    "css"
+  ],
+  "author": "midzer",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/midzer/tobii/issues"
+  },
+  "homepage": "https://github.com/midzer/tobii"
+}
