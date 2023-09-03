@@ -72,11 +72,14 @@ var add_onload_event = function() {
         Array.prototype.forEach.call(
             content.querySelectorAll("svg"),
             function(el) {
+                // el.style.width = "auto";
+                // el.style.height = "auto";
                 /* https://github.com/svgdotjs/svg.panzoom.js */
-                SVG(el).panZoom({
-                    zoomFactor: 0.1,
-                    zoomMin: 0.5,
-                });
+                SVG(el)
+                    .panZoom({
+                        zoomFactor: 0.1,
+                        zoomMin: 0.5,
+                    });
             }
         );
 
