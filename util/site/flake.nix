@@ -1,8 +1,7 @@
 {
   description = "A flake for developing and building the OpenTitan site";
 
-  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-22.11";
-  inputs.unstable.url = "nixpkgs/nixos-unstable";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-23.05";
   inputs.flake-utils.url = "github:numtide/flake-utils";
   inputs.rust-overlay.url = "github:oxalica/rust-overlay";
   inputs.nix-filter.url = "github:numtide/nix-filter";
@@ -10,7 +9,6 @@
   outputs = inputs @ {
     self,
     nixpkgs,
-    unstable,
     flake-utils,
     rust-overlay,
     nix-filter,
@@ -21,25 +19,10 @@
           inherit system;
           overlays = [(import inputs.rust-overlay)];
         };
-        pkgs_unstable = import unstable {
-          inherit system;
-        };
 
         proj_root = ./../..;
 
         my_pythonenv = pkgs.python3.withPackages (ps: with ps; [hjson Mako mistletoe pyyaml libcst tabulate]);
-
-        mdbook_toc = pkgs.rustPlatform.buildRustPackage rec {
-          pname = "mdbook-toc";
-          version = "0.11.2";
-          src = pkgs.fetchFromGitHub {
-            owner = "badboy";
-            repo = pname;
-            rev = "${version}";
-            hash = "sha256-WkrXNFujLjE9dpFj2vTnmPa1beCGi7ZvyCOTW0Q/TO8=";
-          };
-          cargoHash = "sha256-W/lKoF9zeC85B4/vfwhXzTQnDeTdMDYoeTAPG/Kp6xM=";
-        };
 
         ######################################################
         ### Build the components of the site individually. ###
@@ -206,7 +189,7 @@
                 "site/README.md"
               ];
             };
-            nativeBuildInputs = with pkgs; [mdbook] ++ [my_pythonenv mdbook_toc];
+            nativeBuildInputs = with pkgs; [mdbook] ++ [my_pythonenv];
             patchPhase = ''
               runHook prePatch
               patchShebangs --build . &>/dev/null
@@ -391,9 +374,7 @@
               libxslt
               doxygen
               git
-            ])
-            ++ (with pkgs_unstable; [
-              mdbook-pagetoc
+              mdbook
             ])
             ++ [
               my_pythonenv
