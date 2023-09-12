@@ -22,7 +22,7 @@
 
         proj_root = ./../..;
 
-        my_pythonenv = pkgs.python3.withPackages (ps: with ps; [hjson Mako mistletoe pyyaml libcst tabulate]);
+        my_pythonenv = pkgs.python3.withPackages (ps: with ps; [hjson Mako mistletoe pyyaml libcst tabulate semantic-version]);
 
         ######################################################
         ### Build the components of the site individually. ###
@@ -52,7 +52,6 @@
               doxygen_env="env"
               doxygen_env+=" SRCTREE_TOP=."
               doxygen_env+=" DOXYGEN_OUT=$out"
-              doxygen_env+=" DOXYGEN_HTML_OUTPUT=${doxygen_html_out_dir}"
               doxygen_args="util/doxygen/Doxyfile"
 
               mkdir -p $out
@@ -81,8 +80,6 @@
             dontInstall = true;
             dontFixup = true;
             buildPhase = ''
-              hugo_env="env"
-              hugo_env+=" HUGO_PARAMS_DOCSURL=${docsURL}"
               hugo_args=""
               hugo_args+=" --source site/landing/"
               hugo_args+=" --destination $out"
@@ -97,7 +94,7 @@
               done
 
               mkdir $out
-              $hugo_env hugo $hugo_args
+              hugo $hugo_args
             '';
           };
 
@@ -128,17 +125,20 @@
 
               book_env="env"
               book_env+=" MDBOOK_OUTPUT__HTML__THEME=$(realpath site/book-theme/)"  # mdBook interprets this as relative to SITE_URL unless it is absolute
+              book_env+=" MDBOOK_OUTPUT__HTML__DEFAULT_THEME=unicorn-vomit-light"
+              book_env+=" MDBOOK_OUTPUT__HTML__PREFERRED_DARK_THEME=unicorn-vomit-light"
               book_env+=" MDBOOK_OUTPUT__HTML__SITE_URL=${baseURL}"
+              # Preprocessors
               book_env+=" MDBOOK_PREPROCESSOR__TESTPLAN__COMMAND=util/mdbook_testplan.py"
               book_env+=" MDBOOK_PREPROCESSOR__OTBN__COMMAND=util/mdbook_otbn.py"
-              book_env+=" MDBOOK_PREPROCESSOR__DOXYGEN__COMMAND=util/mdbook_doxygen.py"
-              book_env+=" MDBOOK_PREPROCESSOR__DOXYGEN__OUT_DIR=${doxyDrv}"
-              book_env+=" MDBOOK_PREPROCESSOR__DOXYGEN__HTML_OUT_DIR=${doxyURL}"
               book_env+=" MDBOOK_PREPROCESSOR__REGGEN__COMMAND=util/mdbook_reggen.py"
               book_env+=" MDBOOK_PREPROCESSOR__WAVEJSON__COMMAND=util/mdbook_wavejson.py"
               book_env+=" MDBOOK_PREPROCESSOR__README2INDEX__COMMAND=util/mdbook_readme2index.py"
               book_env+=" MDBOOK_PREPROCESSOR__DASHBOARD__COMMAND=util/mdbook_dashboard.py"
               # book_env+=" MDBOOK_PREPROCESSOR__BLOCK_DASHBOARD__COMMAND=util/mdbook-block-dashboard.py"
+              book_env+=" MDBOOK_PREPROCESSOR__DOXYGEN__COMMAND=util/mdbook_doxygen.py"
+              book_env+=" MDBOOK_PREPROCESSOR__DOXYGEN__OUT_DIR=${doxyDrv}"
+              book_env+=" MDBOOK_PREPROCESSOR__DOXYGEN__HTML_OUT_DIR=${doxyURL}"
 
               book_args="build"
               book_args+=" --dest-dir $(realpath ./build)"
@@ -164,7 +164,7 @@
               rm -rf sw/vendor/wycheproof
 
               # Blacklist some top-level directories while copying across
-              blacklist="ci quality release rules site third_party"
+              blacklist="ci quality release rules third_party"
               for f in *; do
                 if ! [[ $(grep $f <<< $blacklist) ]]; then
                   cp -R $f $out
@@ -176,51 +176,6 @@
             dontFixup = true;
           };
 
-        ot-getting-started = {baseURL ? "http://localhost:9000/guides/getting_started/"}:
-          pkgs.stdenv.mkDerivation rec {
-            pname = "ot-getting-started";
-            version = "0.0.1-dev";
-            src = nix-filter.lib {
-              root = proj_root;
-              include = [
-                # If no include is passed, it will include all the paths.
-                "doc/guides/getting_started"
-                "site/book-theme"
-                "site/README.md"
-              ];
-            };
-            nativeBuildInputs = with pkgs; [mdbook] ++ [my_pythonenv];
-            patchPhase = ''
-              runHook prePatch
-              patchShebangs --build . &>/dev/null
-              runHook postPatch
-            '';
-            buildPhase = ''
-              runHook preBuild
-
-              book_env="env"
-              book_env+=" MDBOOK_OUTPUT__HTML__THEME=$(realpath site/book-theme/)"  # mdBook interprets this as relative to SITE_URL unless it is absolute
-              book_env+=" MDBOOK_OUTPUT__HTML__SITE_URL=${baseURL}"
-              book_env+=" MDBOOK_PREPROCESSOR__TOOLVERSION__COMMAND=util/mdbook_toolversion.py"
-              book_env+=" MDBOOK_PREPROCESSOR__README2INDEX__COMMAND=util/mdbook_readme2index.py"
-
-              book_args="build"
-              book_args+=" --dest-dir $(realpath ./build)"
-              book_args+=" doc/guides/getting_started"
-
-              mkdir -p ./build
-              $book_env mdbook $book_args
-
-              runHook postBuild
-            '';
-            installPhase = ''
-              runHook preInstall
-              mkdir -p $out
-              cp -R build/* $out
-              runHook postInstall
-            '';
-            dontFixup = true;
-          };
 
         #######################################################
         ### Assemble components into a full site filesystem ###
@@ -235,26 +190,24 @@
           symlink ? true
         }: let
           doxygen_html_out_dir = "html/";
-          doxygen         = ot-doxygen         { inherit doxygen_html_out_dir; };
-          landing         = ot-landing         { baseURL = "${baseURL}/${path}";
-                                                 docsURL = "${baseURL}/${path}/book"; };
-          book            = ot-book            { baseURL = "${baseURL}/${path}/book";
-                                                 doxyURL = "${baseURL}/${path}/gen/doxy/${doxygen_html_out_dir}";
-                                                 doxyDrv = doxygen; };
-          getting-started = ot-getting-started { baseURL = "${baseURL}/${path}/guides/getting_started"; };
+          doxygen              = ot-doxygen { inherit doxygen_html_out_dir; };
+          landing              = ot-landing { baseURL = "${baseURL}/${path}";
+                                              docsURL = "${baseURL}/${path}/book"; };
+          book                 = ot-book    { baseURL = "${baseURL}/${path}/book";
+                                              doxyURL = "${baseURL}/${path}/gen/doxy/${doxygen_html_out_dir}";
+                                              doxyDrv = doxygen; };
         in pkgs.stdenv.mkDerivation rec {
           pname = "site-fs";
           version = "0.0.1-dev";
           dontUnpack = true;
           content_root = "$out/${path}";
-          nativeBuildInputs = [ landing book getting-started doxygen ];
+          nativeBuildInputs = [ landing book doxygen ];
           buildPhase = ''
             for f in ${content_root}{/,/book,/guides/getting_started,/gen/doxy}; do
               mkdir -p $f
             done
             cp -R ${if symlink then "--symbolic-link" else ""} ${landing}/*         ${content_root}/
             cp -R ${if symlink then "--symbolic-link" else ""} ${book}/*            ${content_root}/book/
-            cp -R ${if symlink then "--symbolic-link" else ""} ${getting-started}/* ${content_root}/guides/getting_started/
             cp -R ${if symlink then "--symbolic-link" else ""} ${doxygen}/*         ${content_root}/gen/doxy
           '';
           dontInstall = true;
@@ -330,7 +283,6 @@
         packages = {
           landing = ot-landing {};
           book = ot-book {};
-          getting-started = ot-getting-started {};
           doxygen = ot-doxygen {};
           site = (ot-site {}).fs {};
           site-image = ot-site-image;
@@ -382,6 +334,7 @@
           shellHook = ''
             helpstr=$(cat <<'EOF'
             > OpenTitan util/site shell environment.
+            BROKEN, DO NOT RUN SCRIPTS HERE.
             ./util/site/build-docs.sh serve          - Build and serve the website on localhost
             ./util/site/deploy.sh staging            - Build and deploy the site to staging.opentitan.org
 
