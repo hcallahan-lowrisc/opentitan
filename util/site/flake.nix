@@ -1,6 +1,9 @@
 {
   description = "A flake for developing and building the OpenTitan site";
 
+  # Set nix.conf for this flake
+  nixConfig.bash-prompt = "\[opentitan-site\]$ ";
+
   inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-23.05";
   inputs.flake-utils.url = "github:numtide/flake-utils";
   inputs.rust-overlay.url = "github:oxalica/rust-overlay";
