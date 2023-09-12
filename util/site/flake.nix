@@ -243,58 +243,41 @@
         ### Assemble components into a full site filesystem ###
         #######################################################
 
+        # DON'T FMT #
         site-fs = {
           baseURL ? "http://localhost:9000",
-          path ? "", # Build for a path within the domain.
-          # (e.g. as an alternative to a URL-rewriting reverse-proxy)
-        }: {symlink ? true}: let
+          path ? "",  # Build for a path within the domain.
+                      # (e.g. as an alternative to a URL-rewriting reverse-proxy)
+        }: {
+          symlink ? true
+        }: let
           doxygen_html_out_dir = "html/";
-          doxygen = ot-doxygen {inherit doxygen_html_out_dir;};
-          landing = ot-landing {
-            baseURL = "${baseURL}/${path}";
-            docsURL = "${baseURL}/${path}/book";
-          };
-          book = ot-book {
-            baseURL = "${baseURL}/${path}/book";
-            doxyURL = "${baseURL}/${path}/gen/doxy/${doxygen_html_out_dir}";
-            doxyDrv = doxygen;
-          };
-          getting-started = ot-getting-started {baseURL = "${baseURL}/${path}/guides/getting_started";};
-        in
-          pkgs.stdenv.mkDerivation rec {
-            pname = "site-fs";
-            version = "0.0.1-dev";
-            dontUnpack = true;
-            content_root = "$out/${path}";
-            nativeBuildInputs = [landing book getting-started doxygen];
-            buildPhase = ''
-              for f in ${content_root}{/,/book,/guides/getting_started,/gen/doxy}; do
-                mkdir -p $f
-              done
-              cp -R ${
-                if symlink
-                then "--symbolic-link"
-                else ""
-              } ${landing}/*         ${content_root}/
-              cp -R ${
-                if symlink
-                then "--symbolic-link"
-                else ""
-              } ${book}/*            ${content_root}/book/
-              cp -R ${
-                if symlink
-                then "--symbolic-link"
-                else ""
-              } ${getting-started}/* ${content_root}/guides/getting_started/
-              cp -R ${
-                if symlink
-                then "--symbolic-link"
-                else ""
-              } ${doxygen}/*         ${content_root}/gen/doxy
-            '';
-            dontInstall = true;
-            dontFixup = true;
-          };
+          doxygen         = ot-doxygen         { inherit doxygen_html_out_dir; };
+          landing         = ot-landing         { baseURL = "${baseURL}/${path}";
+                                                 docsURL = "${baseURL}/${path}/book"; };
+          book            = ot-book            { baseURL = "${baseURL}/${path}/book";
+                                                 doxyURL = "${baseURL}/${path}/gen/doxy/${doxygen_html_out_dir}";
+                                                 doxyDrv = doxygen; };
+          getting-started = ot-getting-started { baseURL = "${baseURL}/${path}/guides/getting_started"; };
+        in pkgs.stdenv.mkDerivation rec {
+          pname = "site-fs";
+          version = "0.0.1-dev";
+          dontUnpack = true;
+          content_root = "$out/${path}";
+          nativeBuildInputs = [ landing book getting-started doxygen ];
+          buildPhase = ''
+            for f in ${content_root}{/,/book,/guides/getting_started,/gen/doxy}; do
+              mkdir -p $f
+            done
+            cp -R ${if symlink then "--symbolic-link" else ""} ${landing}/*         ${content_root}/
+            cp -R ${if symlink then "--symbolic-link" else ""} ${book}/*            ${content_root}/book/
+            cp -R ${if symlink then "--symbolic-link" else ""} ${getting-started}/* ${content_root}/guides/getting_started/
+            cp -R ${if symlink then "--symbolic-link" else ""} ${doxygen}/*         ${content_root}/gen/doxy
+          '';
+          dontInstall = true;
+          dontFixup = true;
+        };
+
 
         ###################################################
         ### Build the site filesystem for a specific URL ##
