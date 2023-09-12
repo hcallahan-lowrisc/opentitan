@@ -7,12 +7,19 @@
   inputs.rust-overlay.url = "github:oxalica/rust-overlay";
   inputs.nix-filter.url = "github:numtide/nix-filter";
 
-  outputs = { self, nixpkgs, unstable, flake-utils, rust-overlay, nix-filter }@inputs:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
+  outputs = inputs @ {
+    self,
+    nixpkgs,
+    unstable,
+    flake-utils,
+    rust-overlay,
+    nix-filter,
+  }:
+    flake-utils.lib.eachDefaultSystem (
+      system: let
         pkgs = import nixpkgs {
           inherit system;
-          overlays = [ (import inputs.rust-overlay) ];
+          overlays = [(import inputs.rust-overlay)];
         };
         pkgs_unstable = import unstable {
           inherit system;
@@ -20,8 +27,7 @@
 
         proj_root = ./../..;
 
-        my_pythonenv =  pkgs.python3.withPackages (ps: with ps;
-          [ hjson Mako mistletoe pyyaml libcst tabulate ]);
+        my_pythonenv = pkgs.python3.withPackages (ps: with ps; [hjson Mako mistletoe pyyaml libcst tabulate]);
 
         mdbook_toc = pkgs.rustPlatform.buildRustPackage rec {
           pname = "mdbook-toc";
@@ -40,187 +46,198 @@
         ######################################################
 
         ot-doxygen = {
-          doxygen_html_out_dir ? "html/"  # The relative path of the generated HTML files to the DOXYGEN_OUT path
-        }: pkgs.stdenv.mkDerivation rec {
-          pname = "ot-doxygen";
-          version = "0.0.1-dev";
-          src = nix-filter.lib { root = proj_root;
-            include = [ # If no include is passed, it will include all the paths.
-              "util/doxygen/Doxyfile"
-              "site/doxygen"
-              "sw/device"
-              "hw/top_earlgrey/sw"
-            ];
-          };
-          nativeBuildInputs = with pkgs; [ doxygen git ];
-          dontInstall = true; dontFixup = true;
-          buildPhase = ''
-            # Build up doxygen command
-            doxygen_env="env"
-            doxygen_env+=" SRCTREE_TOP=."
-            doxygen_env+=" DOXYGEN_OUT=$out"
-            doxygen_env+=" DOXYGEN_HTML_OUTPUT=${doxygen_html_out_dir}"
-            doxygen_args="util/doxygen/Doxyfile"
+          doxygen_html_out_dir ? "html/", # The relative path of the generated HTML files to the DOXYGEN_OUT path
+        }:
+          pkgs.stdenv.mkDerivation rec {
+            pname = "ot-doxygen";
+            version = "0.0.1-dev";
+            src = nix-filter.lib {
+              root = proj_root;
+              include = [
+                # If no include is passed, it will include all the paths.
+                "util/doxygen/Doxyfile"
+                "site/doxygen"
+                "sw/device"
+                "hw/top_earlgrey/sw"
+              ];
+            };
+            nativeBuildInputs = with pkgs; [doxygen git];
+            dontInstall = true;
+            dontFixup = true;
+            buildPhase = ''
+              # Build up doxygen command
+              doxygen_env="env"
+              doxygen_env+=" SRCTREE_TOP=."
+              doxygen_env+=" DOXYGEN_OUT=$out"
+              doxygen_env+=" DOXYGEN_HTML_OUTPUT=${doxygen_html_out_dir}"
+              doxygen_args="util/doxygen/Doxyfile"
 
-            mkdir -p $out
-            $doxygen_env doxygen $doxygen_args
-          '';
-        };
+              mkdir -p $out
+              $doxygen_env doxygen $doxygen_args
+            '';
+          };
 
         ot-landing = {
           baseURL ? "http://localhost:9000",
           docsURL ? "http://localhost:9000/book",
-        }: pkgs.stdenv.mkDerivation rec {
-          pname = "ot-landing";
-          version = "0.0.1-dev";
-          src = nix-filter.lib { root = proj_root;
-            include = [ # If no include is passed, it will include all the paths.
-              "site/landing"
-              "site/block-diagram"
-              "util/site-dashboard"
-              "util/site/blocks.json"
-            ];
+        }:
+          pkgs.stdenv.mkDerivation rec {
+            pname = "ot-landing";
+            version = "0.0.1-dev";
+            src = nix-filter.lib {
+              root = proj_root;
+              include = [
+                # If no include is passed, it will include all the paths.
+                "site/landing"
+                "site/block-diagram"
+                "util/site-dashboard"
+                "util/site/blocks.json"
+              ];
+            };
+            nativeBuildInputs = [pkgs.hugo];
+            dontInstall = true;
+            dontFixup = true;
+            buildPhase = ''
+              hugo_env="env"
+              hugo_env+=" HUGO_PARAMS_DOCSURL=${docsURL}"
+              hugo_args=""
+              hugo_args+=" --source site/landing/"
+              hugo_args+=" --destination $out"
+              hugo_args+=" --baseURL ${baseURL}"
+
+              # Replace relative symlinks with the real files, as Hugo seems to choke on these for some reason.
+              for f in site/landing/static/js/{dashboard.js,ot-nightly-results.js}; do
+                  pushd $(dirname $f) &>/dev/null
+                  name="$(basename $f)"
+                  cp --remove-destination $(readlink $name) $name
+                  popd &>/dev/null
+              done
+
+              mkdir $out
+              $hugo_env hugo $hugo_args
+            '';
           };
-          nativeBuildInputs = [ pkgs.hugo ];
-          dontInstall = true; dontFixup = true;
-          buildPhase = ''
-            hugo_env="env"
-            hugo_env+=" HUGO_PARAMS_DOCSURL=${docsURL}"
-            hugo_args=""
-            hugo_args+=" --source site/landing/"
-            hugo_args+=" --destination $out"
-            hugo_args+=" --baseURL ${baseURL}"
-
-            # Replace relative symlinks with the real files, as Hugo seems to choke on these for some reason.
-            for f in site/landing/static/js/{dashboard.js,ot-nightly-results.js}; do
-                pushd $(dirname $f) &>/dev/null
-                name="$(basename $f)"
-                cp --remove-destination $(readlink $name) $name
-                popd &>/dev/null
-            done
-
-            mkdir $out
-            $hugo_env hugo $hugo_args
-          '';
-        };
 
         ot-book = {
           baseURL ? "http://localhost:9000/book",
           doxyURL ? "http://localhost:9000/gen/doxy/html",
-          doxyDrv ? (ot-doxygen {}),  # Need the location of the build Doxygen files to import the XML
-        }: pkgs.stdenv.mkDerivation rec {
-          pname = "ot-book";
-          version = "0.0.1-dev";
-          src = nix-filter.lib.filter { root = proj_root;
-            # If no include is passed, it will include all the paths.
-            exclude = [
-              "util/site/flake.nix"
-              "util/site/flake.lock"
-            ];
+          doxyDrv ? (ot-doxygen {}), # Need the location of the build Doxygen files to import the XML
+        }:
+          pkgs.stdenv.mkDerivation rec {
+            pname = "ot-book";
+            version = "0.0.1-dev";
+            src = nix-filter.lib.filter {
+              root = proj_root;
+              # If no include is passed, it will include all the paths.
+              exclude = [
+                "util/site/flake.nix"
+                "util/site/flake.lock"
+              ];
+            };
+            nativeBuildInputs = with pkgs; [mdbook libxslt] ++ [my_pythonenv];
+            patchPhase = ''
+              runHook prePatch
+              patchShebangs --build . &>/dev/null
+              runHook postPatch
+            '';
+            buildPhase = ''
+              runHook preBuild
+
+              book_env="env"
+              book_env+=" MDBOOK_OUTPUT__HTML__THEME=$(realpath site/book-theme/)"  # mdBook interprets this as relative to SITE_URL unless it is absolute
+              book_env+=" MDBOOK_OUTPUT__HTML__SITE_URL=${baseURL}"
+              book_env+=" MDBOOK_PREPROCESSOR__TESTPLAN__COMMAND=util/mdbook_testplan.py"
+              book_env+=" MDBOOK_PREPROCESSOR__OTBN__COMMAND=util/mdbook_otbn.py"
+              book_env+=" MDBOOK_PREPROCESSOR__DOXYGEN__COMMAND=util/mdbook_doxygen.py"
+              book_env+=" MDBOOK_PREPROCESSOR__DOXYGEN__OUT_DIR=${doxyDrv}"
+              book_env+=" MDBOOK_PREPROCESSOR__DOXYGEN__HTML_OUT_DIR=${doxyURL}"
+              book_env+=" MDBOOK_PREPROCESSOR__REGGEN__COMMAND=util/mdbook_reggen.py"
+              book_env+=" MDBOOK_PREPROCESSOR__WAVEJSON__COMMAND=util/mdbook_wavejson.py"
+              book_env+=" MDBOOK_PREPROCESSOR__README2INDEX__COMMAND=util/mdbook_readme2index.py"
+              book_env+=" MDBOOK_PREPROCESSOR__DASHBOARD__COMMAND=util/mdbook_dashboard.py"
+              # book_env+=" MDBOOK_PREPROCESSOR__BLOCK_DASHBOARD__COMMAND=util/mdbook-block-dashboard.py"
+
+              book_args="build"
+              book_args+=" --dest-dir $(realpath ./build)"
+
+              # This isn't strictly required, but there is a check in mdbook_doxygen.py that it can find the files here.
+              # It confirms that the Doxygen output has been correctly generated for our expected filesystem structure.
+              mkdir -p build/gen/doxy
+              ln -s ${doxyDrv}/* build/gen/doxy
+
+              mkdir -p ./build
+              $book_env mdbook $book_args
+
+              runHook postBuild
+            '';
+            # Define a custom InstallPhase as mdBook currently copies waay too many files to it's --dest-dir
+            installPhase = ''
+              runHook preInstall
+
+              mkdir -p $out
+              pushd build
+
+              # Manually delete some files in the build tree
+              rm -rf sw/vendor/wycheproof
+
+              # Blacklist some top-level directories while copying across
+              blacklist="ci quality release rules site third_party"
+              for f in *; do
+                if ! [[ $(grep $f <<< $blacklist) ]]; then
+                  cp -R $f $out
+                fi
+              done
+
+              runHook postInstall
+            '';
+            dontFixup = true;
           };
-          nativeBuildInputs = with pkgs; [ mdbook libxslt ] ++ [ my_pythonenv ];
-          patchPhase = ''
-            runHook prePatch
-            patchShebangs --build . &>/dev/null
-            runHook postPatch
-          '';
-          buildPhase = ''
-            runHook preBuild
 
-            book_env="env"
-            book_env+=" MDBOOK_OUTPUT__HTML__THEME=$(realpath site/book-theme/)"  # mdBook interprets this as relative to SITE_URL unless it is absolute
-            book_env+=" MDBOOK_OUTPUT__HTML__SITE_URL=${baseURL}"
-            book_env+=" MDBOOK_PREPROCESSOR__TESTPLAN__COMMAND=util/mdbook_testplan.py"
-            book_env+=" MDBOOK_PREPROCESSOR__OTBN__COMMAND=util/mdbook_otbn.py"
-            book_env+=" MDBOOK_PREPROCESSOR__DOXYGEN__COMMAND=util/mdbook_doxygen.py"
-            book_env+=" MDBOOK_PREPROCESSOR__DOXYGEN__OUT_DIR=${doxyDrv}"
-            book_env+=" MDBOOK_PREPROCESSOR__DOXYGEN__HTML_OUT_DIR=${doxyURL}"
-            book_env+=" MDBOOK_PREPROCESSOR__REGGEN__COMMAND=util/mdbook_reggen.py"
-            book_env+=" MDBOOK_PREPROCESSOR__WAVEJSON__COMMAND=util/mdbook_wavejson.py"
-            book_env+=" MDBOOK_PREPROCESSOR__README2INDEX__COMMAND=util/mdbook_readme2index.py"
-            book_env+=" MDBOOK_PREPROCESSOR__DASHBOARD__COMMAND=util/mdbook_dashboard.py"
-            # book_env+=" MDBOOK_PREPROCESSOR__BLOCK_DASHBOARD__COMMAND=util/mdbook-block-dashboard.py"
+        ot-getting-started = {baseURL ? "http://localhost:9000/guides/getting_started/"}:
+          pkgs.stdenv.mkDerivation rec {
+            pname = "ot-getting-started";
+            version = "0.0.1-dev";
+            src = nix-filter.lib {
+              root = proj_root;
+              include = [
+                # If no include is passed, it will include all the paths.
+                "doc/guides/getting_started"
+                "site/book-theme"
+                "site/README.md"
+              ];
+            };
+            nativeBuildInputs = with pkgs; [mdbook] ++ [my_pythonenv mdbook_toc];
+            patchPhase = ''
+              runHook prePatch
+              patchShebangs --build . &>/dev/null
+              runHook postPatch
+            '';
+            buildPhase = ''
+              runHook preBuild
 
-            book_args="build"
-            book_args+=" --dest-dir $(realpath ./build)"
+              book_env="env"
+              book_env+=" MDBOOK_OUTPUT__HTML__THEME=$(realpath site/book-theme/)"  # mdBook interprets this as relative to SITE_URL unless it is absolute
+              book_env+=" MDBOOK_OUTPUT__HTML__SITE_URL=${baseURL}"
+              book_env+=" MDBOOK_PREPROCESSOR__TOOLVERSION__COMMAND=util/mdbook_toolversion.py"
+              book_env+=" MDBOOK_PREPROCESSOR__README2INDEX__COMMAND=util/mdbook_readme2index.py"
 
-            # This isn't strictly required, but there is a check in mdbook_doxygen.py that it can find the files here.
-            # It confirms that the Doxygen output has been correctly generated for our expected filesystem structure.
-            mkdir -p build/gen/doxy
-            ln -s ${doxyDrv}/* build/gen/doxy
+              book_args="build"
+              book_args+=" --dest-dir $(realpath ./build)"
+              book_args+=" doc/guides/getting_started"
 
-            mkdir -p ./build
-            $book_env mdbook $book_args
+              mkdir -p ./build
+              $book_env mdbook $book_args
 
-            runHook postBuild
-          '';
-          # Define a custom InstallPhase as mdBook currently copies waay too many files to it's --dest-dir
-          installPhase = ''
-            runHook preInstall
-
-            mkdir -p $out
-            pushd build
-
-            # Manually delete some files in the build tree
-            rm -rf sw/vendor/wycheproof
-
-            # Blacklist some top-level directories while copying across
-            blacklist="ci quality release rules site third_party"
-            for f in *; do
-              if ! [[ $(grep $f <<< $blacklist) ]]; then
-                cp -R $f $out
-              fi
-            done
-
-            runHook postInstall
-          '';
-          dontFixup = true;
-        };
-
-        ot-getting-started = {
-          baseURL ? "http://localhost:9000/guides/getting_started/"
-        }: pkgs.stdenv.mkDerivation rec {
-          pname = "ot-getting-started";
-          version = "0.0.1-dev";
-          src = nix-filter.lib { root = proj_root;
-            include = [ # If no include is passed, it will include all the paths.
-              "doc/guides/getting_started"
-              "site/book-theme"
-              "site/README.md"
-            ];
+              runHook postBuild
+            '';
+            installPhase = ''
+              runHook preInstall
+              mkdir -p $out
+              cp -R build/* $out
+              runHook postInstall
+            '';
+            dontFixup = true;
           };
-          nativeBuildInputs = with pkgs; [ mdbook ] ++ [ my_pythonenv mdbook_toc ];
-          patchPhase = ''
-            runHook prePatch
-            patchShebangs --build . &>/dev/null
-            runHook postPatch
-          '';
-          buildPhase = ''
-            runHook preBuild
-
-            book_env="env"
-            book_env+=" MDBOOK_OUTPUT__HTML__THEME=$(realpath site/book-theme/)"  # mdBook interprets this as relative to SITE_URL unless it is absolute
-            book_env+=" MDBOOK_OUTPUT__HTML__SITE_URL=${baseURL}"
-            book_env+=" MDBOOK_PREPROCESSOR__TOOLVERSION__COMMAND=util/mdbook_toolversion.py"
-            book_env+=" MDBOOK_PREPROCESSOR__README2INDEX__COMMAND=util/mdbook_readme2index.py"
-
-            book_args="build"
-            book_args+=" --dest-dir $(realpath ./build)"
-            book_args+=" doc/guides/getting_started"
-
-            mkdir -p ./build
-            $book_env mdbook $book_args
-
-            runHook postBuild
-          '';
-          installPhase = ''
-            runHook preInstall
-            mkdir -p $out
-            cp -R build/* $out
-            runHook postInstall
-          '';
-          dontFixup = true;
-        };
 
         #######################################################
         ### Assemble components into a full site filesystem ###
@@ -228,37 +245,56 @@
 
         site-fs = {
           baseURL ? "http://localhost:9000",
-          path ? "",  # Build for a path within the domain.
-                      # (e.g. as an alternative to a URL-rewriting reverse-proxy)
-        }: {
-          symlink ? true
-        }: let
+          path ? "", # Build for a path within the domain.
+          # (e.g. as an alternative to a URL-rewriting reverse-proxy)
+        }: {symlink ? true}: let
           doxygen_html_out_dir = "html/";
-          doxygen         = ot-doxygen         { inherit doxygen_html_out_dir; };
-          landing         = ot-landing         { baseURL = "${baseURL}/${path}";
-                                                 docsURL = "${baseURL}/${path}/book"; };
-          book            = ot-book            { baseURL = "${baseURL}/${path}/book";
-                                                 doxyURL = "${baseURL}/${path}/gen/doxy/${doxygen_html_out_dir}";
-                                                 doxyDrv = doxygen; };
-          getting-started = ot-getting-started { baseURL = "${baseURL}/${path}/guides/getting_started"; };
-        in pkgs.stdenv.mkDerivation rec {
-          pname = "site-fs";
-          version = "0.0.1-dev";
-          dontUnpack = true;
-          content_root = "$out/${path}";
-          nativeBuildInputs = [ landing book getting-started doxygen ];
-          buildPhase = ''
-            for f in ${content_root}{/,/book,/guides/getting_started,/gen/doxy}; do
-              mkdir -p $f
-            done
-            cp -R ${if symlink then "--symbolic-link" else ""} ${landing}/*         ${content_root}/
-            cp -R ${if symlink then "--symbolic-link" else ""} ${book}/*            ${content_root}/book/
-            cp -R ${if symlink then "--symbolic-link" else ""} ${getting-started}/* ${content_root}/guides/getting_started/
-            cp -R ${if symlink then "--symbolic-link" else ""} ${doxygen}/*         ${content_root}/gen/doxy
-          '';
-          dontInstall = true;
-          dontFixup = true;
-        };
+          doxygen = ot-doxygen {inherit doxygen_html_out_dir;};
+          landing = ot-landing {
+            baseURL = "${baseURL}/${path}";
+            docsURL = "${baseURL}/${path}/book";
+          };
+          book = ot-book {
+            baseURL = "${baseURL}/${path}/book";
+            doxyURL = "${baseURL}/${path}/gen/doxy/${doxygen_html_out_dir}";
+            doxyDrv = doxygen;
+          };
+          getting-started = ot-getting-started {baseURL = "${baseURL}/${path}/guides/getting_started";};
+        in
+          pkgs.stdenv.mkDerivation rec {
+            pname = "site-fs";
+            version = "0.0.1-dev";
+            dontUnpack = true;
+            content_root = "$out/${path}";
+            nativeBuildInputs = [landing book getting-started doxygen];
+            buildPhase = ''
+              for f in ${content_root}{/,/book,/guides/getting_started,/gen/doxy}; do
+                mkdir -p $f
+              done
+              cp -R ${
+                if symlink
+                then "--symbolic-link"
+                else ""
+              } ${landing}/*         ${content_root}/
+              cp -R ${
+                if symlink
+                then "--symbolic-link"
+                else ""
+              } ${book}/*            ${content_root}/book/
+              cp -R ${
+                if symlink
+                then "--symbolic-link"
+                else ""
+              } ${getting-started}/* ${content_root}/guides/getting_started/
+              cp -R ${
+                if symlink
+                then "--symbolic-link"
+                else ""
+              } ${doxygen}/*         ${content_root}/gen/doxy
+            '';
+            dontInstall = true;
+            dontFixup = true;
+          };
 
         ###################################################
         ### Build the site filesystem for a specific URL ##
@@ -279,9 +315,12 @@
           # Set a default port = 9000 with localhost
           # > We need a non-root port (>1024) to serve on localhost successfully
           # > (without an unnecessary escalation of privileges).
-          serve-port = if (port != "") then "${port}" else "9000";
+          serve-port =
+            if (port != "")
+            then "${port}"
+            else "9000";
 
-          baseURL    = "${scheme}://${host}:${serve-port}";
+          baseURL = "${scheme}://${host}:${serve-port}";
           contentURL = "${scheme}://${host}:${serve-port}/${path}";
 
           # Built and assemble the site components with this baseURL+path
@@ -289,7 +328,7 @@
           #     path    -> Used to assemble a filesystem suitable for hosting
           # The builder will combine baseURL/path to form a final URL for the content root.
           # (keep 'path' seperate to avoid re-parsing the URL)
-          fs = site-fs { inherit baseURL path; };
+          fs = site-fs {inherit baseURL path;};
         };
 
         ######################################################################
@@ -304,24 +343,24 @@
             path = "pr/12/final_final2";
           };
           fs = site.fs {symlink = false;};
-        # in pkgs.dockerTools.buildLayeredImage rec {
-        #   name = "site_image"; tag = "latest";
-        #   contents = [ fs ];
-        #   config.Cmd = ["${pkgs.python3}/bin/python" "-m" "http.server" "-d" "/" "${site.serve-port}"];
-        #   maxLayers = 100;
-        # };
-        in pkgs.dockerTools.buildImage rec {
-          name = "site_image"; tag = "latest";
-          created = "now";  # BREAKS BINARY REPRODUCIBILITY
-          copyToRoot = pkgs.buildEnv {
-            name = "image-root";
-            paths = [ fs ];
+          # in pkgs.dockerTools.buildLayeredImage rec {
+          #   name = "site_image"; tag = "latest";
+          #   contents = [ fs ];
+          #   config.Cmd = ["${pkgs.python3}/bin/python" "-m" "http.server" "-d" "/" "${site.serve-port}"];
+          #   maxLayers = 100;
+          # };
+        in
+          pkgs.dockerTools.buildImage rec {
+            name = "site_image";
+            tag = "latest";
+            created = "now"; # BREAKS BINARY REPRODUCIBILITY
+            copyToRoot = pkgs.buildEnv {
+              name = "image-root";
+              paths = [fs];
+            };
+            config.Cmd = ["${pkgs.python3}/bin/python" "-m" "http.server" "-d" "/" "${site.serve-port}"];
           };
-          config.Cmd = ["${pkgs.python3}/bin/python" "-m" "http.server" "-d" "/" "${site.serve-port}"];
-        };
-
-      in
-      {
+      in {
         packages = {
           landing = ot-landing {};
           book = ot-book {};
@@ -362,13 +401,20 @@
         };
 
         devShells.default = pkgs.mkShellNoCC rec {
-          packages = (with pkgs; [
-            hugo mdbook libxslt doxygen git
-          ]) ++ (with pkgs_unstable; [
-            mdbook-pagetoc
-          ]) ++ [
-            my_pythonenv
-          ];
+          packages =
+            (with pkgs; [
+              hugo
+              mdbook
+              libxslt
+              doxygen
+              git
+            ])
+            ++ (with pkgs_unstable; [
+              mdbook-pagetoc
+            ])
+            ++ [
+              my_pythonenv
+            ];
           shellHook = ''
             helpstr=$(cat <<'EOF'
             > OpenTitan util/site shell environment.
@@ -382,6 +428,8 @@
             h
           '';
         };
+
+        formatter = inputs.nixpkgs.legacyPackages.${system}.alejandra;
       }
     );
 }
