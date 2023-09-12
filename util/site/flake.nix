@@ -355,7 +355,7 @@
           # };
         in
           pkgs.dockerTools.buildImage rec {
-            name = "site_image";
+            name = "site-image";
             tag = "latest";
             created = "now"; # BREAKS BINARY REPRODUCIBILITY
             copyToRoot = pkgs.buildEnv {
