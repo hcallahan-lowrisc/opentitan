@@ -24,6 +24,8 @@
 
         my_pythonenv = pkgs.python3.withPackages (ps: with ps; [hjson Mako mistletoe pyyaml libcst tabulate semantic-version]);
 
+        my_rustenv = { inherit (self.rust-bin.stable.latest) rustc cargo rustdoc rust-std; };
+
         ######################################################
         ### Build the components of the site individually. ###
         ######################################################
@@ -222,7 +224,7 @@
 
           # e.g.
           # symlink=true  : "lndir -silent /nix/store/vvs3bhcnp7jbr9a7yw8rhmndb8nbkacj-ot-landing-0.0.1-dev /nix/store/hdw5358bda0b7g6f8xja7yvdjs3zl4wh-site-fs-0.0.1-dev/pr/12/final_final2/"
-          # symlink=false : ""
+          # symlink=false : "cp -R /nix/store/vvs3bhcnp7jbr9a7yw8rhmndb8nbkacj-ot-landing-0.0.1-dev/* /nix/store/hdw5358bda0b7g6f8xja7yvdjs3zl4wh-site-fs-0.0.1-dev/pr/12/final_final2/"
 
           cmds_list = let
             # Deployment command is different for copies vs symlinks
@@ -247,6 +249,7 @@
           # symlink=true  : rm -rf /nix/store/3dydb0fk2lsfzfbjvzq9hwsfvilsz2kc-ot-doxygen-0.0.1-dev/api-xml/
           # symlink=false :
 
+          # Create a single list of l2-lists, each of which is the derivation + the dir from it to remove
           blist_cmds_list = with builtins; let
             list_of_all_pairs_for_one_drv = innerList : (let
               drv = elemAt innerList 0;
@@ -256,28 +259,21 @@
             );
           in concatLists (map (drv_2list: (list_of_all_pairs_for_one_drv drv_2list)) blacklist_dirs);
 
-          blist_cmds = with builtins; let
-            # Again, we have different commands for files vs symlinks
-            cmd = "rm -rf";
-          in pkgs.lib.concatStringsSep "\n"
+          # Create a string of all the fully-formed removal commands
+          blist_cmds = with builtins; with pkgs.lib; let
+          in concatStringsSep "\n"
             (
-              pkgs.lib.forEach blist_cmds_list # forEach == map w. args reversed
+              forEach blist_cmds_list # forEach == map w. args reversed
                 (x: let
                   drv = elemAt x 0;
-                  cmp_match =
-                    pkgs.lib.findFirst
-                      (
-                        x:
-                        let
-                          cmp_drv = elemAt x 0;
-                        in
-                          cmp_drv == drv
-                      )
-                      []
-                      cmp;
-                  dir = "$out/" + path + "/" + (elemAt cmp_match 1) + (elemAt x 1);
-                in
-                  "${cmd} ${dir}"
+                  # Find the matching path fs offset from the 'cmp' lists.
+                  path_fs_offset = elemAt (findFirst (x: (elemAt x 0) == drv) [] cmp) 1;
+                  path_frag = elemAt x 1;
+                  dir = "$out/${path}/${path_fs_offset}${path_frag}";
+                in ''
+                  chmod +rwx ${dir}
+                  rm -rf ${dir}
+                ''
                 )
             );
 
