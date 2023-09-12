@@ -57,6 +57,8 @@
               mkdir -p $out
               $doxygen_env doxygen $doxygen_args
             '';
+            # TODO: stop doxygen spitting out a bunch of the following errors (not actually fatal it turns out)
+            # "fatal: not a git repository (or any of the parent directories): .git"
           };
 
         ot-landing = {
