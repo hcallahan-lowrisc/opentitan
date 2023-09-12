@@ -132,6 +132,7 @@ hugo_args+=" --baseURL ${base_url}"
 ############
 
 buildSite () {
+    pushd "${proj_root}"
     echo "Build Directory : ${build_dir}"
     mkdir -p "${build_dir}"
     mkdir -p "${build_dir}/gen/doxy"
@@ -144,7 +145,7 @@ buildSite () {
     echo "Doxygen build complete."
 
     # shellcheck disable=SC2086
-    ${book_env} ./bazelisk.sh run --experimental_convenience_symlinks=ignore @crate_index//:mdbook__mdbook -- ${book_args}
+    ${book_env} bazel run --experimental_convenience_symlinks=ignore @crate_index//:mdbook__mdbook -- ${book_args}
     # Copy additional font files to output directory, as currently mdBook does not have a way to specify them as part of the build.
     local font="Recursive_wght,CASL@300__800,0_5.woff2"
     cp "${proj_root}/site/book-theme/${font}" "${build_dir}/book/site/book-theme/${font}"
@@ -156,10 +157,10 @@ buildSite () {
     local rustdoc_dir="${build_dir}/gen/rustdoc/"
     mkdir -p "${rustdoc_dir}"
     local bazel_out target_rustdoc target_rustdoc_output_path
-    bazel_out="$(./bazelisk.sh info output_path 2>/dev/null)"
+    bazel_out="$(bazel info output_path 2>/dev/null)"
     target_rustdoc="sw/host/opentitanlib:opentitanlib_doc"
     target_rustdoc_output_path="${bazel_out}/k8-fastbuild/bin/$(echo ${target_rustdoc} | tr ':' '/').rustdoc" #TODO : get the target's path using cquery
-    ./bazelisk.sh build --experimental_convenience_symlinks=ignore "${target_rustdoc}"
+    bazel build --experimental_convenience_symlinks=ignore "${target_rustdoc}"
     cp -rf "${target_rustdoc_output_path}"/* "${rustdoc_dir}"
     # The files from bazel-out aren't writable. This ensures those that were copied are.
     chmod +w -R "${rustdoc_dir}"
@@ -179,6 +180,7 @@ buildSite () {
     rm -rf "${build_dir}/gen/api-xml" # Remove the intermediate XML that doxygen uses to generate HTML.
     rm -rf "${build_dir}/book/sw/vendor/wycheproof/testvectors"
     # -------
+    popd
 }
 buildSite
 
