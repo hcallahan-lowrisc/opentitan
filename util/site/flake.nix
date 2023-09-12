@@ -47,6 +47,7 @@
             nativeBuildInputs = with pkgs; [doxygen git];
             dontInstall = true;
             dontFixup = true;
+            # outputs = [ "out" "xml" ]; Possible to seperate the xml outputs from the html?
             buildPhase = ''
               # Build up doxygen command
               doxygen_env="env"
@@ -191,6 +192,8 @@
         }: {
           symlink ? true
         }: let
+
+          # Create derivations which are specialized with the mappings we want.
           doxygen_html_out_dir = "html/";
           doxygen              = ot-doxygen { inherit doxygen_html_out_dir; };
           landing              = ot-landing { baseURL = "${baseURL}/${path}";
@@ -198,19 +201,103 @@
           book                 = ot-book    { baseURL = "${baseURL}/${path}/book";
                                               doxyURL = "${baseURL}/${path}/gen/doxy/${doxygen_html_out_dir}";
                                               doxyDrv = doxygen; };
+
+          # These are the input derivations and their final filesystem mappings
+          cmp = [
+            [ landing "" ]
+            [ book "book/" ]
+            [ doxygen "gen/doxy/" ]
+          ];
+          # These directories should be excluded from the final build
+          blacklist_dirs = [
+            [ doxygen [ "api-xml/" ] ] # Would be nice to delete from build, but mdbook_doxygen.py requires it.
+          ];
+
+          ### Assemble the buildPhase copy/link commands ###
+          ##################################################
+
+          # We want to support optionally constructing the site filesystem from symlinks instead of copies,
+          # to support rapid development of the site, and to keep the build-time down.
+          # The boolean input "symlink" is used to control this.
+
+          # e.g.
+          # symlink=true  : "lndir -silent /nix/store/vvs3bhcnp7jbr9a7yw8rhmndb8nbkacj-ot-landing-0.0.1-dev /nix/store/hdw5358bda0b7g6f8xja7yvdjs3zl4wh-site-fs-0.0.1-dev/pr/12/final_final2/"
+          # symlink=false : ""
+
+          cmds_list = let
+            # Deployment command is different for copies vs symlinks
+            cmd = ''${if symlink then "lndir -silent" else "cp -R"}'';
+            # Whether a path ends in "", "/" or "/*" is different for above commands
+            path_specifier = ''${if symlink then "" else "/*"}'';
+          in builtins.map
+            (
+              elem: let
+                drv = builtins.elemAt elem 0;
+                p = "$out/" + path + "/" + (builtins.elemAt elem 1);
+              in "${cmd} ${drv}${path_specifier} ${p}"
+            )
+            cmp;
+          # deploy_cmds = pkgs.writeText "deploy_cmds.sh" (pkgs.lib.concatStringsSep "\n" cmds_list);
+          deploy_cmds = pkgs.lib.concatStringsSep "\n" cmds_list;
+
+          ### Assemble the commands to remove the blacklisted dirs
+          ########################################################
+
+          # e.g.
+          # symlink=true  : rm -rf /nix/store/3dydb0fk2lsfzfbjvzq9hwsfvilsz2kc-ot-doxygen-0.0.1-dev/api-xml/
+          # symlink=false :
+
+          blist_cmds_list = with builtins; let
+            list_of_all_pairs_for_one_drv = innerList : (let
+              drv = elemAt innerList 0;
+              dirs = elemAt innerList 1;
+            in
+              map ( x: [ drv x ] ) dirs
+            );
+          in concatLists (map (drv_2list: (list_of_all_pairs_for_one_drv drv_2list)) blacklist_dirs);
+
+          blist_cmds = with builtins; let
+            # Again, we have different commands for files vs symlinks
+            cmd = "rm -rf";
+          in pkgs.lib.concatStringsSep "\n"
+            (
+              pkgs.lib.forEach blist_cmds_list # forEach == map w. args reversed
+                (x: let
+                  drv = elemAt x 0;
+                  cmp_match =
+                    pkgs.lib.findFirst
+                      (
+                        x:
+                        let
+                          cmp_drv = elemAt x 0;
+                        in
+                          cmp_drv == drv
+                      )
+                      []
+                      cmp;
+                  dir = "$out/" + path + "/" + (elemAt cmp_match 1) + (elemAt x 1);
+                in
+                  "${cmd} ${dir}"
+                )
+            );
+
+
         in pkgs.stdenv.mkDerivation rec {
           pname = "site-fs";
           version = "0.0.1-dev";
           dontUnpack = true;
           content_root = "$out/${path}";
-          nativeBuildInputs = [ landing book doxygen ];
+          nativeBuildInputs = [ landing book doxygen pkgs.outils ];
           buildPhase = ''
-            for f in ${content_root}{/,/book,/guides/getting_started,/gen/doxy}; do
+            for f in ${content_root}{/,/book,/gen/doxy}; do
               mkdir -p $f
             done
-            cp -R ${if symlink then "--symbolic-link" else ""} ${landing}/*         ${content_root}/
-            cp -R ${if symlink then "--symbolic-link" else ""} ${book}/*            ${content_root}/book/
-            cp -R ${if symlink then "--symbolic-link" else ""} ${doxygen}/*         ${content_root}/gen/doxy
+
+            # Run the deployment commands
+            ${deploy_cmds}
+
+            # Delete/Unlink blacklisted files or directories
+            ${blist_cmds}
           '';
           dontInstall = true;
           dontFixup = true;
@@ -336,7 +423,7 @@
           shellHook = ''
             helpstr=$(cat <<'EOF'
             > OpenTitan util/site shell environment.
-            BROKEN, DO NOT RUN SCRIPTS HERE.
+            BROKEN, DO NOT RUN THESE SCRIPTS HERE.
             ./util/site/build-docs.sh serve          - Build and serve the website on localhost
             ./util/site/deploy.sh staging            - Build and deploy the site to staging.opentitan.org
 
