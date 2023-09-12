@@ -357,15 +357,22 @@
           #   maxLayers = 100;
           # };
         in
+          # p=$(nix build .#site-image --print-out-paths)
+          # podman load < $p
+          # podman run -i -p 12321:12321 localhost/site-image
           pkgs.dockerTools.buildImage rec {
             name = "site-image";
             tag = "latest";
-            created = "now"; # BREAKS BINARY REPRODUCIBILITY
             copyToRoot = pkgs.buildEnv {
               name = "image-root";
               paths = [fs];
             };
-            config.Cmd = ["${pkgs.python3}/bin/python" "-m" "http.server" "-d" "/" "${site.serve-port}"];
+            config = {
+              Cmd = ["${pkgs.python3}/bin/python" "-m" "http.server" "-d" "/" "${site.serve-port}"];
+              ExposedPorts = {
+                "${site.serve-port}/tcp" = {};
+              };
+            };
           };
       in {
         packages = {
