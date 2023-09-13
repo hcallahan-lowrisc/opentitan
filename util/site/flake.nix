@@ -5,6 +5,7 @@
   nixConfig.bash-prompt = "\[opentitan-site\]$ ";
 
   inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-23.05";
+  inputs.nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
   inputs.flake-utils.url = "github:numtide/flake-utils";
   inputs.rust-overlay.url = "github:oxalica/rust-overlay";
   inputs.nix-filter.url = "github:numtide/nix-filter";
@@ -12,6 +13,7 @@
   outputs = inputs @ {
     self,
     nixpkgs,
+    nixpkgs-unstable,
     flake-utils,
     rust-overlay,
     nix-filter,
@@ -21,6 +23,9 @@
         pkgs = import nixpkgs {
           inherit system;
           overlays = [(import inputs.rust-overlay)];
+        };
+        pkgs-unstable = import nixpkgs-unstable {
+          inherit system;
         };
 
         proj_root = ./../..;
@@ -413,6 +418,11 @@
           program = "${script}/bin/serve";
         };
 
+        # To run a build using the devShell (+ existing scripts)
+        # $ nix develop --command bash -c "./build-docs.sh serve"
+        # OR
+        # $ nix develop
+        # $ ./build-docs.sh serve
         devShells.default = pkgs.mkShellNoCC rec {
           packages =
             (with pkgs; [
@@ -423,17 +433,21 @@
               git
               mdbook
             ])
+            ++ (with pkgs-unstable; [
+              bazel
+            ])
             ++ [
               my_pythonenv
             ];
+          USE_BAZEL_VERSION = "${pkgs-unstable.bazel.version}"; # 6.3.2
           shellHook = ''
             helpstr=$(cat <<'EOF'
             > OpenTitan util/site shell environment.
-            BROKEN, DO NOT RUN THESE SCRIPTS HERE.
-            ./util/site/build-docs.sh serve          - Build and serve the website on localhost
-            ./util/site/deploy.sh staging            - Build and deploy the site to staging.opentitan.org
+            ./build-docs.sh serve          - Build and serve the website on localhost
+            ./deploy.sh staging            - Build and deploy the site to staging.opentitan.org
 
             Type 'h' to see this message again.
+            Type 'exit' to leave.
             EOF
             )
             h(){ echo "$helpstr"; }
