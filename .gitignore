@@ -6,6 +6,7 @@ tags
 __pycache__
 /.vscode
 opentitan-docs
+.direnv/
 
 # fusesoc result
 build/
