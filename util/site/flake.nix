@@ -203,6 +203,22 @@
           symlink ? true
         }: let
 
+          # These are the input derivations and their final filesystem mappings relative to the root path
+          cmp = [
+            [ landing "" ]
+            [ book "book/" ]
+            [ doxygen "gen/doxy/" ]
+          ];
+          # These directories should be excluded from the final build
+          blacklist_dirs = [
+            [ doxygen [ "api-xml/" ] ] # Would be nice to delete at build-time drv, but mdbook_doxygen.py requires it.
+          ];
+
+          dirs = builtins.concatMap (pair: [ "/${builtins.elemAt pair 1}" ]) cmp;
+          get_fsmap = drv : with builtins; (
+            elemAt (findFirst (x: (elemAt x 0) == drv) [] cmp) 1
+          );
+
           # Create derivations which are specialized with the mappings we want.
           doxygen_html_out_dir = "html/";
           doxygen              = ot-doxygen { inherit doxygen_html_out_dir; };
@@ -211,17 +227,6 @@
           book                 = ot-book    { baseURL = "${baseURL}/${path}/book";
                                               doxyURL = "${baseURL}/${path}/gen/doxy/${doxygen_html_out_dir}";
                                               doxyDrv = doxygen; };
-
-          # These are the input derivations and their final filesystem mappings
-          cmp = [
-            [ landing "" ]
-            [ book "book/" ]
-            [ doxygen "gen/doxy/" ]
-          ];
-          # These directories should be excluded from the final build
-          blacklist_dirs = [
-            [ doxygen [ "api-xml/" ] ] # Would be nice to delete from build, but mdbook_doxygen.py requires it.
-          ];
 
           ### Assemble the buildPhase copy/link commands ###
           ##################################################
@@ -234,21 +239,19 @@
           # symlink=true  : "lndir -silent /nix/store/vvs3bhcnp7jbr9a7yw8rhmndb8nbkacj-ot-landing-0.0.1-dev /nix/store/hdw5358bda0b7g6f8xja7yvdjs3zl4wh-site-fs-0.0.1-dev/pr/12/final_final2/"
           # symlink=false : "cp -R /nix/store/vvs3bhcnp7jbr9a7yw8rhmndb8nbkacj-ot-landing-0.0.1-dev/* /nix/store/hdw5358bda0b7g6f8xja7yvdjs3zl4wh-site-fs-0.0.1-dev/pr/12/final_final2/"
 
-          cmds_list = let
+          deploy_cmds_list = let
             # Deployment command is different for copies vs symlinks
             cmd = ''${if symlink then "lndir -silent" else "cp -R"}'';
             # Whether a path ends in "", "/" or "/*" is different for above commands
             path_specifier = ''${if symlink then "" else "/*"}'';
-          in builtins.map
-            (
-              elem: let
-                drv = builtins.elemAt elem 0;
-                p = "$out/" + path + "/" + (builtins.elemAt elem 1);
-              in "${cmd} ${drv}${path_specifier} ${p}"
-            )
-            cmp;
-          # deploy_cmds = pkgs.writeText "deploy_cmds.sh" (pkgs.lib.concatStringsSep "\n" cmds_list);
-          deploy_cmds = pkgs.lib.concatStringsSep "\n" cmds_list;
+          in pkgs.lib.forEach cmp ( elem:
+            let
+              drv = builtins.elemAt elem 0;
+              p = builtins.elemAt elem 1;
+            in ''
+              ${cmd} ${drv}${path_specifier} $out/${path}/${p}
+            ''
+          );
 
           ### Assemble the commands to remove the blacklisted dirs
           ########################################################
@@ -258,7 +261,7 @@
           # symlink=false :
 
           # Create a single list of l2-lists, each of which is the derivation + the dir from it to remove
-          blist_cmds_list = with builtins; let
+          blist_cmds_per_drv = with builtins; let
             list_of_all_pairs_for_one_drv = innerList : (let
               drv = elemAt innerList 0;
               dirs = elemAt innerList 1;
@@ -268,22 +271,23 @@
           in concatLists (map (drv_2list: (list_of_all_pairs_for_one_drv drv_2list)) blacklist_dirs);
 
           # Create a string of all the fully-formed removal commands
-          blist_cmds = with builtins; with pkgs.lib; let
-          in concatStringsSep "\n"
-            (
-              forEach blist_cmds_list # forEach == map w. args reversed
-                (x: let
-                  drv = elemAt x 0;
-                  # Find the matching path fs offset from the 'cmp' lists.
-                  path_fs_offset = elemAt (findFirst (x: (elemAt x 0) == drv) [] cmp) 1;
-                  path_frag = elemAt x 1;
-                  dir = "$out/${path}/${path_fs_offset}${path_frag}";
-                in ''
+          blist_cmds_list =
+            with builtins;
+            with pkgs.lib;
+          (
+            forEach blist_cmds_per_drv (x:
+              let
+                drv = elemAt x 0;
+                # Find the matching path fs offset from the 'cmp' lists.
+                path_fs_offset = elemAt (findFirst (x: (elemAt x 0) == drv) [] cmp) 1;
+                path_frag = elemAt x 1;
+                dir = "$out/${path}/${path_fs_offset}${path_frag}";
+              in ''
                   chmod +rwx ${dir}
                   rm -rf ${dir}
                 ''
-                )
-            );
+              )
+          );
 
 
         in pkgs.stdenv.mkDerivation rec {
@@ -293,15 +297,16 @@
           content_root = "$out/${path}";
           nativeBuildInputs = [ landing book doxygen pkgs.outils ];
           buildPhase = ''
-            for f in ${content_root}{/,/book,/gen/doxy}; do
-              mkdir -p $f
+            mkdir -p $out
+            for f in ${pkgs.lib.concatStringsSep " " dirs}; do
+              mkdir -p $out/${path}$f
             done
 
             # Run the deployment commands
-            ${deploy_cmds}
+            ${pkgs.lib.concatStringsSep "\n" deploy_cmds_list}
 
             # Delete/Unlink blacklisted files or directories
-            ${blist_cmds}
+            ${pkgs.lib.concatStringsSep "\n" blist_cmds_list}
           '';
           dontInstall = true;
           dontFixup = true;
