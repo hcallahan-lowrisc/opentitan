@@ -30,15 +30,27 @@ load("@io_tweag_rules_nixpkgs//nixpkgs:repositories.bzl", "rules_nixpkgs_depende
 rules_nixpkgs_dependencies()
 
 # Create "@nixpkgs" as a specific revision of Nixpkgs on GitHub
-load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_git_repository")
+load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_git_repository", "nixpkgs_local_repository")
 nixpkgs_git_repository(
     name = "nixpkgs",
     revision = "23.05",
 )
 
+nixpkgs_local_repository(
+    name = "nixpkgs-local",
+    nix_flake_lock_file = "//:flake.lock",
+    nix_file_deps = [
+        "//:flake.nix",
+        "//:flake.lock",
+    ],
+)
+
+########################
+
 nix_repos = {
     "nixpkgs": "@nixpkgs",
 }
+
 
 # You can use 'nix_file_deps' to include additional files that are required to also be imported, such
 # as the flake.lock file, or additional .nix files that are imported as part of the build.
@@ -119,7 +131,7 @@ filegroup(
 )
 """
 
-load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_package")
+load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_package", "nixpkgs_flake_package")
 [nixpkgs_package(
     name = a,
     attribute_path = a,
@@ -135,11 +147,19 @@ nixpkgs_package(
     repository = "@nixpkgs",
     nix_file = "//:deps.nix"
 )
-
 nixpkgs_package(
     name = "nixpkgs-hugo",
     repository = "@nixpkgs",
     attribute_path = "hugo", # Pull this straight from the nixpkgs attribute set
+)
+
+############################################
+
+nixpkgs_flake_package(
+    name = "hello",
+    nix_flake_file = "//:flake.nix",
+    nix_flake_lock_file = "//:flake.lock",
+    package = "pythonEnv",
 )
 
 ############################################

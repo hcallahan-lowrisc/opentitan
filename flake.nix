@@ -66,7 +66,10 @@
       };
 
     in {
-      packages.pythonEnv = pythonEnv;
+      packages = {
+        pythonEnv = pythonEnv;
+        hello = pkgs.hello;
+      };
       devShells.default = pkgs.mkShellNoCC {
         name = "devShell";
         version = "0.1.0";
