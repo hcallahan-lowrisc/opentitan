@@ -8,6 +8,10 @@
   inputs.poetry2nix.url = "github:nix-community/poetry2nix";
   inputs.poetry2nix.inputs.nixpkgs.follows = "nixpkgs";
   inputs.poetry2nix.inputs.flake-utils.follows = "flake-utils";
+  inputs.flake-compat = {
+    url = "github:edolstra/flake-compat";
+    flake = false;
+  };
 
   outputs = inputs@{...} : let
     ##

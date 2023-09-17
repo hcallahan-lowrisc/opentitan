@@ -64,7 +64,7 @@ nix_repos = {
 ###########
 
 # Configure a python toolchain
-load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_python_configure")
+load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_python_configure", "nixpkgs_python_repository")
 nixpkgs_python_configure(
     # """Define and register a Python toolchain provided by nixpkgs.
     #
@@ -156,11 +156,53 @@ nixpkgs_package(
 ############################################
 
 nixpkgs_flake_package(
-    name = "hello",
+    name = "pythonEnv",
     nix_flake_file = "//:flake.nix",
     nix_flake_lock_file = "//:flake.lock",
     package = "pythonEnv",
 )
+
+nixpkgs_python_configure(
+    name = "flake_python",
+    repository = ":pythonEnv",
+    python3_attribute_path = "python3",
+)
+
+nixpkgs_python_repository(
+    name = "flake_pythonPkgs",
+    repository = "@nixpkgs",
+    nix_file = "//:default.nix",
+    nix_file_deps = [
+        "//:flake.nix",
+        "//:flake.lock",
+        "//:pyproject.toml",
+        "//:poetry.lock",
+    ],
+)
+
+############################################
+
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+http_archive(
+    name = "rules_python_upstream",
+    sha256 = "5868e73107a8e85d8f323806e60cad7283f34b32163ea6ff1020cf27abef6036",
+    strip_prefix = "rules_python-0.25.0",
+    url = "https://github.com/bazelbuild/rules_python/releases/download/0.25.0/rules_python-0.25.0.tar.gz",
+)
+load("@rules_python_upstream//python:repositories.bzl", "py_repositories")
+py_repositories()
+
+# Python Toolchain + PIP Dependencies
+load("//third_party/python:repos.bzl", "python_repos")
+python_repos()
+load("//third_party/python:deps.bzl", "python_deps")
+python_deps()
+load("//third_party/python:pip.bzl", "pip_deps")
+pip_deps()
+
+############################################
+
+# register_toolchains("//:py3-nix")
 
 ############################################
 
@@ -194,14 +236,6 @@ lint_deps()
 # Lychee link checker.
 load("//third_party/lychee:repos.bzl", "lychee_repos")
 lychee_repos()
-
-# Python Toolchain + PIP Dependencies
-load("//third_party/python:repos.bzl", "python_repos")
-python_repos()
-load("//third_party/python:deps.bzl", "python_deps")
-python_deps()
-load("//third_party/python:pip.bzl", "pip_deps")
-pip_deps()
 
 # Google/Bazel dependencies.  This needs to be after Python initialization
 # so that our preferred python configuration takes precedence.
