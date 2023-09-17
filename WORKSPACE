@@ -40,6 +40,15 @@ nix_repos = {
     "nixpkgs": "@nixpkgs",
 }
 
+# You can use 'nix_file_deps' to include additional files that are required to also be imported, such
+# as the flake.lock file, or additional .nix files that are imported as part of the build.
+# load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_local_repository")
+# nixpkgs_local_repository(
+#     name = "nixpkgs",
+#     nix_file = "//:nixpkgs.nix",
+#     nix_file_deps = ["//:flake.lock"],
+# )
+
 ###########
 
 # Configure a python toolchain
@@ -102,6 +111,14 @@ genrule(
   )
 """
 
+BUILD_FILE_NIXPACKAGE = """
+package(default_visibility = ["//visibility:public"])
+filegroup(
+    name = "{a}",
+    srcs = ["bin/{a}"],
+)
+"""
+
 load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_package")
 [nixpkgs_package(
     name = a,
@@ -113,7 +130,17 @@ load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_package")
     repositories = nix_repos
 ) for a in ["doxygen", "mdbook", "hugo"]]
 
+nixpkgs_package(
+    name = "nix-tools",
+    repository = "@nixpkgs",
+    nix_file = "//:deps.nix"
+)
 
+nixpkgs_package(
+    name = "nixpkgs-hugo",
+    repository = "@nixpkgs",
+    attribute_path = "hugo", # Pull this straight from the nixpkgs attribute set
+)
 
 ############################################
 
