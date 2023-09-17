@@ -134,3 +134,11 @@ build --@rules_rust//:clippy_flags="-Aclippy::bool_assert_comparison,-Aclippy::u
 
 # Import site-specific configuration.
 try-import .bazelrc-site
+
+###########
+# NIXPKGS #
+###########
+
+# https://bazel.build/run/bazelrc#config
+# --config=nix
+build:nix --host_platform=@io_tweag_rules_nixpkgs//nixpkgs/platforms:host
