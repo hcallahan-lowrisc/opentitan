@@ -24,54 +24,60 @@
         ];
       };
 
-      pythonEnv = with pkgs; poetry2nix.mkPoetryEnv {
-        projectDir = nix-gitignore.gitignoreSource [] ./.;
-        python = python3;
-
-        # poetry tries to build the python projects based on the information
-        # given in their own build description files (setup.py etc.)
-        # Sometimes, the inputs are incomplete. Add missing inputs here.
-        overrides = poetry2nix.overrides.withDefaults (final: prev: {
-          # pip = pkgs.python3.pkgs.pip;
-          pyfinite = prev.pyfinite.overridePythonAttrs (old: {
-            buildInputs = (old.buildInputs or []) ++ [ prev.setuptools ];
-          });
-          zipfile2 = prev.zipfile2.overridePythonAttrs (old: {
-            buildInputs = (old.buildInputs or []) ++ [ prev.setuptools ];
-          });
-          # Very slow build.
-          mypy = prev.mypy.override {
-            preferWheel = true; # use the binary dist
-          };
-          # Missing rustc/cargo etc.
-          # libcst = prev.libcst.overridePythonAttrs (old: {
-          #   buildInputs = (old.buildInputs or []) ++ [ prev.setuptools-rust ];
-          # });
-          libcst = prev.libcst.override {
-            preferWheel = true; # use the binary dist
-          };
-          okonomiyaki = prev.okonomiyaki.overridePythonAttrs (old: {
-            buildInputs = (old.buildInputs or []) ++ [ prev.setuptools ];
-          });
-          simplesat = prev.simplesat.overridePythonAttrs (old: {
-            buildInputs = (old.buildInputs or []) ++ [ prev.setuptools ];
-          });
-          # Some problem building due to a malformed semantic version string.
-          isort = prev.isort.override {
-            preferWheel = true; # use the binary dist
-          };
-          fusesoc = prev.fusesoc.overridePythonAttrs (old: {
-            buildInputs = (old.buildInputs or []) ++ [ prev.setuptools prev.setuptools-scm ];
-          });
-          chipwhisperer = prev.chipwhisperer.overridePythonAttrs (old: {
-            buildInputs = (old.buildInputs or []) ++ [ prev.setuptools ];
-          });
-        });
+      poetryArgs = {
+        python = pkgs.python3;
+        projectDir = pkgs.nix-gitignore.gitignoreSource [] ./.;
+        overrides = poetryOverrides;
       };
+
+      # poetry tries to build the python projects based on the information
+      # given in their own build description files (setup.py etc.)
+      # Sometimes, the inputs are incomplete. Add missing inputs here.
+      poetryOverrides = pkgs.poetry2nix.overrides.withDefaults (final: prev: {
+        # pip = pkgs.python3.pkgs.pip;
+        pyfinite = prev.pyfinite.overridePythonAttrs (old: {
+          buildInputs = (old.buildInputs or []) ++ [ prev.setuptools ];
+        });
+        zipfile2 = prev.zipfile2.overridePythonAttrs (old: {
+          buildInputs = (old.buildInputs or []) ++ [ prev.setuptools ];
+        });
+        # Very slow build.
+        mypy = prev.mypy.override {
+          preferWheel = true; # use the binary dist
+        };
+        # Missing rustc/cargo etc.
+        # libcst = prev.libcst.overridePythonAttrs (old: {
+        #   buildInputs = (old.buildInputs or []) ++ [ prev.setuptools-rust ];
+        # });
+        libcst = prev.libcst.override {
+          preferWheel = true; # use the binary dist
+        };
+        okonomiyaki = prev.okonomiyaki.overridePythonAttrs (old: {
+          buildInputs = (old.buildInputs or []) ++ [ prev.setuptools ];
+        });
+        simplesat = prev.simplesat.overridePythonAttrs (old: {
+          buildInputs = (old.buildInputs or []) ++ [ prev.setuptools ];
+        });
+        # Some problem building due to a malformed semantic version string.
+        isort = prev.isort.override {
+          preferWheel = true; # use the binary dist
+        };
+        fusesoc = prev.fusesoc.overridePythonAttrs (old: {
+          buildInputs = (old.buildInputs or []) ++ [ prev.setuptools prev.setuptools-scm ];
+        });
+        chipwhisperer = prev.chipwhisperer.overridePythonAttrs (old: {
+          buildInputs = (old.buildInputs or []) ++ [ prev.setuptools ];
+        });
+      });
+
+      poetryEnv = pkgs.poetry2nix.mkPoetryEnv poetryArgs;
+      poetryPackages = pkgs.poetry2nix.mkPoetryPackages poetryArgs;
 
     in {
       packages = {
-        pythonEnv = pythonEnv;
+        pythonEnv = poetryEnv;
+        pythonPackages = poetryPackages.poetryPackages;
+        python = poetryPackages.python;
         hello = pkgs.hello;
       };
       devShells.default = pkgs.mkShellNoCC {
@@ -81,7 +87,7 @@
           with pkgs; [
             hugo doxygen mdbook google-cloud-sdk bazel poetry
           ] ++ [
-            pythonEnv
+            poetryEnv
           ];
         USE_BAZEL_VERSION = "${pkgs.bazel.version}"; # 6.3.2
         shellHook = ''

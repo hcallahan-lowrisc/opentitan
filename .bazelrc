@@ -141,4 +141,4 @@ try-import .bazelrc-site
 
 # https://bazel.build/run/bazelrc#config
 # --config=nix
-build:nix --host_platform=@io_tweag_rules_nixpkgs//nixpkgs/platforms:host
+build:nix --host_platform=@io_tweag_rules_nixpkgs//nixpkgs/platforms:host --extra_execution_platforms=@io_tweag_rules_nixpkgs//nixpkgs/platforms:host

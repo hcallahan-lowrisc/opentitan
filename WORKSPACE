@@ -65,22 +65,22 @@ nix_repos = {
 
 # Configure a python toolchain
 load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_python_configure", "nixpkgs_python_repository")
-nixpkgs_python_configure(
-    # """Define and register a Python toolchain provided by nixpkgs.
-    #
-    # Creates `nixpkgs_package`s for Python 2 or 3 `py_runtime` instances and a
-    # corresponding `py_runtime_pair` and `toolchain`.
-    #
-    # The toolchain is automatically registered and uses the constraint:
-    # ```
-    # "@io_tweag_rules_nixpkgs//nixpkgs/constraints:support_nix"
-    # ```
-    #
-    # """
-    name = "nixpkgs_python_toolchain",
-    python3_attribute_path = "python39.withPackages(ps: [ ps.flask ])",
-    repository = "@nixpkgs",
-)
+# nixpkgs_python_configure(
+#     # """Define and register a Python toolchain provided by nixpkgs.
+#     #
+#     # Creates `nixpkgs_package`s for Python 2 or 3 `py_runtime` instances and a
+#     # corresponding `py_runtime_pair` and `toolchain`.
+#     #
+#     # The toolchain is automatically registered and uses the constraint:
+#     # ```
+#     # "@io_tweag_rules_nixpkgs//nixpkgs/constraints:support_nix"
+#     # ```
+#     #
+#     # """
+#     name = "nixpkgs_python_toolchain",
+#     python3_attribute_path = "python39.withPackages(ps: [ ps.flask ])",
+#     repository = "@nixpkgs",
+# )
 
 # rules_nixpkgs/core/platforms/BUILD.bazel
 ##########################################
@@ -155,21 +155,22 @@ nixpkgs_package(
 
 ############################################
 
-nixpkgs_flake_package(
-    name = "pythonEnv",
-    nix_flake_file = "//:flake.nix",
-    nix_flake_lock_file = "//:flake.lock",
-    package = "pythonEnv",
-)
+# nixpkgs_flake_package(
+#     name = "fpy",
+#     nix_flake_file = "//:flake.nix",
+#     nix_flake_lock_file = "//:flake.lock",
+#     package = "python",
+# )
 
 nixpkgs_python_configure(
-    name = "flake_python",
-    repository = ":pythonEnv",
+    name = "fpy_tc",
+    repository = "@nixpkgs-local",
     python3_attribute_path = "python3",
+    python3_bin_path = "bin/python3",
 )
 
 nixpkgs_python_repository(
-    name = "flake_pythonPkgs",
+    name = "fpp",
     repository = "@nixpkgs",
     nix_file = "//:default.nix",
     nix_file_deps = [
