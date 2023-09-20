@@ -23,35 +23,3 @@ alias(
     name = "gen_rust_project",
     actual = "@rules_rust//tools/rust_analyzer:gen_rust_project",
 )
-
-sh_binary(
-    name = "hugo",
-    srcs = ["@nixpkgs-hugo//:bin/hugo"],
-    visibility = ["//visibility:public"],
-)
-
-
-# https://stackoverflow.com/questions/67512066/how-do-i-select-the-runtime-in-bazel-for-python-and-pip
-
-load("@bazel_tools//tools/python:toolchain.bzl", "py_runtime_pair")
-load("@rules_python_upstream//python:py_runtime.bzl", "py_runtime")
-
-# This python3 executable is actually a wrapper which sets-up the paths
-# needed to import at the modules that are part of its environment.
-# All the modules are included as part of @pythonEnv.
-# py_runtime(
-#     name = "pythonNix",
-#     interpreter_path = "@pythonEnv//:bin/python3",
-#     python_version = "PY3",
-# )
-
-# py_runtime_pair(
-#     name = "py3.10-Nix",
-#     py3_runtime = ":pythonNix",
-# )
-
-# toolchain(
-#     name = "py3-nix",
-#     toolchain = "//pynix:py3.10-Nix",
-#     toolchain_type = "@bazel_tools//tools/python:toolchain_type",
-# )

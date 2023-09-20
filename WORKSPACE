@@ -31,10 +31,8 @@ rules_nixpkgs_dependencies()
 
 # Create "@nixpkgs" as a specific revision of Nixpkgs on GitHub
 load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_git_repository", "nixpkgs_local_repository")
-nixpkgs_git_repository(
-    name = "nixpkgs",
-    revision = "23.05",
-)
+
+########################
 
 nixpkgs_local_repository(
     name = "nixpkgs-local",
@@ -45,123 +43,10 @@ nixpkgs_local_repository(
     ],
 )
 
-########################
-
-nix_repos = {
-    "nixpkgs": "@nixpkgs",
-}
-
-
-# You can use 'nix_file_deps' to include additional files that are required to also be imported, such
-# as the flake.lock file, or additional .nix files that are imported as part of the build.
-# load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_local_repository")
-# nixpkgs_local_repository(
-#     name = "nixpkgs",
-#     nix_file = "//:nixpkgs.nix",
-#     nix_file_deps = ["//:flake.lock"],
-# )
-
-###########
+############################################
 
 # Configure a python toolchain
 load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_python_configure", "nixpkgs_python_repository")
-# nixpkgs_python_configure(
-#     # """Define and register a Python toolchain provided by nixpkgs.
-#     #
-#     # Creates `nixpkgs_package`s for Python 2 or 3 `py_runtime` instances and a
-#     # corresponding `py_runtime_pair` and `toolchain`.
-#     #
-#     # The toolchain is automatically registered and uses the constraint:
-#     # ```
-#     # "@io_tweag_rules_nixpkgs//nixpkgs/constraints:support_nix"
-#     # ```
-#     #
-#     # """
-#     name = "nixpkgs_python_toolchain",
-#     python3_attribute_path = "python39.withPackages(ps: [ ps.flask ])",
-#     repository = "@nixpkgs",
-# )
-
-# rules_nixpkgs/core/platforms/BUILD.bazel
-##########################################
-# > platform(
-# >     name = "host",
-# >     constraint_values = ["@rules_nixpkgs_core//constraints:support_nix"],
-# >     parents = ["@local_config_platform//:host"],
-# >     visibility = ["//visibility:public"],
-# > )
-##########################################
-
-# rules_nixpkgs/core/constraints/BUILD.bazel
-############################################
-# > constraint_setting(name = "nix")
-#
-# > constraint_value(
-# >     name = "support_nix",
-# >     constraint_setting = ":nix",
-# > )
-############################################
-
-UNPACK_SINGLE_BIN_BUILD_FILE = """
-filegroup(
-    name = "bin",
-    srcs = glob([ "**/bin/*" ]),
-    )
-
-genrule(
-  visibility = ["//visibility:public"],
-  name = "unpack_binaries",
-  cmd = \"\"\"\
-  #!/bin/bash
-
-  # Copy binaries to the output location
-  cp external/{bin_path} $(location :{bin_name});
-
-  \"\"\",
-  srcs = [ ":bin" ],
-  outs = [ "{bin_name}" ],
-  )
-"""
-
-BUILD_FILE_NIXPACKAGE = """
-package(default_visibility = ["//visibility:public"])
-filegroup(
-    name = "{a}",
-    srcs = ["bin/{a}"],
-)
-"""
-
-load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_package", "nixpkgs_flake_package")
-[nixpkgs_package(
-    name = a,
-    attribute_path = a,
-    build_file_content=UNPACK_SINGLE_BIN_BUILD_FILE.format(
-        bin_path="{}/bin/{}".format(a,a),
-        bin_name=a,
-    ),
-    repositories = nix_repos
-) for a in ["doxygen", "mdbook", "hugo"]]
-
-nixpkgs_package(
-    name = "nix-tools",
-    repository = "@nixpkgs",
-    nix_file = "//:deps.nix"
-)
-nixpkgs_package(
-    name = "nixpkgs-hugo",
-    repository = "@nixpkgs",
-    attribute_path = "hugo", # Pull this straight from the nixpkgs attribute set
-)
-
-############################################
-
-# nixpkgs_flake_package(
-#     name = "fpy",
-#     nix_flake_file = "//:flake.nix",
-#     nix_flake_lock_file = "//:flake.lock",
-#     package = "python",
-# )
-
 nixpkgs_python_configure(
     name = "fpy_tc",
     repository = "@nixpkgs-local",
@@ -171,7 +56,7 @@ nixpkgs_python_configure(
 
 nixpkgs_python_repository(
     name = "fpp",
-    repository = "@nixpkgs",
+    repository = "@nixpkgs-local",
     nix_file = "//:default.nix",
     nix_file_deps = [
         "//:flake.nix",
@@ -183,16 +68,6 @@ nixpkgs_python_repository(
 
 ############################################
 
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-http_archive(
-    name = "rules_python_upstream",
-    sha256 = "5868e73107a8e85d8f323806e60cad7283f34b32163ea6ff1020cf27abef6036",
-    strip_prefix = "rules_python-0.25.0",
-    url = "https://github.com/bazelbuild/rules_python/releases/download/0.25.0/rules_python-0.25.0.tar.gz",
-)
-load("@rules_python_upstream//python:repositories.bzl", "py_repositories")
-py_repositories()
-
 # Python Toolchain + PIP Dependencies
 load("//third_party/python:repos.bzl", "python_repos")
 python_repos()
@@ -200,10 +75,6 @@ load("//third_party/python:deps.bzl", "python_deps")
 python_deps()
 load("//third_party/python:pip.bzl", "pip_deps")
 pip_deps()
-
-############################################
-
-# register_toolchains("//:py3-nix")
 
 ############################################
 
