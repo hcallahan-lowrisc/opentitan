@@ -69,12 +69,12 @@ nixpkgs_python_repository(
 ############################################
 
 # Python Toolchain + PIP Dependencies
-load("//third_party/python:repos.bzl", "python_repos")
-python_repos()
-load("//third_party/python:deps.bzl", "python_deps")
-python_deps()
-load("//third_party/python:pip.bzl", "pip_deps")
-pip_deps()
+# load("//third_party/python:repos.bzl", "python_repos")
+# python_repos()
+# load("//third_party/python:deps.bzl", "python_deps")
+# python_deps()
+# load("//third_party/python:pip.bzl", "pip_deps")
+# pip_deps()
 
 ############################################
 

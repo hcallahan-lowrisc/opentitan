@@ -49,14 +49,14 @@ design (i.e. mix-and-match).
 """
 
 load("@python3//:defs.bzl", "interpreter")
-load("@ot_python_deps//:requirements.bzl", "all_requirements")
 
 def _make_pythonpath(rctx):
     # Create a PYTHONPATH with all the pip deps from requirements.txt
-    directories = [
-        rctx.path(Label(pip_req + ":BUILD.bazel")).dirname
-        for pip_req in all_requirements
-    ]
+    directories = []
+    # TODO : fixme
+    #     rctx.path(Label(pip_req + ":BUILD.bazel")).dirname
+    #     for pip_req in all_requirements
+    # ]
     pythonpath = ":".join([str(directory) for directory in directories])
     return pythonpath
 
