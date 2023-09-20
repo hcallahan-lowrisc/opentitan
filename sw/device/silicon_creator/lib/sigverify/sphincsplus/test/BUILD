@@ -10,7 +10,7 @@ load(
     "opentitan_functest",
     "verilator_params",
 )
-load("@ot_python_deps//:requirements.bzl", "requirement")
+load("@fpp//:requirements.bzl", "requirement")
 
 opentitan_functest(
     name = "fors_test",

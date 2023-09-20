@@ -4,7 +4,7 @@
 
 load("//rules:opentitan_test.bzl", "cw310_params", "opentitan_functest", "verilator_params")
 load("//rules:autogen.bzl", "autogen_cryptotest_header")
-load("@ot_python_deps//:requirements.bzl", "requirement")
+load("@fpp//:requirements.bzl", "requirement")
 
 package(default_visibility = ["//visibility:public"])
 

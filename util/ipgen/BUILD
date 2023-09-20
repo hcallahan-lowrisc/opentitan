@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load("@rules_python//python:defs.bzl", "py_library")
-load("@ot_python_deps//:requirements.bzl", "requirement")
+load("@fpp//:requirements.bzl", "requirement")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -20,6 +20,7 @@ py_library(
         "//util/reggen:params",
         requirement("hjson"),
         requirement("mako"),
+        requirement("semantic-version"),
     ],
 )
 

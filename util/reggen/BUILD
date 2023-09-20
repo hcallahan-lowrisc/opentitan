@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load("@rules_python//python:defs.bzl", "py_library")
-load("@ot_python_deps//:requirements.bzl", "requirement")
+load("@fpp//:requirements.bzl", "requirement")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -113,7 +113,7 @@ py_library(
         ":reg_block",
         ":signal",
         requirement("hjson"),
-        requirement("semantic_version"),
+        requirement("semantic-version"),
     ],
 )
 
@@ -144,7 +144,7 @@ py_library(
         ":register",
         ":signal",
         ":window",
-        requirement("semantic_version"),
+        requirement("semantic-version"),
     ],
 )
 
