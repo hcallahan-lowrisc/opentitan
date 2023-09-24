@@ -7,66 +7,12 @@
 
 workspace(name = "lowrisc_opentitan")
 
-######################
-#----- NIXPKGS ------#
-######################
-# https://github.com/tweag/rules_nixpkgs
-
-# Import the rules_nixpkgs repository.
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-# 420370f6 - Jun 22, 2023
-NIXPKGS_HASH="420370f64f03ed9c1ff9b5e2994d06c0439cb1f2"
-NIXPKGS_SHA_OF_HASH="5270e14b2965408f4ea51b2f76774525b086be6f00de0da4082d14a69017c5e4"
-http_archive(
-    name = "io_tweag_rules_nixpkgs",
-    strip_prefix = "rules_nixpkgs-%s" % NIXPKGS_HASH,
-    urls = [
-        "https://github.com/tweag/rules_nixpkgs/archive/%s.tar.gz" % NIXPKGS_HASH
-    ],
-    sha256 = NIXPKGS_SHA_OF_HASH,
-)
-# Import the transitive dependencies of rules_nixpkgs.
-load("@io_tweag_rules_nixpkgs//nixpkgs:repositories.bzl", "rules_nixpkgs_dependencies")
-rules_nixpkgs_dependencies()
-
-# Create "@nixpkgs" as a specific revision of Nixpkgs on GitHub
-load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_git_repository", "nixpkgs_local_repository")
-
-########################
-
-nixpkgs_local_repository(
-    name = "nixpkgs-local",
-    nix_flake_lock_file = "//:flake.lock",
-    nix_file_deps = [
-        "//:flake.nix",
-        "//:flake.lock",
-    ],
-)
-
-############################################
-
-# Configure a python toolchain
-load("@io_tweag_rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_python_configure", "nixpkgs_python_repository")
-nixpkgs_python_configure(
-    name = "fpy_tc",
-    repository = "@nixpkgs-local",
-    python3_attribute_path = "python3",
-    python3_bin_path = "bin/python3",
-)
-
-nixpkgs_python_repository(
-    name = "fpp",
-    repository = "@nixpkgs-local",
-    nix_file = "//:default.nix",
-    nix_file_deps = [
-        "//:flake.nix",
-        "//:flake.lock",
-        "//:pyproject.toml",
-        "//:poetry.lock",
-    ],
-)
-
-############################################
+load("//third_party/nixpkgs:repos.bzl", "nixpkgs_repos")
+nixpkgs_repos()
+load("//third_party/nixpkgs:deps.bzl", "nixpkgs_deps")
+nixpkgs_deps()
+load("//third_party/nixpkgs:toolchains.bzl", "nixpkgs_toolchains")
+nixpkgs_toolchains()
 
 # Python Toolchain + PIP Dependencies
 # load("//third_party/python:repos.bzl", "python_repos")
