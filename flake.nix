@@ -10,6 +10,7 @@
     url = "github:edolstra/flake-compat";
     flake = false;
   };
+  inputs.nci.url = "github:yusdacra/nix-cargo-integration";
 
   outputs = inputs@{ ... } : let
     ##
@@ -19,6 +20,7 @@
       # Import other flake-parts modules here...
       # inputs.devenv.flakeModule
       ./third_party/nixpkgs/poetry.nix
+      ./third_party/nixpkgs/nix-cargo-integration.nix
     ];
 
     systems = [ # systems for which you want to build the `perSystem` attributes

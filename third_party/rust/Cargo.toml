@@ -2,13 +2,11 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
-[package]
-name = "cargo_raze_deps"
-version = "0.0.0"
-publish = false
-
-[lib]
-path = "empty_file_to_appease_cargo.rs"
+[workspace]
+# members = ["my-crate", "my-other-crate"]
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
 
 # Keep sorted.
 # Please avoid version numbers that only have one component.
