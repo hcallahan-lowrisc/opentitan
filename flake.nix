@@ -13,8 +13,7 @@
 
   ### LOWRISC ###
   inputs.lowrisc-it = {
-    # url = "git+ssh://git@github.com/lowRISC/lowrisc-it.git";
-    url = "/home/harry/projects/lowrisc-it/";
+    url = "git+ssh://git@github.com/lowRISC/lowrisc-it.git";
     inputs.nixpkgs.follows = "nixpkgs";
   };
 

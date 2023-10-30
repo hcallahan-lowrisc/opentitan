@@ -78,14 +78,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1698240965,
-        "narHash": "sha256-Hzz17S9ir7R5C5t75ENf7YCihGC9fRY6bcHPnVc5jIM=",
+        "lastModified": 1698680243,
+        "narHash": "sha256-DX0GkJgYZiku5exXYKq92gNOIrcazDeh1pJUAxFDfpM=",
+        "ref": "refs/heads/master",
+        "rev": "a0cc3f71fba9ce8d0978e971a2f0ee67a5be6fbd",
+        "revCount": 397,
         "type": "git",
-        "url": "file:///home/harry/projects/lowrisc-it"
+        "url": "ssh://git@github.com/lowRISC/lowrisc-it.git"
       },
       "original": {
         "type": "git",
-        "url": "file:///home/harry/projects/lowrisc-it"
+        "url": "ssh://git@github.com/lowRISC/lowrisc-it.git"
       }
     },
     "nix-github-actions": {
