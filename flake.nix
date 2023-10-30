@@ -11,6 +11,14 @@
     flake = false;
   };
 
+  ### LOWRISC ###
+  inputs.lowrisc-it = {
+    # url = "git+ssh://git@github.com/lowRISC/lowrisc-it.git";
+    url = "/home/harry/projects/lowrisc-it/";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
+
+
   outputs = inputs@{ ... } : let
     ##
   in inputs.flake-parts.lib.mkFlake { inherit inputs; } {
@@ -42,6 +50,8 @@
         packages =
           with pkgs; [
             hugo doxygen mdbook google-cloud-sdk bazel poetry
+          ] ++ [
+            inputs'.lowrisc-it.packages.vcs
           ];
         USE_BAZEL_VERSION = "${pkgs.bazel.version}"; # 6.3.2
         shellHook = ''
