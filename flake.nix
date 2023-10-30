@@ -26,7 +26,7 @@
     imports = [
       # Import other flake-parts modules here...
       # inputs.devenv.flakeModule
-      # ./third_party/nixpkgs/poetry.nix
+      ./third_party/nixpkgs/poetry.nix
     ];
 
     systems = [
@@ -52,6 +52,8 @@
             hugo doxygen mdbook google-cloud-sdk bazel poetry
           ] ++ [
             inputs'.lowrisc-it.packages.vcs
+          ] ++ [
+            self'.packages.pythonEnv
           ];
         USE_BAZEL_VERSION = "${pkgs.bazel.version}"; # 6.3.2
         shellHook = ''

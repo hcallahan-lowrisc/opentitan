@@ -24,7 +24,7 @@
     poetryPackages = pkgs.poetry2nix.mkPoetryPackages poetryArgs;
 
     poetryArgs = {
-      python = pkgs.python3;
+      python = import ./python.nix { python = pkgs.python3; };
       projectDir = ./.;
       overrides = [
         preferwheel-overlay
