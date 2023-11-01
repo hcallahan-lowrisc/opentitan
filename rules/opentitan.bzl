@@ -399,8 +399,9 @@ def _elf_to_disassembly_impl(ctx):
                 disassembly.path,
             ],
             execution_requirements = {
-                "no-sandbox": "1",
+                "local": "1",
             },
+            use_default_shell_env = True,
             command = "$1 -wx --disassemble --headers --line-numbers --disassemble-zeroes --source --visualize-jumps $2 | $3 > $4",
         )
         return [DefaultInfo(files = depset(outputs), data_runfiles = ctx.runfiles(files = outputs))]

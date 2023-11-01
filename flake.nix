@@ -42,23 +42,110 @@
     # };
 
     # 'perSystem' functions similarly to 'flake-utils.lib.eachSystem'
-    perSystem = { config, pkgs, inputs', self', system, ... }: {
-      devShells.all = pkgs.mkShellNoCC {
-        name = "devShell";
-        version = "0.1.0";
-        packages =
-          with pkgs; [
-            hugo doxygen mdbook google-cloud-sdk bazel poetry
-          ] ++ [
-            inputs'.lowrisc-it.packages.vcs
-          ] ++ [
-            self'.packages.pythonEnv
+    perSystem = { config, pkgs, inputs', self', system, ... }:
+      let
+
+        # be = (pkgs.buildFHSEnv {
+        #   pname = "be";
+        #   version = "0.0.1";
+        #   name = null;
+
+        #   targetPkgs = _: with pkgs; [
+        #     bash
+        #     coreutils
+        #     elfutils
+        #     stdenv.cc
+        #     libxcrypt-legacy
+        #     zlib
+        #     glibc
+        #   ] ++ [
+        #     inputs'.lowrisc-it.packages.vcs
+        #     self'.packages.pythonEnv
+        #   ];
+        #   runScript = "bash";
+        # }).env;
+
+        garyenv = let
+          ncurses5-patched = with pkgs; runCommand "ncurses5" {
+            outputs = ["out" "dev" "man"];
+          } ''
+            cp -r ${ncurses5} $out
+            chmod +w $out/lib
+            cp -L --no-preserve=mode --remove-destination `realpath $out/lib/libtinfo.so.5` $out/lib/libtinfo.so.5
+            ${patchelf}/bin/patchelf --set-soname libtinfo.so.5 $out/lib/libtinfo.so.5
+            cp -r ${ncurses5.dev} $dev
+            cp -r ${ncurses5.man} $man
+          '';
+        in
+          (pkgs.buildFHSEnv {
+            name = "opentitan";
+            targetPkgs = _:
+              with pkgs;
+              [
+                # For serde-annotate which can be built with just cargo
+                rustup
+
+                # Bazel downloads Python Toolchains / Rust compilers which are not patch-elfed
+                # - they need these deps.
+                zlib
+                openssl
+                curl
+                perl
+                libxcrypt-legacy
+
+                (wrapCCWith {
+                  cc = gcc-unwrapped;
+                  nixSupport.cc-cflags = ["-fPIC"];
+                })
+
+                python3Full
+                # (python3.withPackages (ps: [ ps.virtualenv ]))
+                srecord
+                elfutils
+
+                (pkg-config.override {
+                  extraBuildCommands = ''
+                    echo "export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/lib/pkgconfig" >> $out/nix-support/add-flags.sh
+                  '';
+                })
+                udev
+                libftdi1
+                libusb1 # needed for libftdi1 pkg-config
+                ncurses5-patched
+              ]
+              ++ [
+                inputs'.lowrisc-it.packages.vcs
+              ];
+            extraOutputsToInstall = ["dev"];
+            profile = ''
+              unset LD_LIBRARY_PATH
+              source /home/harry/scratch/venvs/opentitan/.venv2/bin/activate
+            '';
+          }).env;
+
+      in {
+        devShells.garyenv = garyenv;
+        devShells.all = pkgs.mkShellNoCC {
+          name = "devShell";
+          version = "0.1.0";
+          buildInputs = with pkgs; [
+            openssl.dev pkg-config
           ];
-        USE_BAZEL_VERSION = "${pkgs.bazel.version}"; # 6.3.2
-        shellHook = ''
-           echo "OpenTitan environment activated."
-        '';
-      };
+          packages =
+            with pkgs; [
+              hugo doxygen mdbook google-cloud-sdk poetry
+            ] ++ [
+              inputs'.lowrisc-it.packages.vcs
+            ] ++ [
+              self'.packages.pythonEnv
+            ];
+          USE_BAZEL_VERSION = "${pkgs.bazel.version}"; # 6.3.2
+          shellHook = ''
+            # export LD_LIBRARY_PATH="$(pkg-config --cflags openssl | cut -c3-)"
+            # echo $LD_LIBRARY_PATH
+            echo "OpenTitan environment activated."
+          '';
+        };
     };
 
   };

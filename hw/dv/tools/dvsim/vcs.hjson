@@ -49,6 +49,9 @@
                // TODO, may need to update to c++14 to meet our requirements
                // Refer to https://docs.opentitan.org/doc/ug/install_instructions
                "-CFLAGS --std=c++11",
+               // Flags for openssl (use pkg-config)
+               "-CFLAGS -I/nix/store/7nbh3b6hhjqjs3nfy529g38l85iv46i9-openssl-3.0.11-dev/include",
+               "-LDFLAGS -Wl,-L/nix/store/i57qjfacl3hv7sc1s1lj4z6fssh69nd3-openssl-3.0.11/lib",
                // Without this magic LDFLAGS argument below, we get compile time errors with
                // VCS on Google Linux machines that look like this:
                // .../libvcsnew.so: undefined reference to `snpsReallocFunc'
