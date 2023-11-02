@@ -13,8 +13,8 @@
 
   ### LOWRISC ###
   inputs.lowrisc-it = {
-    url = "git+ssh://git@github.com/lowRISC/lowrisc-it.git";
-    inputs.nixpkgs.follows = "nixpkgs";
+    # url = "git+ssh://git@github.com/lowRISC/lowrisc-it.git";
+    url = "/home/harry/projects/lowrisc-it/";
   };
 
 
@@ -76,6 +76,8 @@
             cp -r ${ncurses5.dev} $dev
             cp -r ${ncurses5.man} $man
           '';
+          # vcs = inputs'.lowrisc-it.packages.xcelium;
+          eda = inputs'.lowrisc-it.packages.xcelium_old;
         in
           (pkgs.buildFHSEnv {
             name = "opentitan";
@@ -86,7 +88,7 @@
                 rustup
 
                 # Bazel downloads Python Toolchains / Rust compilers which are not patch-elfed
-                # - they need these deps.
+                # -> they need these deps.
                 zlib
                 openssl
                 curl
@@ -114,11 +116,13 @@
                 ncurses5-patched
               ]
               ++ [
-                inputs'.lowrisc-it.packages.vcs
+                eda # VCS/Xcelium etc.
+                time bc
               ];
             extraOutputsToInstall = ["dev"];
             profile = ''
-              unset LD_LIBRARY_PATH
+              # Setup the eda-tool environment variables (needed for GUI etc.)
+              # Setup an existing python venv (#TODO use nix pythonEnv)
               source /home/harry/scratch/venvs/opentitan/.venv2/bin/activate
             '';
           }).env;
