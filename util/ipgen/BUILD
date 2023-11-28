@@ -20,6 +20,7 @@ py_library(
         "//util/reggen:params",
         requirement("hjson"),
         requirement("mako"),
+        requirement("semantic-version"),
     ],
 )
 

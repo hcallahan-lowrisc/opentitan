@@ -113,7 +113,7 @@ py_library(
         ":reg_block",
         ":signal",
         requirement("hjson"),
-        requirement("semantic_version"),
+        requirement("semantic-version"),
     ],
 )
 
@@ -144,7 +144,7 @@ py_library(
         ":register",
         ":signal",
         ":window",
-        requirement("semantic_version"),
+        requirement("semantic-version"),
     ],
 )
 
