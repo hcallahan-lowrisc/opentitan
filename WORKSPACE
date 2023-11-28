@@ -38,14 +38,6 @@ lint_deps()
 load("//third_party/lychee:repos.bzl", "lychee_repos")
 lychee_repos()
 
-# Python Toolchain + PIP Dependencies
-load("//third_party/python:repos.bzl", "python_repos")
-python_repos()
-load("//third_party/python:deps.bzl", "python_deps")
-python_deps()
-load("//third_party/python:pip.bzl", "pip_deps")
-pip_deps()
-
 # Google/Bazel dependencies.  This needs to be after Python initialization
 # so that our preferred python configuration takes precedence.
 load("//third_party/google:repos.bzl", "google_repos")
