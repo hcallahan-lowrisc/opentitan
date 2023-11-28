@@ -138,3 +138,11 @@ build --output_groups=+modid_checks
 
 # Import site-specific configuration.
 try-import .bazelrc-site
+
+###########
+# NIXPKGS #
+###########
+
+# https://bazel.build/run/bazelrc#config
+# --config=nix
+build:nix --host_platform=@io_tweag_rules_nixpkgs//nixpkgs/platforms:host --extra_execution_platforms=@io_tweag_rules_nixpkgs//nixpkgs/platforms:host

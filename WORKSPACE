@@ -7,6 +7,13 @@
 
 workspace(name = "lowrisc_opentitan")
 
+load("//third_party/nixpkgs:repos.bzl", "nixpkgs_repos")
+nixpkgs_repos()
+load("//third_party/nixpkgs:deps.bzl", "nixpkgs_deps")
+nixpkgs_deps()
+load("//third_party/nixpkgs:toolchains.bzl", "nixpkgs_toolchains")
+nixpkgs_toolchains()
+
 # CRT is the Compiler Repository Toolkit.  It contains the configuration for
 # the windows compiler.
 load("//third_party/crt:repos.bzl", "crt_repos")
