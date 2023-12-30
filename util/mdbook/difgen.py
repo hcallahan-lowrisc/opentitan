@@ -1,64 +1,65 @@
 # Copyright lowRISC contributors.
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
-"""
-Generate HTML documentation for Device Interface Functions (DIFs)
-"""
+"""Generate HTML documentation for Device Interface Functions (DIFs)."""
 
+import io
 import copy
-import logging as log
 import subprocess
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
+import logging
+logger = logging.getLogger(__name__)
 
-# Turn the Doxygen multi-file XML output into one giant XML file (and parse it
-# into a python object), using the provided XLST file.
-def get_combined_xml(doxygen_xml_path):
+def get_combined_xml(doxygen_xml_path: Path) -> ET.Element:
+    """
+    Turn the Doxygen multi-file XML output into one giant XML file (and parse it
+    into a python object), using the provided XLST file.
+    """
     xsltproc_args = [
         "xsltproc",
-        str(doxygen_xml_path.joinpath("combine.xslt")),
-        str(doxygen_xml_path.joinpath("index.xml")),
+        str(doxygen_xml_path / "combine.xslt"),
+        str(doxygen_xml_path / "index.xml"),
     ]
 
     combined_xml_res = subprocess.run(
-        xsltproc_args, check=True,
-        cwd=str(doxygen_xml_path), stdout=subprocess.PIPE,
+        xsltproc_args,
+        check=True,
+        cwd=str(doxygen_xml_path),
+        stdout=subprocess.PIPE,
         universal_newlines=True,
     )
     return ET.fromstring(combined_xml_res.stdout)
 
 
-# Get all information about individual DIF functions that are specified in one
-# DIF header. This returns only the Info from the XML that we require.
-def get_difref_info(combined_xml, dif_header):
+def gen_listing_html(
+        html_url: str,
+        dif_header: Path,
+        combined_xml: ET.Element,
+        dif_listings_html: io.StringIO) -> None:
+    """Create HTML list of DIFs, using the info from the combined xml.
+
+    Raises:
+        RuntimeError: Matching data for the given html_url/dif_header args
+                      could not be found in the XML.
+    """
+    # First, select the matching data from within the generated doxygen xml
+    # We are effectively querying for matches in the Xpath : //compounddef[@kind="file"]/location/@file
     compound = _get_dif_file_compound(combined_xml, dif_header)
     if compound is None:
-        return []
+        raise RuntimeError(f"Doxygen output not found within XML for {dif_header}")
 
     file_id = _get_dif_file_id(compound)
-    functions = _get_dif_function_info(compound, file_id)
-    return functions
-
-
-# Create HTML List of DIFs, using the info from the combined xml
-def gen_listing_html(html_path: str, combined_xml, dif_header, dif_listings_html):
-    compound = _get_dif_file_compound(combined_xml, dif_header)
-    if compound is None:
-        log.error("Doxygen output not found for {}".format(dif_header))
-        return
-
-    file_id = _get_dif_file_id(compound)
-    functions = _get_dif_function_info(html_path, compound, file_id)
-
+    functions = _get_dif_function_info(compound, file_id, html_url)
     if len(functions) == 0:
-        log.error("No DIF functions found for {}".format(dif_header))
-        return
+        raise RuntimeError(f"No DIF functions found within XML for {dif_header}")
 
     # Generate DIF listing header
     dif_listings_html.write('<p>To use this DIF, include the following C header:</p>')
     dif_listings_html.write('<pre><code class=language-c data-lang=c>')
     dif_listings_html.write('#include "<a href="{}/{}.html">{}</a>"'.format(
-        html_path, file_id, dif_header,
+        html_url, file_id, dif_header,
     ))
     dif_listings_html.write('</code></pre>\n')
 
@@ -77,24 +78,37 @@ def gen_listing_html(html_path: str, combined_xml, dif_header, dif_listings_html
 
 # Generate HTML link for single function, using info returned from
 # get_difref_info
-def gen_difref_html(function_info, difref_html):
+def gen_difref_html(function_info, difref_html: io.StringIO) -> None:
     difref_html.write('<a href="{full_url}">'.format(**function_info))
     difref_html.write('<code>{name}</code>'.format(**function_info))
     difref_html.write('</a>\n')
 
 
-def _get_dif_file_compound(combined_xml, dif_header):
+def _get_dif_file_compound(combined_xml: ET.Element, dif_header: Path) -> ET.Element:
     for c in combined_xml.findall('compounddef[@kind="file"]'):
-        if c.find("location").attrib["file"] == dif_header:
+        if c.find("location").attrib["file"] == str(dif_header):
             return c
     return None
 
 
-def _get_dif_file_id(compound):
+def _get_dif_file_id(compound: ET.Element) -> str:
     return compound.attrib["id"]
 
 
-def _get_dif_function_info(html_path: str, compound, file_id):
+def _get_dif_function_info(compound: ET.Element,
+                           file_id: str,
+                           html_url: str) -> list[dict]:
+    """Returns a list of dicts for each function in the dif.
+
+    Each dict contains useful metadata we can then use to generate additional
+    documentation.
+
+    Params:
+        compound:
+        file_id:
+        html_url: /* Not used for lookup, just added into the metadata */
+            The directory where the Doxygen-generated HTML files are hosted.
+    """
     funcs = compound.find('sectiondef[@kind="func"]')
     if funcs is None:
         return []
@@ -115,7 +129,7 @@ def _get_dif_function_info(html_path: str, compound, file_id):
         func_info["id"] = m.attrib["id"]
         func_info["file_id"] = file_id
         func_info["local_id"] = func_id
-        func_info["full_url"] = "{}/{}.html#{}".format(html_path, file_id, func_id)
+        func_info["full_url"] = "{}/{}.html#{}".format(html_url, file_id, func_id)
 
         func_info["name"] = _get_text_or_empty(m, "name")
         func_info["prototype"] = _get_text_or_empty(

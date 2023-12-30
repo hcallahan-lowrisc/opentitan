@@ -16,8 +16,6 @@ from pathlib import Path, PurePath
 from mdbook import difgen
 from mdbook import utils as md_utils
 
-SRCTREE_TOP = Path(__file__).parents[1].resolve()
-
 
 def main() -> None:
     md_utils.supports_html_only()
@@ -33,18 +31,17 @@ def main() -> None:
 
     try:
         preproc_cfg = context["config"]["preprocessor"]["doxygen"]
-        out_dir = SRCTREE_TOP / preproc_cfg["out-dir"]
-        html_out_dir = "/" + preproc_cfg["html-out-dir"]
+        xml_dir = Path(preproc_cfg["xml-dir"])
+        html_url = preproc_cfg["html-url"]
         dif_src_regex = re.compile(preproc_cfg["dif-src-py-regex"])
     except KeyError:
         sys.exit(
             "mdbook_doxygen.py requires are set in the book.toml configuration.\n"
-            "\tpreprocessor.reggen.out-dir -- Doxygen's output directory.\n"
-            "\tpreprocessor.reggen.html-out-dir -- Doxygen's html out directory.\n"
+            "\tpreprocessor.reggen.xml-dir -- The build directory where the API_XML output has been generated.\n"
+            "\tpreprocessor.reggen.html-url -- The final url where Doxygen's html output is hosted.\n"
             "\tpreprocessor.reggen.dif-src-py-regex -- A regex for identifying dif files.\n"
         )
-
-    combined_xml = difgen.get_combined_xml(out_dir / 'api-xml')
+    combined_xml = difgen.get_combined_xml(xml_dir)
 
     header_files = set()
     for chapter in md_utils.chapters(book["sections"]):
@@ -56,8 +53,11 @@ def main() -> None:
 
         buffer = io.StringIO()
         buffer.write(f"# {file_name}\n")
-        difgen.gen_listing_html(html_out_dir, combined_xml, str(book_root / src_path),
-                                buffer)
+        difgen.gen_listing_html(
+            html_url=html_url,
+            combined_xml=combined_xml,
+            dif_header=str(src_path),
+            dif_listings_html=buffer)
         buffer.write(
             "\n<details><summary>\nGenerated from <a href=\"{}\">{}</a></summary>\n"
             .format(

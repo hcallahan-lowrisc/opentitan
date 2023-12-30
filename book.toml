@@ -61,8 +61,8 @@ command = "./util/mdbook_code_snippet.py"
 
 [preprocessor.doxygen]
 command = "./util/mdbook_doxygen.py"
-out-dir = "build-site/gen"
-html-out-dir = "gen/doxy"
+xml-dir = "build-site/gen"
+html-url = "http://localhost:9000/gen/doxy"
 dif-src-py-regex = 'dif_\S*\.h'
 
 [preprocessor.toolversion]
