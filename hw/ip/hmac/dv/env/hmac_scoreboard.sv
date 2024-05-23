@@ -65,22 +65,28 @@ class hmac_scoreboard extends cip_base_scoreboard #(.CFG_T (hmac_env_cfg),
     if (write && channel == AddrChannel) begin
       // push the msg into msg_fifo
       if ((item.a_addr & addr_mask) inside {[HMAC_MSG_FIFO_BASE : HMAC_MSG_FIFO_LAST_ADDR]}) begin
-        if (!sha_en) begin
-          update_err_intr_code(SwPushMsgWhenDisallowed);
-        end else if (!hmac_start) begin
-          update_err_intr_code(SwPushMsgWhenDisallowed);
-        end else if (hmac_start && !cfg.under_reset) begin
-          bit [7:0] bytes[4];
-          bit [7:0] msg[$];
-          // Register coverage for the fact that a write occurs to the message FIFO during
-          // a compression round
-          if (cfg.en_cov) cov.wr_msg_during_hash_cg.sample(1);
-          {<<byte{bytes}} = item.a_data;
-          // do endian swap in the word according to the mask, then push to the msg queue
-          foreach (item.a_mask[i]) begin
-            if (item.a_mask[i]) begin
-              // endian_swap bit 1 operates at big endian data
-              msg = (ral.cfg.endian_swap.get_mirrored_value()) ? {msg, bytes[i]} : {bytes[i], msg};
+        // Only push message into the FIFO when intended, as in case of S&R triggered with another
+        // context, we don't want to process the message of this other context.
+        if (!cfg.sar_skip_ctxt) begin
+          if (!sha_en) begin
+            update_err_intr_code(SwPushMsgWhenDisallowed);
+          end else if (!hmac_start && !hmac_continue) begin
+            update_err_intr_code(SwPushMsgWhenDisallowed);
+          end else if ((hmac_start || hmac_continue) && !cfg.under_reset) begin
+            bit [7:0] bytes[4];
+            bit [7:0] msg[$];
+            // Register coverage for the fact that a write occurs to the message FIFO during
+            // a compression round
+            if (cfg.en_cov) cov.wr_msg_during_hash_cg.sample(1);
+            {<<byte{bytes}} = item.a_data;
+            // TODO (#): could add here cov sampling of nb_bytes valid per word and its transitions
+            // do endian swap in the word according to the mask, then push to the msg queue
+            foreach (item.a_mask[i]) begin
+              if (item.a_mask[i]) begin
+                // endian_swap bit 1 operates at big endian data
+                msg = (`gmv(ral.cfg.endian_swap)) ?
+                      {msg, bytes[i]} : {bytes[i], msg};
+              end
             end
           end
           foreach (msg[i]) msg_q.push_back(msg[i]);
@@ -356,28 +362,29 @@ class hmac_scoreboard extends cip_base_scoreboard #(.CFG_T (hmac_env_cfg),
               expected_digest_size = ral.cfg.digest_size.get_mirrored_value();
             end
 
-          `uvm_info(`gfn, $sformatf(
-                      "comparing digest sizes (previous, cfg, and expected): %4b, %4b, %4b",
-                       previous_digest_size, ral.cfg.digest_size.get_mirrored_value(),
-                       expected_digest_size), UVM_HIGH)
+            `uvm_info(`gfn, $sformatf(
+                        "comparing digest sizes (previous, cfg, and expected): %4b, %4b, %4b",
+                        previous_digest_size, ral.cfg.digest_size.get_mirrored_value(),
+                        expected_digest_size), UVM_HIGH)
 
-          // If wipe_secret is triggered, ensure the predicted value does not match the read out
-          // digest and update the predicted value with the read out value.
-          if (cfg.wipe_secret_triggered) begin
-            `DV_CHECK_NE(real_digest_val, exp_digest[digest_idx])
-            `uvm_info(`gfn, $sformatf("updating digest to read value after wiping 0x%0h",
-                       exp_digest[digest_idx]), UVM_HIGH)
-            // update new digest data to the exp_digest variable.
-            // TODO MVy: change it as taking a value from DUT to update exp is not a good practice,
-            // take value from wipe_secret reg instead
-            exp_digest[digest_idx] = real_digest_val;
-          end else begin // !cfg.wipe_secret_triggered
-            // only check till digest_idx = 7 for SHA-2 256 and till digest_idx = 11 for SHA-2 384
-            // Remaining digest values are irrelevant or truncated for these digest sizes.
-            if (((expected_digest_size == SHA2_256) && (digest_idx < 8))  ||
-                ((expected_digest_size == SHA2_384) && (digest_idx < 11)) ||
-                  expected_digest_size == SHA2_512) begin
-              `DV_CHECK_EQ(real_digest_val, exp_digest[digest_idx])
+            // If wipe_secret is triggered, ensure the predicted value does not match the read out
+            // digest and update the predicted value with the read out value.
+            if (cfg.wipe_secret_triggered) begin
+              `DV_CHECK_NE(real_digest_val, exp_digest[digest_idx])
+              `uvm_info(`gfn, $sformatf("updating digest to read value after wiping 0x%0h",
+                        exp_digest[digest_idx]), UVM_HIGH)
+              // update new digest data to the exp_digest variable.
+              // TODO (#): change it as taking a value from DUT to update exp is not a good
+              // practice, take value from wipe_secret reg instead
+              exp_digest[digest_idx] = real_digest_val;
+            end else begin // !cfg.wipe_secret_triggered
+              // only check till digest_idx = 7 for SHA-2 256 and till digest_idx = 11 for SHA-2 384
+              // Remaining digest values are irrelevant or truncated for these digest sizes.
+              if (((expected_digest_size == SHA2_256) && (digest_idx < 8))  ||
+                  ((expected_digest_size == SHA2_384) && (digest_idx < 11)) ||
+                    expected_digest_size == SHA2_512) begin
+                `DV_CHECK_EQ(real_digest_val, exp_digest[digest_idx])
+              end
             end
           end
           return;
@@ -521,7 +528,9 @@ class hmac_scoreboard extends cip_base_scoreboard #(.CFG_T (hmac_env_cfg),
     fork
       begin : process_hmac_key_pad
         forever begin
-          wait(!cfg.under_reset);
+          if (cfg.under_reset) begin
+            @(negedge cfg.under_reset);
+          end
           // delay 1ps to make sure all variables are being reset, before moving to the next
           // forever loop
           #1ps;
