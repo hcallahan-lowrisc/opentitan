@@ -91,7 +91,7 @@ class hmac_test_vectors_sha_vseq extends hmac_base_vseq;
         csr_rd(.ptr(ral.intr_state), .value(intr_state_val));
         csr_wr(.ptr(ral.intr_state), .value(intr_state_val));
         // read digest and compare with the expected result, scb will calculate and check too
-        compare_digest(parsed_vectors[j].exp_digest);   // TODO: see issue #23288
+        compare_digest(parsed_vectors[j].exp_digest, digest_size);   // TODO: see issue #23288
       end
     end
   endtask : body
