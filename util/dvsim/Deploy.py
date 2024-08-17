@@ -639,7 +639,7 @@ class CovMerge(Deploy):
 
     def __init__(self, run_items, sim_cfg):
         # Construct the cov_db_dirs right away from the run_items. This is a
-        # special variable used in the HJson. The coverage associated with
+        # special variable used in the .hjson. The coverage associated with
         # the primary build mode needs to be first in the list.
         self.cov_db_dirs = []
         for run in run_items:
@@ -654,7 +654,7 @@ class CovMerge(Deploy):
         self.cov_merge_db_dir = subst_wildcards("{cov_merge_db_dir}",
                                                 sim_cfg.__dict__)
 
-        # Prune previous merged cov directories, keeping past 7 dbs.
+        # Prune previous merged cov directories, keeping only the lastest 7.
         prev_cov_db_dirs = clean_odirs(odir=self.cov_merge_db_dir, max_odirs=7)
 
         # If the --cov-merge-previous command line switch is passed, then

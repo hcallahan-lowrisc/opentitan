@@ -886,6 +886,17 @@ class SimCfg(FlowCfg):
         self.results_md = results_str
         return results_str
 
+
+    def write_results(self) -> None:
+        """Write results reports to disk."""
+
+        # The base-class handles writing the markdown and HTML reports.
+        super().write_results()
+
+        # Simulations also generate a json output, so write that to disk now.
+        self.json_report_path.write_text(self.results_json)
+
+
     def gen_results_summary(self):
         '''Generate the summary results table.
 

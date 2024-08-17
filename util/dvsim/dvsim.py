@@ -758,6 +758,8 @@ def main():
     if args.items:
         # Create deploy objects.
         cfg.create_deploy_objects()
+
+        # Run the deploy objects
         results = cfg.deploy_objects()
 
         # Generate results.
@@ -765,7 +767,12 @@ def main():
 
         # Publish results
         if args.publish:
+            # Publish the generated results to the OpenTitan results server
             cfg.publish_results()
+
+            # Trigger a rebuild of the site/docs which may pull new data from
+            # the published results.
+            cfg.rebuild_site()
 
     else:
         log.error("Nothing to run!")
