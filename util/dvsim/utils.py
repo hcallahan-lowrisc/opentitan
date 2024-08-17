@@ -31,6 +31,30 @@ TS_FORMAT = "%y.%m.%d_%H.%M.%S"
 TS_FORMAT_LONG = "%A %B %d %Y %H:%M:%S UTC"
 
 
+# Javascript to be inserted in the HTML report. This is invoked by inline html buttons
+# in certain reports to copy test reproduction commands to the clipboard.
+_COPY_REPRO_BUTTON_JS_SCRIPT = """
+<script language="javascript" type="text/javascript">
+  function copyContent(button_id) {
+    (async () => {
+      let button = document.getElementById(button_id);
+      try {
+        /* Copy repro cmd to clipboard (It's stored as an attribute in the button tag) */
+        await navigator.clipboard.writeText(button.getAttribute('repro_cmd'));
+        /* Change button text for feedback, then reset after 1sec */
+        button.innerHTML = "Copied!";
+        setTimeout(()=> {
+          button.innerHTML = "Click to copy repro";
+        }, 1000);
+      } catch (err) {
+        alert(`Failed to copy: ${err}.`);
+      }
+    })()
+  }
+</script>
+"""
+
+
 # Run a command and get the result. Exit with error if the command did not
 # succeed. This is a simpler version of the run_cmd function below.
 def run_cmd(cmd):
@@ -345,6 +369,7 @@ def md_results_to_html(title, css_file, md_text):
     html_text += "<div class=\"results\">\n"
     html_text += mistletoe.markdown(md_text)
     html_text += "</div>\n"
+    html_text += _COPY_REPRO_BUTTON_JS_SCRIPT
     html_text += "</body>\n"
     html_text += "</html>\n"
     html_text = htmc_color_pc_cells(html_text)

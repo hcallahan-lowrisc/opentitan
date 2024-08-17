@@ -590,6 +590,24 @@ class RunTest(Deploy):
             log.debug(f"{self.full_name}: {e}")
 
 
+    def create_repro_command(self) -> str:
+        git_cmd = [
+            f"git checkout {self.sim_cfg.results_dict['git_revision']}"
+        ]
+
+        dvsim_cmd = [
+            "util/dvsim/dvsim.py",
+            f"{(self.sim_cfg.flow_cfg_file).relative_to(self.sim_cfg.proj_root)}",
+            f"-i={self.name}",
+            f"--tool={self.sim_cfg.tool}",
+            f"--fixed-seed={self.seed}",
+        ]
+        if self.build_seed is not None:
+            dvsim_cmd.append(f"--build-seed={self.build_seed}")
+
+        return " ".join(git_cmd + ["&&"] + dvsim_cmd)
+
+
 class CovUnr(Deploy):
     """Abstraction for coverage UNR flow."""
 

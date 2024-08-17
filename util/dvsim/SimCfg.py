@@ -26,11 +26,7 @@ from SimResults import SimResults
 from tabulate import tabulate
 from Test import Test
 from Testplan import Testplan
-from utils import TS_FORMAT, rm_path
-
-# This affects the bucketizer failure report.
-_MAX_UNIQUE_TESTS = 5
-_MAX_TEST_RESEEDS = 2
+from utils import TS_FORMAT, rm_path, md_results_to_html
 
 
 class SimCfg(FlowCfg):
@@ -133,6 +129,7 @@ class SimCfg(FlowCfg):
         self.links = {}
         self.build_list = []
         self.run_list = []
+        self.sim_results: dict = {}
         self.cov_merge_deploy = None
         self.cov_report_deploy = None
         self.results_summary = OrderedDict()
@@ -545,8 +542,39 @@ class SimCfg(FlowCfg):
         for item in self.cfgs:
             item._cov_unr()
 
-    def _gen_json_results(self, run_results):
-        """Returns the run results as json-formatted dictionary.
+
+    def _gen_results(self) -> None:
+        # Setup the structure which summarizes all simulation results for this flow.
+        self.sim_results = SimResults(self.deploy, self.results)
+        # Post-process the above results data to generate something more useful for exporting.
+        self.results_dict = self._gen_results_dict()
+
+        # The base class flow first generates markdown, then converts it to HTML using mistletoe.
+        # However, we want to do something slightly different for simulation results.
+        #
+        # We want to generate a HTML report which contains interactive click-to-copy reproduction
+        # buttons, which by definition cannot exist in markdown, and hence we need a different
+        # flow here. We also don't want to generate markdown with placeholders for buttons and
+        # other elements as that would look ugly.
+
+        # This approaches generates the markdown report TWICE, once with embedded HTML for the
+        # repro buttons, and once without.
+
+        # Generate pure markdown for writing to disk, and also printing on the console.
+        self.results_md = self._gen_md_results()
+
+        # Generate the markdown report again, except with inline HTML buttons to copy the repro
+        # commands. We then pass this through the existing flow (using 'mistletoe'), which does not
+        # modify any valid inline HTML.
+        self.results_md_with_buttons = self._gen_md_results(add_repro_html_buttons=True)
+        self.results_html = md_results_to_html(self.results_title, self.css_file, self.results_md_with_buttons)
+
+        # Simulation flows also create a json results output file, so do this now.
+        self.results_json = json.dumps(self.results_dict)
+
+
+    def _gen_results_dict(self) -> dict:
+        """Process the run results and return a dictionary.
         """
 
         def _empty_str_as_none(s: str) -> Optional[str]:
@@ -623,9 +651,8 @@ class SimCfg(FlowCfg):
 
         # If the testplan does not yet have test results mapped to testpoints,
         # map them now.
-        sim_results = SimResults(self.deploy, run_results)
         if not self.testplan.test_results_mapped:
-            self.testplan.map_test_results(test_results=sim_results.table)
+            self.testplan.map_test_results(test_results=self.sim_results.table)
 
         # Extract results of testpoints and tests into the `testpoints` field.
         for tp in self.testplan.testpoints:
@@ -660,7 +687,7 @@ class SimCfg(FlowCfg):
             })
 
         # Extract unmapped tests.
-        unmapped_trs = [tr for tr in sim_results.table if not tr.mapped]
+        unmapped_trs = [tr for tr in self.sim_results.table if not tr.mapped]
         for tr in unmapped_trs:
             results['results']['unmapped_tests'].append(
                 _test_result_to_dict(tr))
@@ -683,8 +710,8 @@ class SimCfg(FlowCfg):
                 results['results']['coverage'][k.lower()] = _pct_str_to_float(v)
 
         # Extract failure buckets.
-        if sim_results.buckets:
-            by_tests = sorted(sim_results.buckets.items(),
+        if self.sim_results.buckets:
+            by_tests = sorted(self.sim_results.buckets.items(),
                               key=lambda i: len(i[1]),
                               reverse=True)
             for bucket, tests in by_tests:
@@ -715,85 +742,22 @@ class SimCfg(FlowCfg):
                     'failing_tests': fts,
                 })
 
-        # Store the `results` dictionary in this object.
-        self.results_dict = results
+        # Return the `results` dictionary
+        return results
 
-        # Return the `results` dictionary as json string.
-        return json.dumps(self.results_dict)
 
-    def _gen_results(self, run_results):
+    def _gen_md_results(self, add_repro_html_buttons: bool = False) -> str:
         '''
-        The function is called after the regression has completed. It collates the
-        status of all run targets and generates a dict. It parses the testplan and
-        maps the generated result to the testplan entries to generate a final table
-        (list). It also prints the full list of failures for debug / triage. If cov
-        is enabled, then the summary coverage report is also generated. The final
-        result is in markdown format.
+        The function is called after the regression has completed. It does the following:
+
+        - collates the status of all run targets and generates a dict.
+        - parses the testplan and maps the generated result to the testplan entries
+        - Generates a final table (list).
+        - Prints the full list of failures for debug / triage.
+        - If cov is enabled, then the summary coverage report is also generated.
+
+        The final result in markdown format is returned as a string.
         '''
-
-        def indent_by(level):
-            return " " * (4 * level)
-
-        def create_failure_message(test, line, context):
-            message = [f"{indent_by(2)}* {test.qual_name}\\"]
-            if line:
-                message.append(
-                    f"{indent_by(2)}  Line {line}, in log " +
-                    test.get_log_path())
-            else:
-                message.append(f"{indent_by(2)} Log {test.get_log_path()}")
-            if context:
-                message.append("")
-                lines = [f"{indent_by(4)}{c.rstrip()}" for c in context]
-                message.extend(lines)
-            message.append("")
-            return message
-
-        def create_bucket_report(buckets):
-            """Creates a report based on the given buckets.
-
-            The buckets are sorted by descending number of failures. Within
-            buckets this also group tests by unqualified name, and just a few
-            failures are shown per unqualified name.
-
-            Args:
-              buckets: A dictionary by bucket containing triples
-                (test, line, context).
-
-            Returns:
-              A list of text lines for the report.
-            """
-            by_tests = sorted(buckets.items(),
-                              key=lambda i: len(i[1]),
-                              reverse=True)
-            fail_msgs = ["\n## Failure Buckets", ""]
-            for bucket, tests in by_tests:
-                fail_msgs.append(f"* `{bucket}` has {len(tests)} failures:")
-                unique_tests = collections.defaultdict(list)
-                for (test, line, context) in tests:
-                    unique_tests[test.name].append((test, line, context))
-                for name, test_reseeds in list(unique_tests.items())[
-                        :_MAX_UNIQUE_TESTS]:
-                    fail_msgs.append(f"{indent_by(1)}* Test {name} has "
-                                     f"{len(test_reseeds)} failures.")
-                    for test, line, context in test_reseeds[:_MAX_TEST_RESEEDS]:
-                        fail_msgs.extend(
-                            create_failure_message(test, line, context))
-                    if len(test_reseeds) > _MAX_TEST_RESEEDS:
-                        fail_msgs.append(
-                            f"{indent_by(2)}* ... and "
-                            f"{len(test_reseeds) - _MAX_TEST_RESEEDS} "
-                            "more failures.")
-                if len(unique_tests) > _MAX_UNIQUE_TESTS:
-                    fail_msgs.append(
-                        f"{indent_by(1)}* ... and "
-                        f"{len(unique_tests) - _MAX_UNIQUE_TESTS} more tests.")
-
-            fail_msgs.append("")
-            return fail_msgs
-
-        deployed_items = self.deploy
-        results = SimResults(deployed_items, run_results)
 
         # Generate results table for runs.
         results_str = "## " + self.results_title + "\n"
@@ -843,13 +807,13 @@ class SimCfg(FlowCfg):
             results_str += ("### Build randomization enabled with "
                             f"--build-seed {self.build_seed}\n")
 
-        if not results.table:
+        if not self.sim_results.table:
             results_str += "No results to display.\n"
 
         else:
             # Map regr results to the testplan entries.
             if not self.testplan.test_results_mapped:
-                self.testplan.map_test_results(test_results=results.table)
+                self.testplan.map_test_results(test_results=self.sim_results.table)
 
             results_str += self.testplan.get_test_results_table(
                 map_full_testplan=self.map_full_testplan)
@@ -861,7 +825,7 @@ class SimCfg(FlowCfg):
 
             # Append coverage results if coverage was enabled.
             if self.cov_report_deploy is not None:
-                report_status = run_results[self.cov_report_deploy]
+                report_status = self.results[self.cov_report_deploy]
                 if report_status == "P":
                     results_str += "\n## Coverage Results\n"
                     # Link the dashboard page using "cov_report_page" value.
@@ -879,11 +843,10 @@ class SimCfg(FlowCfg):
                 else:
                     self.results_summary["Coverage"] = "--"
 
-        if results.buckets:
+        if self.sim_results.buckets:
             self.errors_seen = True
-            results_str += "\n".join(create_bucket_report(results.buckets))
+            results_str += self.sim_results.create_md_bucket_report(add_repro_html_buttons)
 
-        self.results_md = results_str
         return results_str
 
 
@@ -919,9 +882,8 @@ class SimCfg(FlowCfg):
             if row:
                 # convert name entry to relative link
                 row = cfg.results_summary
-                row["Name"] = cfg._get_results_page_link(
-                    self.results_dir,
-                    row["Name"])
+                row["Name"] = cfg._get_md_relative_link_html_report(link_text=row["Name"])
+
 
                 # If header is set, ensure its the same for all cfgs.
                 if header:

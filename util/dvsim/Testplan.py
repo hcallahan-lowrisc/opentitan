@@ -659,7 +659,7 @@ class Testplan:
                 stage = ""
                 tp_name = ""
 
-        text = "\n### Test Results\n"
+        text = "\n## Test Results\n"
         text += tabulate(table,
                          headers=header,
                          tablefmt="pipe",
