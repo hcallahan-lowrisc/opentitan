@@ -63,7 +63,7 @@ class LsfLauncher(Launcher):
         # Create the job dir.
         LsfLauncher.jobs_dir[cfg] = Path(cfg.scratch_path, "lsf",
                                          cfg.timestamp)
-        clean_odirs(odir=LsfLauncher.jobs_dir[cfg], max_odirs=2)
+        clean_odirs(new_odir=LsfLauncher.jobs_dir[cfg], max_odirs=2)
         os.makedirs(Path(LsfLauncher.jobs_dir[cfg]), exist_ok=True)
 
     @staticmethod

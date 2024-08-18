@@ -488,18 +488,20 @@ class FlowCfg():
     def write_results(self) -> None:
         """Write results to files.
 
-        This function converts text_md to HTML and writes the result to a file
-        in self.results_dir with the file name given by html_filename.  If
-        json_str is not None, this function additionally writes json_str to a
-        file with the same path and base name as the HTML file but with '.json'
-        as suffix.
+        This function:
+        - Writes self.results_md to a file
+        - Converts self.results_md to HTML, and write it to a file
+
+        If the intended new results directory already exists, rename it based on
+        a timestamp of when it was created. Then create the new directory again
+        and write the new results into it.
         """
 
-        # Prepare reports directory, keeping 90 day history.
-        clean_odirs(odir=self.results_dir, max_odirs=89)
-        mk_path(self.results_dir)
+        # Prepare reports directory, keeping the 90 newest results.
+        clean_odirs(new_odir=self.results_dir, max_odirs=89)
 
-        # Write results to the report area.
+        # Now write the result files for this run into its result directory.
+        mk_path(self.results_dir)
         self.md_report_path.write_text(self.results_md)
         self.html_report_path.write_text(self.results_html)
 

@@ -612,40 +612,57 @@ def mk_symlink(path, link):
             rm_path(link)
 
 
-def clean_odirs(odir, max_odirs, ts_format=TS_FORMAT):
-    """Clean previous output directories.
+def clean_odirs(new_odir, max_odirs) -> list[Path]:
+    """Cleanup previous output directories.
 
-    When running jobs, we may want to maintain a limited history of
-    previous invocations. This method finds and deletes the output
-    directories at the base of input arg 'odir' with the oldest timestamps,
-    if that limit is reached. It returns a list of directories that
-    remain after deletion.
+    When running jobs, we may want to maintain a limited history of previous run results.
+    This function cleans up the location where output directories are stored, making space
+    for the 'new_odir' to be created in a follow-up step.
+    This method does NOT create the new output directory.
+
+    This method:
+    - If an output directory already exists at the path of 'new_odir', move it to
+      a new path based on it's creation time
+    - If more than 'max_odirs' directories are present in the parent directory:
+      - Deletes directories with the oldest timestamps until only 'max_odirs'
+        are remaining
+
+    Args:
+        new_odir: The new output directory we want to create (after this routine completes)
+        max_odirs: Sets the limit of existing output dirs to keep.
+
+    Returns:
+        A list of output directories that remain after deletion.
     """
 
-    odir = Path(odir)
-
-    if os.path.exists(odir):
-        # If output directory exists, back it up.
-        ts = datetime.fromtimestamp(os.stat(odir).st_ctime).strftime(ts_format)
-        # Prior to Python 3.9, shutil may run into an error when passing in
-        # Path objects (see https://bugs.python.org/issue32689). While this
-        # has been fixed in Python 3.9, string casts are added so that this
-        # also works with older versions.
-        shutil.move(str(odir), str(odir.with_name(ts)))
-
-    # Get list of past output directories sorted by creation time.
-    pdir = odir.resolve().parent
+    pdir = Path(new_odir).parent.resolve()
     if not pdir.exists():
+        # Parent directory of the new output directory does not exist, hence there is nothing
+        # to clean.
         return []
 
-    dirs = sorted([old for old in pdir.iterdir() if (old.is_dir() and
-                                                     old != 'summary')],
+    # If there is an existing directory at the path of 'new_odir', move it now.
+    odir = Path(new_odir).resolve()
+    if odir.exists():
+        # Move it to a new unique path (based on its creation time).
+        ts = datetime.fromtimestamp(os.stat(odir).st_ctime).strftime(TS_FORMAT)
+        shutil.move(src=str(odir),
+                    dst=str(odir.with_name(ts)))
+
+    # Now prune existing output directories based on 'max_odirs'
+
+    # Get a list of all past output directories sorted by creation time. This allows us to
+    # filter and delete them by age.
+    dirs = sorted([odir for odir in pdir.iterdir()
+                   # Only filter for directories, and exclude any 'summary' directories
+                   if (odir.is_dir() and odir != 'summary')],
                   key=os.path.getctime,
                   reverse=True)
-
+    # Delete the oldest output directories until we have at most 'max_odirs' remaining
     for old in dirs[max(0, max_odirs - 1):]:
         shutil.rmtree(old, ignore_errors=True)
 
+    # Finally, return a list of remaining output directories after the cleanup.
     return [] if max_odirs == 0 else dirs[:max_odirs - 1]
 
 

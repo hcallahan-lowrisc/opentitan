@@ -172,7 +172,7 @@ class Launcher:
 
         # If renew_odir flag is True - then move it.
         if self.renew_odir:
-            clean_odirs(odir=self.deploy.odir, max_odirs=self.max_odirs)
+            clean_odirs(new_odir=self.deploy.odir, max_odirs=self.max_odirs)
         os.makedirs(self.deploy.odir, exist_ok=True)
 
     def _link_odir(self, status):

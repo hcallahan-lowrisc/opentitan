@@ -321,6 +321,9 @@ class Deploy():
         # Retain the handle to self for lookup & callbacks.
         self.launcher = get_launcher(self)
 
+    def create_repro_command(self) -> str:
+        return ""
+
 
 class CompileSim(Deploy):
     """Abstraction for building the simulation executable."""
@@ -673,7 +676,7 @@ class CovMerge(Deploy):
                                                 sim_cfg.__dict__)
 
         # Prune previous merged cov directories, keeping only the lastest 7.
-        prev_cov_db_dirs = clean_odirs(odir=self.cov_merge_db_dir, max_odirs=7)
+        prev_cov_db_dirs = clean_odirs(new_odir=self.cov_merge_db_dir, max_odirs=7)
 
         # If the --cov-merge-previous command line switch is passed, then
         # merge coverage with the previous runs.
