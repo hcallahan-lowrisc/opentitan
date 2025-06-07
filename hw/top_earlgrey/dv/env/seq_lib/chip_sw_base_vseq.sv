@@ -16,30 +16,37 @@ class chip_sw_base_vseq extends chip_base_vseq;
 
   virtual task pre_start();
     super.pre_start();
-    set_and_release_sw_strap_nonblocking();
-    // Disable mem checks in scoreboard - it does not factor in memory scrambling.
+
+    // (Forever) apply drive to sw_strap pins when the current SwTestStatus changes.
+    fork set_and_release_sw_strap_nonblocking(); join_none
+
+    // #TODO The scoreboard does not factor in memory scrambling.
+    // Disable mem checks in scoreboard
     cfg.en_scb_mem_chk = 1'b0;
+
+    // Connect the spi_console object to this sequence
+    cfg.ottf_spi_console_h.seq_h = this;
+    cfg.ottf_spi_console_h.spi_host_sequencer_h = p_sequencer.spi_host_sequencer_h;
   endtask
 
-  // Drive sw_strap pins only when the ROM / test ROM code is active
+  // (Forever) apply drive to sw_strap pins when the current SwTestStatus changes.
+  // - If using the ROM Bootstrap mechanism, set the straps when entering the ROM.
+  // - (optionally) disconnect the straps entirely when entering the ROM_EXT test.
   virtual task set_and_release_sw_strap_nonblocking();
     sw_test_status_e prev_status = SwTestStatusUnderReset;
-    fork begin
-      forever begin
-        wait (cfg.sw_test_status_vif.sw_test_status != prev_status);
-        case (cfg.sw_test_status_vif.sw_test_status)
-          SwTestStatusInBootRom: begin
-            cfg.chip_vif.sw_straps_if.drive({3{cfg.use_spi_load_bootstrap}});
-          end
-          SwTestStatusInTest: begin
-            if (disconnect_sw_straps_if)
-              cfg.chip_vif.sw_straps_if.disconnect();
-          end
-          default: ;
-        endcase
-        prev_status = cfg.sw_test_status_vif.sw_test_status;
-      end
-    end join_none
+    forever begin
+      wait (cfg.sw_test_status_vif.sw_test_status != prev_status);
+      case (cfg.sw_test_status_vif.sw_test_status)
+        SwTestStatusInBootRom: begin
+          cfg.chip_vif.sw_straps_if.drive({3{cfg.use_spi_load_bootstrap}});
+        end
+        SwTestStatusInTest: begin
+          if (disconnect_sw_straps_if) cfg.chip_vif.sw_straps_if.disconnect();
+        end
+        default:;
+      endcase
+      prev_status = cfg.sw_test_status_vif.sw_test_status;
+    end
   endtask
 
   virtual task dut_init(string reset_kind = "HARD");
@@ -53,18 +60,20 @@ class chip_sw_base_vseq extends chip_base_vseq;
   // Initialize the chip to enable SW to boot up and execute code.
   //
   // Backdoor load the sw test image, initialize memories, sw logger and test status interfaces.
-  // Note that this function is called the moment POR_N asserts. The chip resources including the
-  // CPU are brought out of reset much later, after the pwrmgr has gone through the wakeup sequence.
-  // Invoke cfg.chip_vif.cpu_clk_rst_vif.wait_for_reset() to bring the simulation to the point where
-  // the CPU is out of reset and ready to execute code.
+  //
+  // > Note that this function is called the moment POR_N asserts.
+  //
+  // The chip resources including the CPU are brought out of reset much later, after the pwrmgr has
+  // gone through the wakeup sequence.
   virtual task cpu_init();
      int size_bytes;
      int total_bytes;
 
-    `uvm_info(`gfn, "Starting cpu_init", UVM_MEDIUM)
+    `uvm_info(`gfn, "chip_sw_base_vseq::cpu_init() START.", UVM_MEDIUM)
 
     // Initialize the sw logger interface.
     foreach (cfg.sw_images[i]) begin
+      `uvm_info(`gfn, $sformatf("cfg.sw_images[%0d] = %0s", i, cfg.sw_images[i]), UVM_MEDIUM)
       if (i inside {SwTypeRom, SwTypeDebug, SwTypeTestSlotA, SwTypeTestSlotB}) begin
         cfg.sw_logger_vif.add_sw_log_db(cfg.sw_images[i]);
       end
@@ -77,15 +86,12 @@ class chip_sw_base_vseq extends chip_base_vseq;
     cfg.sw_test_status_vif.sw_test_status_addr = SW_DV_TEST_STATUS_ADDR;
 
     `uvm_info(`gfn, "Initializing SRAMs", UVM_MEDIUM)
-
     // Assume each tile contains the same number of bytes.
     size_bytes = cfg.mem_bkdr_util_h[chip_mem_e'(RamMain0)].get_size_bytes();
     total_bytes = size_bytes * cfg.num_ram_main_tiles;
-
     // Randomize the main SRAM.
     for (int addr = 0; addr < total_bytes; addr = addr + 4) begin
       bit [31:0] rand_val;
-
       `DV_CHECK_STD_RANDOMIZE_FATAL(rand_val, "Randomization failed!")
       main_sram_bkdr_write32(addr, rand_val);
     end
@@ -98,41 +104,37 @@ class chip_sw_base_vseq extends chip_base_vseq;
     // Randomize retention memory.  This is done intentionally with wrong integrity
     // as early portions of ROM will initialize it to the correct value.
     // The randomization here is just to ensure we do not have x's in the memory.
+    `uvm_info(`gfn, "Randomize Retention Mem", UVM_MEDIUM)
     for (int ram_idx = 0; ram_idx < cfg.num_ram_ret_tiles; ram_idx++) begin
       cfg.mem_bkdr_util_h[chip_mem_e'(RamRet0 + ram_idx)].randomize_mem();
     end
 
-    `uvm_info(`gfn, "Initializing ROM", UVM_MEDIUM)
     // Backdoor load memories with sw images.
-    if (cfg.skip_rom_bkdr_load == 0) begin
-`ifdef DISABLE_ROM_INTEGRITY_CHECK
-      cfg.mem_bkdr_util_h[Rom].load_mem_from_file({cfg.sw_images[SwTypeRom], ".32.vmem"});
-`else
+
+    if (!cfg.skip_rom_bkdr_load) begin
+      `uvm_info(`gfn, "Initializing ROM", UVM_MEDIUM)
       cfg.mem_bkdr_util_h[Rom].load_mem_from_file({cfg.sw_images[SwTypeRom], ".39.scr.vmem"});
-`endif
     end
 
-    if (cfg.skip_flash_bkdr_load == 0) begin
-      if (cfg.sw_images.exists(SwTypeTestSlotA)) begin
-        if (cfg.use_spi_load_bootstrap) begin
-          `uvm_info(`gfn, "Initializing SPI flash bootstrap", UVM_MEDIUM)
-          spi_device_load_bootstrap({cfg.sw_images[SwTypeTestSlotA], ".64.vmem"});
-          cfg.use_spi_load_bootstrap = 1'b0;
-        end else begin
-          cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(
-              {cfg.sw_images[SwTypeTestSlotA], ".64.scr.vmem"});
-        end
-      end
-      if (cfg.sw_images.exists(SwTypeTestSlotB)) begin
+    if (!cfg.skip_flash_bkdr_load) begin
+      `uvm_info(`gfn, "Initializing FLASH", UVM_MEDIUM)
+      if ((cfg.use_spi_load_bootstrap) && (cfg.sw_images.exists(SwTypeTestSlotA))) begin
         // TODO: support bootstrapping entire flash address space, not just slot A.
-        cfg.mem_bkdr_util_h[FlashBank1Data].load_mem_from_file(
-            {cfg.sw_images[SwTypeTestSlotB], ".64.scr.vmem"});
+        `uvm_info(`gfn, "SPI-Bootstrapping FLASH SlotA...", UVM_MEDIUM)
+        spi_device_load_bootstrap({cfg.sw_images[SwTypeTestSlotA], ".64.vmem"});
+        cfg.use_spi_load_bootstrap = 1'b0;
+        `uvm_info(`gfn, "SPI-Bootstrapping FLASH SlotA complete.", UVM_MEDIUM)
+      end else begin
+        // bkdr-load both slots if images are provided to the simulation.
+        `uvm_info(`gfn, "Backdoor-loading FLASH slots now.", UVM_MEDIUM)
+        if (cfg.sw_images.exists(SwTypeTestSlotA)) cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file({cfg.sw_images[SwTypeTestSlotA], ".64.scr.vmem"});
+        if (cfg.sw_images.exists(SwTypeTestSlotB)) cfg.mem_bkdr_util_h[FlashBank1Data].load_mem_from_file({cfg.sw_images[SwTypeTestSlotB], ".64.scr.vmem"});
       end
     end
 
     config_jitter();
 
-    `uvm_info(`gfn, "cpu_init completed", UVM_MEDIUM)
+    `uvm_info(`gfn, "chip_sw_base_vseq::cpu_init() END.", UVM_MEDIUM)
   endtask
 
   task config_jitter();
@@ -270,11 +272,12 @@ class chip_sw_base_vseq extends chip_base_vseq;
     // Disable assertions mentioned in plusargs.
     assert_off();
     cfg.sw_test_status_vif.set_num_iterations(num_trans);
-    // Initialize the CPU to kick off the sw test. TODO: Should be called in pre_start() instead.
+
+    // Initialize the CPU to kick off the sw test.
+    // TODO: Should be called in pre_start() instead.
     if (cfg.early_cpu_init) begin
-      // if early_cpu_init is set, cpu_init is called from
-      // dut_init
-      `uvm_info(`gfn, "early_cpu_init is set. cpu_init is called during dut init", UVM_LOW)
+      // If early_cpu_init is set, cpu_init() was already called from dut_init()
+      `uvm_info(`gfn, "early_cpu_init is set. cpu_init() was called during dut_init()", UVM_LOW)
     end else begin
       cpu_init();
     end
@@ -319,8 +322,7 @@ class chip_sw_base_vseq extends chip_base_vseq;
   endfunction
 
   // Configure the provided spi_agent_cfg to use flash mode, and add the
-  // specification for the following common commands:
-  //   ReadSFDP, ReadStatus1, WriteEnable, ChipErase, and PageProgram.
+  // cmd_infos specifications for some common commands.
   virtual function void spi_agent_configure_flash_cmds(spi_agent_cfg agent_cfg);
     spi_flash_cmd_info info = spi_flash_cmd_info::type_id::create("info");
     info.addr_mode = SpiFlashAddrDisabled;
@@ -500,33 +502,23 @@ class chip_sw_base_vseq extends chip_base_vseq;
     spi_host_wait_on_busy(busy_timeout_ns, busy_poll_interval_ns);
   endtask
 
-  // Load the flash binary specified by the `sw_image` path by sending a chip
-  // erase, then programming pages in sequence via the SPI flash interface
-  // presented by the ROM. Afterwards, bring the software straps back to 0,
-  // and issue a power-on reset.
-  // The `sw_image` path should point to an image usable by the
-  // `read_sw_frames` task.
-  // This task assumes the device was booted with software straps set before
-  // entry. In addition, it expects that the spi_agent was connected to the
-  // spi_device and is ready to issue flash transactions.
-  virtual task spi_device_load_bootstrap(string sw_image);
+  // Drive the spi_host agent connected to the DUT spi_device according to the ROM Bootstrap
+  // procedure.
+  virtual task spi_host_drive_bootstrap(byte byte_q[$]);
     spi_host_flash_seq m_spi_host_seq;
-    byte sw_byte_q[$];
-    uint bytes_to_write;
     uint byte_cnt = 0;
     uint SPI_FLASH_PAGE_SIZE = 256;
+
+    `uvm_info(`gfn, "Initializing spi_host agent for ROM bootstrap procedure.", UVM_LOW)
 
     // Set CSB inactive times to reasonable values. sys_clk is at 24 MHz, and
     // it needs to capture CSB pulses.
     cfg.m_spi_host_agent_cfg.min_idle_ns_after_csb_drop = 50;
     cfg.m_spi_host_agent_cfg.max_idle_ns_after_csb_drop = 200;
 
-    `uvm_info(`gfn, "Configuring SPI flash commands.", UVM_LOW)
-    // Configure the spi_agent for flash mode and add command info.
     spi_agent_configure_flash_cmds(cfg.m_spi_host_agent_cfg);
 
-    `uvm_info(`gfn, "Wait for SPI flash commands to be ready.", UVM_LOW)
-    // Wait for the commands to be ready
+    `uvm_info(`gfn, "Waiting for DUT ROM to be ready for bootstrap...", UVM_LOW)
     csr_spinwait(
       .ptr(ral.spi_device.cmd_info[spi_device_pkg::CmdInfoReadSfdp].opcode),
       .exp_data(SpiFlashReadSfdp),
@@ -542,40 +534,58 @@ class chip_sw_base_vseq extends chip_base_vseq;
       .exp_data(SpiFlashWriteEnable),
       .backdoor(1),
       .spinwait_delay_ns(5000));
+    `uvm_info(`gfn, "DUT fully configured spi_device, and is now ready for bootstrap.", UVM_LOW)
 
-    `uvm_info(`gfn, "Reading SW image frames ...", UVM_LOW)
-    read_sw_frames(sw_image, sw_byte_q);
-    `uvm_info(`gfn, "Done.", UVM_LOW)
-
+    `uvm_info(`gfn, "Sending SPI flash erase command ...", UVM_LOW)
     `uvm_create_on(m_spi_host_seq, p_sequencer.spi_host_sequencer_h)
     m_spi_host_seq.opcode = SpiFlashChipErase;
-    `uvm_info(`gfn, "Sending SPI flash erase command ...", UVM_LOW)
     spi_host_flash_issue_write_cmd(
       .write_command(m_spi_host_seq),
       .busy_timeout_ns(200_000_000),
       .busy_poll_interval_ns(1_000_000));
-    `uvm_info(`gfn, "Done.", UVM_LOW)
 
     `uvm_info(`gfn, "Sending page program commands ...", UVM_LOW)
-    while (sw_byte_q.size > byte_cnt) begin
+    while (byte_q.size > byte_cnt) begin
+      uint bytes_to_write;
       `uvm_create_on(m_spi_host_seq, p_sequencer.spi_host_sequencer_h)
       m_spi_host_seq.opcode = SpiFlashPageProgram;
       m_spi_host_seq.address_q = {byte_cnt[23:16], byte_cnt[15:8], byte_cnt[7:0]};
-      if (SPI_FLASH_PAGE_SIZE < (sw_byte_q.size() - byte_cnt)) begin
+      if (SPI_FLASH_PAGE_SIZE < (byte_q.size() - byte_cnt)) begin
         bytes_to_write = SPI_FLASH_PAGE_SIZE;
       end else begin
-        bytes_to_write = sw_byte_q.size() - byte_cnt;
+        bytes_to_write = byte_q.size() - byte_cnt;
       end
       for (int i = 0; i < bytes_to_write; i++) begin
-        m_spi_host_seq.payload_q.push_back(sw_byte_q[byte_cnt + i]);
+        m_spi_host_seq.payload_q.push_back(byte_q[byte_cnt + i]);
       end
       spi_host_flash_issue_write_cmd(m_spi_host_seq);
       byte_cnt += bytes_to_write;
     end
-    `uvm_info(`gfn, "Done.", UVM_LOW)
+  endtask
 
-    `uvm_info(`gfn, "Resetting SW straps and chip.", UVM_LOW)
+  // Load the flash binary specified by the `sw_image` path by sending a chip
+  // erase, then programming pages in sequence via the SPI flash interface
+  // presented by the ROM. Afterwards, bring the software straps back to 0,
+  // and issue a power-on reset.
+  // The `sw_image` path should point to an image usable by the `read_sw_frames` task.
+  virtual task spi_device_load_bootstrap(string sw_image);
+    byte sw_byte_q[$];
+
+    `uvm_info(`gfn, "Reading SW image frames ...", UVM_LOW)
+    read_sw_frames(sw_image, sw_byte_q);
+
+    // If this task is called early, before the ROM reads the SW straps to determine if
+    // the bootstrap procedure should be used, then we can set the SW straps here to ensure this
+    // execution path is followed.
+    // If this task is called later, after the ROM has read the SW straps, then we are relying on
+    // the assumption that the straps were already set by an external actor and the ROM has
+    // proceeded down the bootstrapping codepath already. If this is not the case, this task will
+    // fatally timeout waiting for the spi_device HWIP block to be configured for bootstrapping.
+    cfg.chip_vif.sw_straps_if.drive(3'h7);
+    spi_host_drive_bootstrap(sw_byte_q);
     cfg.chip_vif.sw_straps_if.drive(3'h0);
+
+    `uvm_info(`gfn, "ROM bootstrap complete, resetting chip and clearing SW straps.", UVM_LOW)
     assert_por_reset();
   endtask
 
@@ -1269,5 +1279,29 @@ class chip_sw_base_vseq extends chip_base_vseq;
       $assertoff(0, "tb.dut.top_earlgrey.u_rv_core_ibex.u_edn_if.DataOutputDiffFromPrev_A");
     end
   endfunction
+
+  virtual task await_ioa(string name, bit val = 1'b1);
+    string timeout_msg = $sformatf("Timed out waiting for %0s to be %0d.", name, val);
+
+    // IOA6 (GPIO4) is for SPI console RX ready signal. (HOST->DEVICE flow control)
+    // IOA5 (GPIO3) is for SPI console TX ready signal. (DEVICE->HOST flow control)
+    // IOA4 (GPIO0) is for test start reporting.
+    // IOA1 (GPIO1) is for test done reporting.
+    // IOA0 (GPIO2) is for error reporting.
+
+    `uvm_info(`gfn, $sformatf("Waiting for %0s to be %0d now...", name, val), UVM_LOW)
+    case (name)
+	    "IOA6": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa6] == val, timeout_msg, cfg.sw_test_timeout_ns)
+	    "IOA5": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa5] == val, timeout_msg, cfg.sw_test_timeout_ns)
+	    "IOA4": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa4] == val, timeout_msg, cfg.sw_test_timeout_ns)
+	    // "IOA3": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa3] == val, timeout_msg, cfg.sw_test_timeout_ns)
+	    // "IOA2": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa2] == val, timeout_msg, cfg.sw_test_timeout_ns)
+	    "IOA1": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa1] == val, timeout_msg, cfg.sw_test_timeout_ns)
+	    "IOA0": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa0] == val, timeout_msg, cfg.sw_test_timeout_ns)
+	    default : `uvm_fatal(`gfn, "Given name of IOAx pad is not supported by await!")
+    endcase
+
+    `uvm_info(`gfn, $sformatf("Saw %0s as %0d now!", name, val), UVM_LOW)
+  endtask: await_ioa
 
 endclass : chip_sw_base_vseq

@@ -213,10 +213,9 @@ interface chip_if;
     .rst_n(`SPI_DEVICE_HIER.rst_ni),
     .sio  (dios[top_earlgrey_pkg::DioPadSpiDevD3:top_earlgrey_pkg::DioPadSpiDevD0])
   );
-  assign dios[top_earlgrey_pkg::DioPadSpiDevClk] = enable_spi_host | enable_spi_tpm ?
-      spi_host_if.sck : 1'bz;
+  assign dios[top_earlgrey_pkg::DioPadSpiDevClk] = enable_spi_host | enable_spi_tpm ? spi_host_if.sck : 1'bz;
   assign dios[top_earlgrey_pkg::DioPadSpiDevCsL] = enable_spi_host ? spi_host_if.csb[0] : 1'bz;
-  assign mios[top_earlgrey_pkg::MioPadIoa7] = enable_spi_tpm ? spi_host_if.csb[1] : 1'bz;
+  assign mios[top_earlgrey_pkg::MioPadIoa7]      = enable_spi_tpm ? spi_host_if.csb[1] : 1'bz;
   initial begin
     uvm_config_db#(virtual spi_if)::set(null, "*.env.m_spi_host_agent*", "vif", spi_host_if);
     do begin
@@ -224,6 +223,11 @@ interface chip_if;
       @(enable_spi_host | enable_spi_tpm);
     end while (1);
   end
+
+  pins_if#(.Width(2), .PullStrength("Weak")) spi_host_console_flow_ctrl_if(
+    .pins({mios[top_earlgrey_pkg::MioPadIoa6],
+           mios[top_earlgrey_pkg::MioPadIoa5]})
+  );
 
   // Functional (dedicated) interface: SPI device 0 interface (receives traffic from the chip).
   // TODO: Update spi_if to emit all signals as inout ports and internal drivers on all ports.
@@ -299,20 +303,26 @@ interface chip_if;
   // TODO: Replace with sysrst_ctrl IP level interface.
   // TODO; combine all into 1 single sysrst_ctrl_if.
   pins_if #(.Width(8), .PullStrength("Weak")) sysrst_ctrl_if(
-    .pins({mios[top_earlgrey_pkg::MioPadIor6], mios[top_earlgrey_pkg::MioPadIor5],
-           mios[top_earlgrey_pkg::MioPadIoc9], mios[top_earlgrey_pkg::MioPadIoc7],
-           mios[top_earlgrey_pkg::MioPadIob9], mios[top_earlgrey_pkg::MioPadIob8],
-           mios[top_earlgrey_pkg::MioPadIob6], mios[top_earlgrey_pkg::MioPadIob3]})
+    .pins({mios[top_earlgrey_pkg::MioPadIor6],
+           mios[top_earlgrey_pkg::MioPadIor5],
+           mios[top_earlgrey_pkg::MioPadIoc9],
+           mios[top_earlgrey_pkg::MioPadIoc7],
+           mios[top_earlgrey_pkg::MioPadIob9],
+           mios[top_earlgrey_pkg::MioPadIob8],
+           mios[top_earlgrey_pkg::MioPadIob6],
+           mios[top_earlgrey_pkg::MioPadIob3]})
   );
 
   // Functional (muxed) interface: DFT straps.
   pins_if #(.Width(2), .PullStrength("Weak")) dft_straps_if(
-    .pins({mios[top_earlgrey_pkg::MioPadIor7], mios[top_earlgrey_pkg::MioPadIor5]})
+    .pins({mios[top_earlgrey_pkg::MioPadIor7],
+           mios[top_earlgrey_pkg::MioPadIor5]})
   );
 
   // Functional (muxed) interface: TAP straps.
   pins_if #(.Width(2), .PullStrength("Weak")) tap_straps_if(
-    .pins({mios[top_earlgrey_pkg::MioPadIoc5], mios[top_earlgrey_pkg::MioPadIoc8]})
+    .pins({mios[top_earlgrey_pkg::MioPadIoc5],
+           mios[top_earlgrey_pkg::MioPadIoc8]})
   );
 
   // Weakly pulldown TAP & DFT strap pins in DFT-enabled LC states.
@@ -408,22 +418,38 @@ interface chip_if;
   // subset. The selection below prevents as much contention as possible on the IOs, considering
   // various modes the testbench AND the device can be in.
   pins_if #(.Width(NUM_GPIOS), .PullStrength("Weak")) gpios_if(
-    .pins({mios[top_earlgrey_pkg::MioPadIor13], mios[top_earlgrey_pkg::MioPadIor12],
-           mios[top_earlgrey_pkg::MioPadIor11], mios[top_earlgrey_pkg::MioPadIor10],
-           mios[top_earlgrey_pkg::MioPadIor7], mios[top_earlgrey_pkg::MioPadIor6],
-           mios[top_earlgrey_pkg::MioPadIor5], mios[top_earlgrey_pkg::MioPadIor4],
-           mios[top_earlgrey_pkg::MioPadIor3], mios[top_earlgrey_pkg::MioPadIor2],
-           mios[top_earlgrey_pkg::MioPadIor1], mios[top_earlgrey_pkg::MioPadIor0],
-           mios[top_earlgrey_pkg::MioPadIoc12], mios[top_earlgrey_pkg::MioPadIoc11],
-           mios[top_earlgrey_pkg::MioPadIoc10], mios[top_earlgrey_pkg::MioPadIoc9],
-           mios[top_earlgrey_pkg::MioPadIob12], mios[top_earlgrey_pkg::MioPadIob11],
-           mios[top_earlgrey_pkg::MioPadIob10], mios[top_earlgrey_pkg::MioPadIob9],
-           mios[top_earlgrey_pkg::MioPadIob8], mios[top_earlgrey_pkg::MioPadIob7],
-           mios[top_earlgrey_pkg::MioPadIob6], mios[top_earlgrey_pkg::MioPadIoa8],
-           mios[top_earlgrey_pkg::MioPadIoa7], mios[top_earlgrey_pkg::MioPadIoa6],
-           mios[top_earlgrey_pkg::MioPadIoa5], mios[top_earlgrey_pkg::MioPadIoa4],
-           mios[top_earlgrey_pkg::MioPadIoa3], mios[top_earlgrey_pkg::MioPadIoa2],
-           mios[top_earlgrey_pkg::MioPadIoa1], mios[top_earlgrey_pkg::MioPadIoa0]})
+    .pins({mios[top_earlgrey_pkg::MioPadIor13], // gpios_if::pins[31]
+           mios[top_earlgrey_pkg::MioPadIor12],
+           mios[top_earlgrey_pkg::MioPadIor11],
+           mios[top_earlgrey_pkg::MioPadIor10],
+           mios[top_earlgrey_pkg::MioPadIor7],
+           mios[top_earlgrey_pkg::MioPadIor6],
+           mios[top_earlgrey_pkg::MioPadIor5],
+           mios[top_earlgrey_pkg::MioPadIor4],
+           mios[top_earlgrey_pkg::MioPadIor3],
+           mios[top_earlgrey_pkg::MioPadIor2],
+           mios[top_earlgrey_pkg::MioPadIor1],
+           mios[top_earlgrey_pkg::MioPadIor0],  // gpios_if::pins[20]  IOR
+           mios[top_earlgrey_pkg::MioPadIoc12],
+           mios[top_earlgrey_pkg::MioPadIoc11],
+           mios[top_earlgrey_pkg::MioPadIoc10],
+           mios[top_earlgrey_pkg::MioPadIoc9],  // gpios_if::pins[16]  IOC
+           mios[top_earlgrey_pkg::MioPadIob12],
+           mios[top_earlgrey_pkg::MioPadIob11],
+           mios[top_earlgrey_pkg::MioPadIob10],
+           mios[top_earlgrey_pkg::MioPadIob9],
+           mios[top_earlgrey_pkg::MioPadIob8],
+           mios[top_earlgrey_pkg::MioPadIob7],
+           mios[top_earlgrey_pkg::MioPadIob6],  // gpios_if::pins[9]   IOB
+           mios[top_earlgrey_pkg::MioPadIoa8],
+           mios[top_earlgrey_pkg::MioPadIoa7],
+           mios[top_earlgrey_pkg::MioPadIoa6],
+           mios[top_earlgrey_pkg::MioPadIoa5],
+           mios[top_earlgrey_pkg::MioPadIoa4],
+           mios[top_earlgrey_pkg::MioPadIoa3],
+           mios[top_earlgrey_pkg::MioPadIoa2],
+           mios[top_earlgrey_pkg::MioPadIoa1],
+           mios[top_earlgrey_pkg::MioPadIoa0]}) // gpios_if::pins[0]   IOA
   );
 
   // Functional (muxed) interface: JTAG (valid during debug enabled LC state only).
@@ -470,19 +496,27 @@ interface chip_if;
 
   // Functional (muxed) interface: AST2PAD.
   pins_if #(.Width(9), .PullStrength("Weak")) ast2pad_if(
-    .pins({mios[top_earlgrey_pkg::MioPadIoa0], mios[top_earlgrey_pkg::MioPadIoa1],
-           mios[top_earlgrey_pkg::MioPadIob3], mios[top_earlgrey_pkg::MioPadIob4],
-           mios[top_earlgrey_pkg::MioPadIob5], mios[top_earlgrey_pkg::MioPadIoc0],
-           mios[top_earlgrey_pkg::MioPadIoc4], mios[top_earlgrey_pkg::MioPadIoc7],
+    .pins({mios[top_earlgrey_pkg::MioPadIoa0],
+           mios[top_earlgrey_pkg::MioPadIoa1],
+           mios[top_earlgrey_pkg::MioPadIob3],
+           mios[top_earlgrey_pkg::MioPadIob4],
+           mios[top_earlgrey_pkg::MioPadIob5],
+           mios[top_earlgrey_pkg::MioPadIoc0],
+           mios[top_earlgrey_pkg::MioPadIoc4],
+           mios[top_earlgrey_pkg::MioPadIoc7],
            mios[top_earlgrey_pkg::MioPadIoc9]})
   );
 
   // Functional (muxed) interface: PAD2AST.
   pins_if #(.Width(8), .PullStrength("Weak")) pad2ast_if(
-    .pins({mios[top_earlgrey_pkg::MioPadIoa4], mios[top_earlgrey_pkg::MioPadIoa5],
-           mios[top_earlgrey_pkg::MioPadIob0], mios[top_earlgrey_pkg::MioPadIob1],
-           mios[top_earlgrey_pkg::MioPadIob2], mios[top_earlgrey_pkg::MioPadIoc1],
-           mios[top_earlgrey_pkg::MioPadIoc2], mios[top_earlgrey_pkg::MioPadIoc3]})
+    .pins({mios[top_earlgrey_pkg::MioPadIoa4],
+           mios[top_earlgrey_pkg::MioPadIoa5],
+           mios[top_earlgrey_pkg::MioPadIob0],
+           mios[top_earlgrey_pkg::MioPadIob1],
+           mios[top_earlgrey_pkg::MioPadIob2],
+           mios[top_earlgrey_pkg::MioPadIoc1],
+           mios[top_earlgrey_pkg::MioPadIoc2],
+           mios[top_earlgrey_pkg::MioPadIoc3]})
   );
 
   // Functional (muxed) interface: Pin wake up signal.
@@ -493,12 +527,16 @@ interface chip_if;
 
   // Functional (muxed) interface: UARTs.
   localparam int AssignedUartTxIos[NUM_UARTS] = {
-      top_earlgrey_pkg::MioPadIoc4, top_earlgrey_pkg::MioPadIob5,
-      top_earlgrey_pkg::MioPadIoa5, top_earlgrey_pkg::MioPadIoa1
+    top_earlgrey_pkg::MioPadIoc4,
+    top_earlgrey_pkg::MioPadIob5,
+    top_earlgrey_pkg::MioPadIoa5,
+    top_earlgrey_pkg::MioPadIoa1
   };
   localparam int AssignedUartRxIos[NUM_UARTS] = {
-      top_earlgrey_pkg::MioPadIoc3, top_earlgrey_pkg::MioPadIob4,
-      top_earlgrey_pkg::MioPadIoa4, top_earlgrey_pkg::MioPadIoa0
+    top_earlgrey_pkg::MioPadIoc3,
+    top_earlgrey_pkg::MioPadIob4,
+    top_earlgrey_pkg::MioPadIoa4,
+    top_earlgrey_pkg::MioPadIoa0
   };
   bit [NUM_UARTS-1:0] __enable_uart;  // Internal signal.
 
@@ -572,8 +610,12 @@ interface chip_if;
 
   // Functional (muxed) interface: PWM.
   localparam int AssignedPwmIos[NUM_PWM_CHANNELS] = {
-      top_earlgrey_pkg::MioPadIob10, top_earlgrey_pkg::MioPadIob11, top_earlgrey_pkg::MioPadIob12,
-      top_earlgrey_pkg::MioPadIoc10, top_earlgrey_pkg::MioPadIoc11, top_earlgrey_pkg::MioPadIoc12
+    top_earlgrey_pkg::MioPadIob10,
+    top_earlgrey_pkg::MioPadIob11,
+    top_earlgrey_pkg::MioPadIob12,
+    top_earlgrey_pkg::MioPadIoc10,
+    top_earlgrey_pkg::MioPadIoc11,
+    top_earlgrey_pkg::MioPadIoc12
   };
 
   for (genvar i = 0; i < NUM_PWM_CHANNELS; i++) begin : gen_pwm_if_conn

@@ -24,6 +24,7 @@ filesets:
       - lowrisc:dv:ralgen
       - lowrisc:dv:spi_agent
       - lowrisc:dv:spi_host_sva
+      - lowrisc:dv:ottf_spi_console
       - lowrisc:dv:str_utils
       - lowrisc:dv:sw_test_status
       - lowrisc:dv:sw_logger_if
@@ -144,7 +145,10 @@ filesets:
       - seq_lib/chip_sw_ate_bootstrap_one_frame_vseq.sv: {is_include_file: true}
       - seq_lib/chip_sw_rom_e2e_base_vseq.sv: {is_include_file: true}
       - seq_lib/chip_sw_rom_e2e_ate_smoke_vseq.sv: {is_include_file: true}
+      - seq_lib/chip_sw_rom_e2e_ft_perso_base_vseq.sv: {is_include_file: true}
       - seq_lib/chip_sw_rom_e2e_ft_perso_vseq.sv: {is_include_file: true}
+      - seq_lib/chip_sw_rom_e2e_ft_perso_dump_vseq.sv: {is_include_file: true}
+      - seq_lib/chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq.sv: {is_include_file: true}
       - seq_lib/chip_sw_rom_e2e_shutdown_exception_c_vseq.sv: {is_include_file: true}
       - seq_lib/chip_sw_rom_e2e_shutdown_output_vseq.sv: {is_include_file: true}
       - seq_lib/chip_sw_rom_e2e_sigverify_always_a_bad_b_bad_vseq.sv: {is_include_file: true}

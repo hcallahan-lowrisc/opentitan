@@ -51,28 +51,130 @@
         "//sw/device/silicon_creator/rom/e2e/ate/binaries:ate_gpio_toggle_test:1:silicon_creator:signed",
         "//hw/ip/otp_ctrl/data/earlgrey_skus/sival:otp_img_dev_manuf_personalized:4"
       ]
-      en_run_modes: ["sw_test_mode_mask_rom"]
+      en_run_modes: ["sw_test_mode_test_rom"]
       run_opts: [
         "+sw_test_timeout_ns=1000000000",
         "+use_otp_image=OtpTypeCustom",
-        "+skip_flash_bkdr_load=1",
+        "+skip_flash_bkdr_load=0",
+        "+use_spi_load_bootstrap=0",
       ]
       run_timeout_mins: 800
     }
     {
+      // This test runs the full FT-Personalize provisioning step
       name: rom_e2e_ft_personalize_sival
       uvm_test_seq: chip_sw_rom_e2e_ft_perso_vseq
       sw_images: [
         "//sw/device/silicon_creator/manuf/base/binaries:ft_personalize_sival:1:silicon_creator:signed",
         "//hw/ip/otp_ctrl/data/earlgrey_skus/sival:otp_img_dev_manuf_individualized:4"
+        "//sw/device/lib/testing/test_rom:test_rom:0"
       ]
-      en_run_modes: ["sw_test_mode_mask_rom"]
+      en_run_modes: ["sw_test_mode_base"]
       run_opts: [
-        "+sw_test_timeout_ns=1000000000",
-        "+use_otp_image=OtpTypeCustom",
-        "+skip_flash_bkdr_load=1",
+        "+disable_assert_final_checks",
+        // "+sw_test_timeout_ns=1_000_000_000",
+        "+sw_test_timeout_ns=1_000_000_000",
+        "+use_otp_image=OtpNone",
+        "+dumped_bank0_init={proj_root}/binaries/ft_personalize_sival/dump_FlashBank0Data.64.scr.vmem",
+        "+skip_flash_bkdr_load=1",        // Do not backdoor-load Flash
+        "+use_spi_load_bootstrap=0",      // Do not SPI-Bootstrap
       ]
       run_timeout_mins: 800
+    }
+    {
+      // This test is used to dump the Flash contents after SPI-bootstrapping...
+      name: rom_e2e_ft_perso_sival_transport_dump
+      uvm_test_seq: chip_sw_rom_e2e_ft_perso_dump_vseq
+      sw_images: [
+        "//sw/device/silicon_creator/manuf/base/binaries:ft_personalize_sival:1:silicon_creator:signed",
+        "//hw/ip/otp_ctrl/data/earlgrey_skus/sival:otp_img_dev_manuf_individualized:4"
+        "//sw/device/lib/testing/test_rom:test_rom:0"
+      ]
+      en_run_modes: ["sw_test_mode_base"]
+      run_opts: [
+        "+disable_assert_final_checks",
+        "+sw_test_timeout_ns=1000000000",
+        "+use_otp_image=OtpTypeCustom",
+        "+skip_flash_bkdr_load=1",         // Do not Backdoor-load Flash
+        "+use_spi_load_bootstrap=1",       // Use SPI-Bootstrap in chip_sw_base_vseq
+      ]
+      run_timeout_mins: 800
+    }
+    {
+      // This test runs the simulation after the perso bootstrapping process has updated the SECRET1 flash
+      // scrambling keys and re-bootstrapped the transport image.
+      // It begins by loading OTP and Flash .vmem dumps of the chip state after the transport image has been loaded.
+      name: rom_e2e_ft_perso_sival_transport_backdoor
+      uvm_test_seq: chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq
+      sw_images: [
+        "//sw/device/lib/testing/test_rom:test_rom:0"
+      ]
+      en_run_modes: ["sw_test_mode_base"]
+      run_opts: [
+        "+disable_assert_final_checks",
+        "+sw_test_timeout_ns=1000000000",
+        "+use_otp_image=OtpNone",
+        "+dumped_otp_transport={proj_root}/binaries/ft_personalize_sival/dump_OTP_transportinit.24.vmem",
+        "+dumped_bank0_transport={proj_root}/binaries/ft_personalize_sival/dump_FlashBank0Data_transport.64.scr.vmem",
+        "+skip_flash_bkdr_load=1",        // Do not backdoor-load Flash
+        "+use_spi_load_bootstrap=0",      // Do not SPI-Bootstrap
+        "+RMA_UNLOCK_TOKEN_HASH_FILE={proj_root}/binaries/ft_personalize_orch_emu_cw340/ujson_RMA_TOKEN_UNLOCK_HASH",
+        "+RMA_UNLOCK_TOKEN_HASH_CRC_FILE={proj_root}/binaries/ft_personalize_orch_emu_cw340/ujson_RMA_TOKEN_UNLOCK_HASH_CRC",
+        "+MANUF_PERSO_DATA_BACK_FILE={proj_root}/binaries/ft_personalize_orch_emu_cw340/ujson_MANUF_PERSO_DATA_BACK",
+        "+PERSO_CERTGEN_INPUTS_FILE={proj_root}/binaries/ft_personalize_orch_emu_cw340/ujson_PERSO_CERTGEN_INPUTS",
+      ]
+      run_timeout_mins: 60
+    }
+    {
+      // This test is used to dump the Flash contents after SPI-bootstrapping...
+      name: rom_e2e_ft_perso_emu_transport_dump
+      uvm_test_seq: chip_sw_rom_e2e_ft_perso_dump_vseq
+      sw_images: [
+        // Add the 'silicon_creator' flag because the default 'sw_build_device' of sim_dv does
+        // not enable the OTTF, and hence we cannot interact with the perso binary over the
+        // spi_console. (sim_dv assumes use of the sw_logger_if instead of the OTTF)
+        "//sw/device/silicon_creator/manuf/base:ft_personalize_emulation:1:silicon_creator:dont_filter",
+        "//hw/ip/otp_ctrl/data/earlgrey_skus/emulation:otp_img_dev_manuf_individualized:4"
+        "//sw/device/lib/testing/test_rom:test_rom:0"
+      ]
+      en_run_modes: ["sw_test_mode_base"]
+      run_opts: [
+        "+disable_assert_final_checks",
+        "+sw_test_timeout_ns=1000000000",
+        "+use_otp_image=OtpTypeCustom",
+        "+skip_flash_bkdr_load=1",         // Do not Backdoor-load Flash
+        "+use_spi_load_bootstrap=1",       // Use SPI-Bootstrap in chip_sw_base_vseq
+      ]
+      run_timeout_mins: 800
+    }
+    {
+      // This test runs the simulation after the perso bootstrapping process has updated the SECRET1 flash
+      // scrambling keys and re-bootstrapped the transport image.
+      // It begins by loading OTP and Flash .vmem dumps of the chip state after the transport image has been loaded.
+      name: rom_e2e_ft_perso_emu_transport_backdoor
+      uvm_test_seq: chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq
+      sw_images: [
+        "//sw/device/lib/testing/test_rom:test_rom:0",
+        // Add the test binary here, just so we get the disassembly in the run-dir for debugging purposes.
+        "//sw/device/silicon_creator/manuf/base:ft_personalize_emulation:1:silicon_creator:dont_filter",
+      ]
+      en_run_modes: ["sw_test_mode_base"]
+      run_opts: [
+        "+disable_assert_final_checks",
+        "+sw_test_timeout_ns=1000000000",
+        "+use_otp_image=OtpNone",
+        "+dumped_otp_transport={proj_root}/binaries/ft_personalize_emulation/dump_OTP_transportinit.24.vmem",
+        "+dumped_otp_perso_secrets={proj_root}/binaries/ft_personalize_emulation/dump_OTP_perso_secrets.24.vmem",
+        "+dumped_bank0_transport={proj_root}/binaries/ft_personalize_emulation/dump_FlashBank0Data_transport.64.scr.vmem",
+        "+bank0_gen={proj_root}/binaries/ft_personalize_emulation/FlashBank0Data_transport_gen.64.scr.vmem"
+        "+skip_flash_bkdr_load=1",        // Do not backdoor-load Flash
+        "+use_spi_load_bootstrap=0",      // Do not SPI-Bootstrap
+        "+RMA_UNLOCK_TOKEN_HASH_FILE={proj_root}/binaries/ft_personalize_orch_emu_cw340/ujson_RMA_TOKEN_UNLOCK_HASH",
+        "+RMA_UNLOCK_TOKEN_HASH_CRC_FILE={proj_root}/binaries/ft_personalize_orch_emu_cw340/ujson_RMA_TOKEN_UNLOCK_HASH_CRC",
+        "+MANUF_PERSO_DATA_BACK_FILE={proj_root}/binaries/ft_personalize_orch_emu_cw340/ujson_MANUF_PERSO_DATA_BACK",
+        "+PERSO_CERTGEN_INPUTS_FILE={proj_root}/binaries/ft_personalize_orch_emu_cw340/ujson_PERSO_CERTGEN_INPUTS",
+      ]
+      run_timeout_mins: 180
     }
   ]
 

@@ -5,6 +5,7 @@
 use anyhow::Result;
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
+use std::io::Write;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -12,14 +13,33 @@ use crate::io::console::ConsoleDevice;
 use crate::io::gpio::GpioPin;
 use crate::io::spi::Target;
 use crate::spiflash::flash::SpiFlash;
+use tempfile::NamedTempFile;
+
 
 pub struct SpiConsoleDevice<'a> {
     spi: &'a dyn Target,
     flash: SpiFlash,
+
+    /// Incrementing frame counter added to the DEVICE->HOST frame header
+    ///
+    /// This variable tracks the frame number expected in the header of the
+    /// next transfer for a console_read() operation.
     console_next_frame_number: Cell<u32>,
+
+    /// Intermediate buffer used to hold data between reading it from the
+    /// SPI Host and it being requested by the console.
     rx_buf: RefCell<VecDeque<u8>>,
+
+    /// Tracker variable for the next address to read from in the emulated
+    /// SPI Flash device.
     next_read_address: Cell<u32>,
+
+    /// (Optionally) use a GPIO for DEVICE->HOST flow control (console reads)
+    ///
+    /// The DEVICE sets the 'tx_ready' gpio when the SPI console buffer has
+    /// data, and clears the gpio when there is no longer data available.
     device_tx_ready_pin: Option<&'a Rc<dyn GpioPin>>,
+
     ignore_frame_num: bool,
 }
 
@@ -51,20 +71,35 @@ impl<'a> SpiConsoleDevice<'a> {
         })
     }
 
+    /// This should only be used upon DEVICE boot_up or reset, when it's frame counter
+    /// will be automatically reset.
     pub fn reset_frame_counter(&self) {
         self.console_next_frame_number.set(0);
         self.next_read_address.set(0);
     }
 
+    /// Check a buffer read from the DEVICE for the SPI_BOOT_MAGIC_PATTERN used at boot_up
+    ///
+    /// If any 4-byte word in the buffer does not match this pattern, the device is not
+    /// in the boot_up process, and we should return with no change.
+    /// If the MAGIC_PATTERN is found, this indicates we are within the boot_up process,
+    /// and we should echo the MAGIC_PATTERN back to the DEVICE, which will cause it to
+    /// clear it's buffer and complete the boot_up process.
     fn check_device_boot_up(&self, buf: &[u8]) -> Result<usize> {
+        // Check the entire buffer for the MAGIC_PATTERN. If any 4-byte word does not contain
+        // it, return immediately.
         for i in (0..buf.len()).step_by(4) {
             let pattern: u32 = u32::from_le_bytes(buf[i..i + 4].try_into().unwrap());
             if pattern != SpiConsoleDevice::SPI_BOOT_MAGIC_PATTERN {
                 return Ok(0);
             }
         }
-        // Set busy bit and wait for the device to clear the boot magic.
+        // All 4-byte words in the buffer contain the MAGIC_PATTERN.
+        // Echo the MAGIC_PATTERN back to the device, and wait for the device to report !BUSY
+        // when it has finished clearing the MAGIC_VALUE from its buffer.
+        // After this, the boot_up process is complete.
         self.flash.program(self.spi, 0, buf)?;
+        // Always reset the frame_counter on boot_up.
         self.reset_frame_counter();
         Ok(0)
     }
@@ -74,25 +109,34 @@ impl<'a> SpiConsoleDevice<'a> {
         let read_address = self.next_read_address.get();
         let mut header = vec![0u8; SpiConsoleDevice::SPI_FRAME_HEADER_SIZE];
         self.read_data(read_address, &mut header)?;
-
-        let magic_number: u32 = u32::from_le_bytes(header[0..4].try_into().unwrap());
-        let frame_number: u32 = u32::from_le_bytes(header[4..8].try_into().unwrap());
-        let data_len_bytes: usize = u32::from_le_bytes(header[8..12].try_into().unwrap()) as usize;
-        if magic_number != SpiConsoleDevice::SPI_FRAME_MAGIC_NUMBER
-            || (!self.ignore_frame_num && frame_number != self.console_next_frame_number.get())
-            || data_len_bytes > SpiConsoleDevice::SPI_MAX_DATA_LENGTH
+        // Parse, then validate, the frame header fields
+        let header_magic_number: u32 = u32::from_le_bytes(header[0..4].try_into().unwrap());
+        let header_frame_number: u32 = u32::from_le_bytes(header[4..8].try_into().unwrap());
+        let header_data_len_bytes: usize = u32::from_le_bytes(header[8..12].try_into().unwrap()) as usize;
+        // If the header is malformed in the following ways, discard it as junk
+        if
+            // The header magic number is malformed / incorrect
+            header_magic_number != SpiConsoleDevice::SPI_FRAME_MAGIC_NUMBER
+            // The frame number is out of sequence / not incrementing as expected
+            || (!self.ignore_frame_num && header_frame_number != self.console_next_frame_number.get())
+            // The header indicates a data payload larger than the console device can handle
+            || header_data_len_bytes > SpiConsoleDevice::SPI_MAX_DATA_LENGTH
         {
+            // Before discarding, if we are not using the TX-indicator pin feature, this read
+            // may be a part of the boot_up process, in which case the header will only contain
+            // the SPI_BOOT_MAGIC_PATTERN. Check for this, and complete the boot_up process if so.
             if self.get_tx_ready_pin()?.is_none() {
                 self.check_device_boot_up(&header)?;
             }
             // This frame is junk, so we do not read the data
             return Ok(0);
         }
-        self.console_next_frame_number.set(frame_number + 1);
+
+        self.console_next_frame_number.set(header_frame_number + 1);
 
         // Read the SPI console frame data.
-        let data_len_bytes_w_pad = (data_len_bytes + 3) & !3;
-        let mut data = vec![0u8; data_len_bytes_w_pad];
+        let header_data_len_bytes_w_pad = (header_data_len_bytes + 3) & !3;
+        let mut data = vec![0u8; header_data_len_bytes_w_pad];
         let data_address: u32 = (read_address
             + u32::try_from(SpiConsoleDevice::SPI_FRAME_HEADER_SIZE).unwrap())
             % SpiConsoleDevice::SPI_FLASH_READ_BUFFER_SIZE;
@@ -100,20 +144,20 @@ impl<'a> SpiConsoleDevice<'a> {
 
         if self.get_tx_ready_pin()?.is_some() {
             // When using the TX-indicator pin feature, we always write each SPI frame at the
-            // beginning of the flash buffer, and wait for the host to ready it out before writing
+            // beginning of the flash buffer, and wait for the host to read it out before writing
             // another frame.
             self.next_read_address.set(0);
         } else {
             let next_read_address: u32 = (read_address
-                + u32::try_from(SpiConsoleDevice::SPI_FRAME_HEADER_SIZE + data_len_bytes_w_pad)
+                + u32::try_from(SpiConsoleDevice::SPI_FRAME_HEADER_SIZE + header_data_len_bytes_w_pad)
                     .unwrap())
                 % SpiConsoleDevice::SPI_FLASH_READ_BUFFER_SIZE;
             self.next_read_address.set(next_read_address);
         }
 
         // Copy data to the internal data queue.
-        self.rx_buf.borrow_mut().extend(&data[..data_len_bytes]);
-        Ok(data_len_bytes)
+        self.rx_buf.borrow_mut().extend(&data[..header_data_len_bytes]);
+        Ok(header_data_len_bytes)
     }
 
     fn read_data(&self, address: u32, buf: &mut [u8]) -> Result<&Self> {
@@ -138,22 +182,29 @@ impl<'a> SpiConsoleDevice<'a> {
 
 impl<'a> ConsoleDevice for SpiConsoleDevice<'a> {
     fn console_read(&self, buf: &mut [u8], _timeout: Duration) -> Result<usize> {
+
+        // If the intermediate buffer is empty, try and get more console data from
+        // the device.
+        // If we try and read, and no data is available, just return immediately.
         if self.rx_buf.borrow().is_empty() {
             if let Some(ready_pin) = self.get_tx_ready_pin()? {
+                // If we are gated by the TX-ready pin, only perform the SPI console read if
+                // the ready pin is high.
                 if ready_pin.read()? {
                     if self.read_from_spi()? == 0 {
-                        // If we are gated by the TX-ready pin, only perform the SPI console read if
-                        // the ready pin is high.
                         return Ok(0);
                     }
                 } else {
                     return Ok(0);
                 }
             } else if self.read_from_spi()? == 0 {
+                // If not using the Tx_Ready GPIO for flow control, just perform a read
+                // unconditionally.
                 return Ok(0);
             }
         }
 
+        // If we get here, some data from the DEVICE may already be in the internal queue.
         // Copy from the internal data queue to the output buffer.
         let mut i: usize = 0;
         while !self.rx_buf.borrow().is_empty() && i < buf.len() {
@@ -165,23 +216,38 @@ impl<'a> ConsoleDevice for SpiConsoleDevice<'a> {
     }
 
     fn console_write(&self, buf: &[u8]) -> Result<()> {
+        let dump = NamedTempFile::new().unwrap();
+        let (mut dump, path) = dump.keep().unwrap();
+        println!("Dumping 'console_write()' buf to file : {}", path.display());
+        dump.write_all(buf).unwrap();
         let buf_len: usize = buf.len();
         let mut written_data_len: usize = 0;
         while written_data_len < buf_len {
-            let mut write_address = SpiConsoleDevice::SPI_TX_LAST_CHUNK_MAGIC_ADDRESS;
-            let mut data_len: usize = buf_len - written_data_len;
+            let remaining_len: usize = buf_len - written_data_len;
+            // - chunk_len holds the size of the current chunk we are about to write
+            // - write_address is the address the current chunk will be written to
+            let mut chunk_len = 0;
+            let mut write_address = 0;
 
-            if data_len > SpiConsoleDevice::SPI_FLASH_PAYLOAD_BUFFER_SIZE {
-                data_len = SpiConsoleDevice::SPI_FLASH_PAYLOAD_BUFFER_SIZE;
+            if remaining_len > SpiConsoleDevice::SPI_FLASH_PAYLOAD_BUFFER_SIZE {
+                // If the remaining data cannot fit inside a single write operation
+                // (limited by the size of the DEVICE payload buffer size), then
+                // just send a max-size chunk this time around.
+                chunk_len = SpiConsoleDevice::SPI_FLASH_PAYLOAD_BUFFER_SIZE;
                 write_address = 0;
+            } else {
+                // The remaining data fits in a single chunk. Send this chunk to the
+                // MAGIC_ADDRESS to signal to the DEVICE it is the final chunk.
+                chunk_len = remaining_len;
+                write_address = SpiConsoleDevice::SPI_TX_LAST_CHUNK_MAGIC_ADDRESS;
             }
 
             self.flash.program(
                 self.spi,
                 write_address,
-                &buf[written_data_len..written_data_len + data_len],
+                &buf[written_data_len..written_data_len + chunk_len],
             )?;
-            written_data_len += data_len;
+            written_data_len += chunk_len;
         }
 
         Ok(())

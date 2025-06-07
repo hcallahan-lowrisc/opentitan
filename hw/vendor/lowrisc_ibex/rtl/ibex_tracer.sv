@@ -99,11 +99,14 @@ module ibex_tracer (
   logic trace_log_enable;
   initial begin
     if ($value$plusargs("ibex_tracer_enable=%b", trace_log_enable)) begin
-      if (trace_log_enable == 1'b0) begin
-        $display("%m: Instruction trace disabled.");
-      end
     end else begin
+      // If no plusarg passed, enabled by default.
       trace_log_enable = 1'b1;
+    end
+    if (trace_log_enable == 1'b0) begin
+      $display("%m: Instruction trace disabled.");
+    end else begin
+      $display("%m: Instruction trace enabled.");
     end
   end
 

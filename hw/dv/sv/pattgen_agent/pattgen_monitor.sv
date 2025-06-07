@@ -48,7 +48,7 @@ class pattgen_monitor extends dv_base_monitor #(
       dut_item = pattgen_item::type_id::create("dut_item");
       bit_cnt = 0;
       `uvm_info(`gfn, $sformatf("PATTGEN_MON%d start: bit_cnt:%0d  len:%0d",
-                                channel, bit_cnt, cfg.length[channel]), UVM_MEDIUM)
+                                channel, bit_cnt, cfg.length[channel]), UVM_HIGH)
       fork
         begin : isolation_thread
           fork

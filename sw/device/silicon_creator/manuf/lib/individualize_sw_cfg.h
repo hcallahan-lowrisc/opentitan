@@ -53,11 +53,11 @@ extern const otp_kv_t kOtpKvRotCreatorAuthState[];
  *   to the expected test values.
  * - This operation will explicitly NOT provision the FLASH_DATA_DEFAULT_CFG
  *   and MANUF_STATE fields in the CREATOR_SW_CFG partition. These fields must
- * be explicitly configured after all other provisioning operations are done,
- * but before the partition is locked, and the final transport image is loaded.
+ *   be explicitly configured after all other provisioning operations are done,
+ *   but before the partition is locked, and the final transport image is loaded.
  * - This function will NOT lock the partition either. This must be done after
  *   provisioning the final FLASH_DATA_DEFAULT_CFG and MANUF_STATE fields
- * mentioned above.
+ *   mentioned above.
  * - The partition must be configured and the chip reset, before the ROM can be
  *   booted, thus enabling bootstrap.
  *

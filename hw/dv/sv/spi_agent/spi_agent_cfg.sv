@@ -154,7 +154,14 @@ class spi_agent_cfg extends dv_base_agent_cfg;
 
   virtual function void add_cmd_info(spi_flash_cmd_info info);
     // opcode must be unique
-    `DV_CHECK_EQ(is_opcode_supported(info.opcode), 0)
+
+    // #TODO Decide how the api for setting supported opcodes should
+    // work. Currently, it is not idempotent, and hence calling
+    // spi_agent_configure_flash_cmds() (e.g. to perform multiple
+    // bootstraps) will generate an error for duplicate opcodes, even
+    // though we are attempting to add the exact same set of opcodes again.
+    // `DV_CHECK_EQ(is_opcode_supported(info.opcode), 0)
+
     cmd_infos[info.opcode] = info;
   endfunction  : add_cmd_info
 

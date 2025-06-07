@@ -1,0 +1,854 @@
+addr: 10004
+severity: 2
+file: sw/device/silicon_creator/manuf/base/ft_personalize.c
+line: 203
+nargs: 0
+format: No ownership initialization
+str_arg_idx: 
+addr: 10018
+severity: 2
+file: sw/device/silicon_creator/manuf/base/ft_personalize.c
+line: 1175
+nargs: 5
+format: CHECK-STATUS-fail: %0c%0c%0c:%0d = %0s
+str_arg_idx: 4
+addr: 1002c
+severity: 2
+file: sw/device/silicon_creator/manuf/base/ft_personalize.c
+line: 1175
+nargs: 1
+format: CHECK-STATUS-fail: 0x%08h
+str_arg_idx: 
+addr: 10040
+severity: 2
+file: sw/device/silicon_creator/manuf/base/ft_personalize.c
+line: 1177
+nargs: 5
+format: CHECK-STATUS-fail: %0c%0c%0c:%0d = %0s
+str_arg_idx: 4
+addr: 10054
+severity: 2
+file: sw/device/silicon_creator/manuf/base/ft_personalize.c
+line: 1177
+nargs: 1
+format: CHECK-STATUS-fail: 0x%08h
+str_arg_idx: 
+addr: 10068
+severity: 2
+file: sw/device/silicon_creator/manuf/base/ft_personalize.c
+line: 1178
+nargs: 1
+format: DIF-fail: dif_gpio_write(&gpio, kGpioPinTestStart, true) returns %0d
+str_arg_idx: 
+addr: 1007c
+severity: 2
+file: sw/device/silicon_creator/manuf/base/ft_personalize.c
+line: 1192
+nargs: 1
+format: DIF-fail: dif_gpio_write(&gpio, kGpioPinTestError, true) returns %0d
+str_arg_idx: 
+addr: 10090
+severity: 2
+file: sw/device/silicon_creator/manuf/base/ft_personalize.c
+line: 1194
+nargs: 1
+format: DIF-fail: dif_gpio_write(&gpio, kGpioPinTestDone, true) returns %0d
+str_arg_idx: 
+addr: 100a4
+severity: 2
+file: sw/device/silicon_creator/manuf/base/ft_personalize.c
+line: 267
+nargs: 1
+format: DIF-fail: dif_rstmgr_software_device_reset(&rstmgr) returns %0d
+str_arg_idx: 
+addr: 100b8
+severity: 2
+file: sw/device/silicon_creator/manuf/base/ft_personalize.c
+line: 866
+nargs: 2
+format: %0s %0s certificate did not fit into the info page.
+str_arg_idx: 0 1
+addr: 100cc
+severity: 2
+file: sw/device/silicon_creator/manuf/base/ft_personalize.c
+line: 871
+nargs: 0
+format: CHECK-fail: block->obj_size <= cert_write_size_bytes
+str_arg_idx: 
+addr: 100e0
+severity: 2
+file: sw/device/silicon_creator/manuf/base/ft_personalize.c
+line: 468
+nargs: 4
+format: Inconsistent certificate perso LTV object header %02h %02h at page:offset %0h:%0h
+str_arg_idx: 
+addr: 100f4
+severity: 2
+file: sw/device/silicon_creator/manuf/base/ft_personalize.c
+line: 473
+nargs: 3
+format: Bad certificate perso LTV object size %0d at page:offset %0h:%0h
+str_arg_idx: 
+addr: 10108
+severity: 2
+file: sw/device/silicon_creator/manuf/base/ft_personalize.c
+line: 478
+nargs: 4
+format: Cert size overflow (%0d + %0d) page %0h:%0h
+str_arg_idx: 
+addr: 1011c
+severity: 2
+file: sw/device/silicon_creator/manuf/base/ft_personalize.c
+line: 239
+nargs: 0
+format: CHECK-fail: rom_ext_manifest_b_get()->identifier == 0x4552544f
+str_arg_idx: 
+addr: 10130
+severity: 2
+file: sw/device/silicon_creator/manuf/base/ft_personalize.c
+line: 1036
+nargs: 0
+format: CHECK-fail: final_measurement.digest[1] == measurement->digest[1]
+str_arg_idx: 
+addr: 10144
+severity: 2
+file: sw/device/silicon_creator/manuf/base/ft_personalize.c
+line: 1037
+nargs: 0
+format: CHECK-fail: final_measurement.digest[0] == measurement->digest[0]
+str_arg_idx: 
+addr: 10158
+severity: 2
+file: sw/device/silicon_creator/manuf/base/ft_personalize.c
+line: 1051
+nargs: 0
+format: CHECK-fail: digest_hi == measurement->digest[1]
+str_arg_idx: 
+addr: 1016c
+severity: 2
+file: sw/device/silicon_creator/manuf/base/ft_personalize.c
+line: 1052
+nargs: 0
+format: CHECK-fail: digest_lo == measurement->digest[0]
+str_arg_idx: 
+addr: 10180
+severity: 2
+file: sw/device/lib/testing/pinmux_testutils.c
+line: 22
+nargs: 1
+format: DIF-fail: dif_pinmux_input_select(pinmux, kTopEarlgreyPinmuxPeripheralInGpioGpio22, kTopEarlgreyPinmuxInselIoc0) returns %0d
+str_arg_idx: 
+addr: 10194
+severity: 2
+file: sw/device/lib/testing/pinmux_testutils.c
+line: 25
+nargs: 1
+format: DIF-fail: dif_pinmux_input_select(pinmux, kTopEarlgreyPinmuxPeripheralInGpioGpio23, kTopEarlgreyPinmuxInselIoc1) returns %0d
+str_arg_idx: 
+addr: 101a8
+severity: 2
+file: sw/device/lib/testing/pinmux_testutils.c
+line: 28
+nargs: 1
+format: DIF-fail: dif_pinmux_input_select(pinmux, kTopEarlgreyPinmuxPeripheralInGpioGpio24, kTopEarlgreyPinmuxInselIoc2) returns %0d
+str_arg_idx: 
+addr: 101bc
+severity: 2
+file: sw/device/lib/testing/pinmux_testutils.c
+line: 33
+nargs: 1
+format: DIF-fail: dif_pinmux_input_select(pinmux, kTopEarlgreyPinmuxPeripheralInUart0Rx, kTopEarlgreyPinmuxInselIoc3) returns %0d
+str_arg_idx: 
+addr: 101d0
+severity: 2
+file: sw/device/lib/testing/pinmux_testutils.c
+line: 35
+nargs: 1
+format: DIF-fail: dif_pinmux_output_select(pinmux, kTopEarlgreyPinmuxMioOutIoc3, kTopEarlgreyPinmuxOutselConstantHighZ) returns %0d
+str_arg_idx: 
+addr: 101e4
+severity: 2
+file: sw/device/lib/testing/pinmux_testutils.c
+line: 38
+nargs: 1
+format: DIF-fail: dif_pinmux_output_select(pinmux, kTopEarlgreyPinmuxMioOutIoc4, kTopEarlgreyPinmuxOutselUart0Tx) returns %0d
+str_arg_idx: 
+addr: 101f8
+severity: 2
+file: sw/device/lib/testing/pinmux_testutils.c
+line: 53
+nargs: 1
+format: DIF-fail: dif_pinmux_pad_write_attrs(pinmux, kTopEarlgreyMuxedPadsIoc3, kDifPinmuxPadKindMio, in_attr, &out_attr) returns %0d
+str_arg_idx: 
+addr: 1020c
+severity: 2
+file: sw/device/lib/testing/pinmux_testutils.c
+line: 59
+nargs: 1
+format: DIF-fail: dif_pinmux_input_select(pinmux, kTopEarlgreyPinmuxPeripheralInUart1Rx, kTopEarlgreyPinmuxInselIob4) returns %0d
+str_arg_idx: 
+addr: 10220
+severity: 2
+file: sw/device/lib/testing/pinmux_testutils.c
+line: 61
+nargs: 1
+format: DIF-fail: dif_pinmux_output_select(pinmux, kTopEarlgreyPinmuxMioOutIob4, kTopEarlgreyPinmuxOutselConstantHighZ) returns %0d
+str_arg_idx: 
+addr: 10234
+severity: 2
+file: sw/device/lib/testing/pinmux_testutils.c
+line: 64
+nargs: 1
+format: DIF-fail: dif_pinmux_output_select(pinmux, kTopEarlgreyPinmuxMioOutIob5, kTopEarlgreyPinmuxOutselUart1Tx) returns %0d
+str_arg_idx: 
+addr: 10248
+severity: 2
+file: sw/device/lib/testing/pinmux_testutils.c
+line: 84
+nargs: 1
+format: DIF-fail: dif_pinmux_pad_write_attrs(pinmux, kTopEarlgreyDirectPadsUsbdevUsbDp, kDifPinmuxPadKindDio, in_attr, &out_attr) returns %0d
+str_arg_idx: 
+addr: 1025c
+severity: 2
+file: sw/device/lib/testing/pinmux_testutils.c
+line: 87
+nargs: 1
+format: DIF-fail: dif_pinmux_pad_write_attrs(pinmux, kTopEarlgreyDirectPadsUsbdevUsbDn, kDifPinmuxPadKindDio, in_attr, &out_attr) returns %0d
+str_arg_idx: 
+addr: 10270
+severity: 2
+file: sw/device/lib/testing/pinmux_testutils.c
+line: 93
+nargs: 1
+format: DIF-fail: dif_pinmux_output_select(pinmux, kTopEarlgreyPinmuxMioOutIoc7, kTopEarlgreyPinmuxOutselConstantHighZ) returns %0d
+str_arg_idx: 
+addr: 10284
+severity: 2
+file: sw/device/lib/testing/pinmux_testutils.c
+line: 155
+nargs: 0
+format: CHECK-fail: 0
+str_arg_idx: 
+addr: 10298
+severity: 2
+file: sw/device/lib/testing/pinmux_testutils.c
+line: 167
+nargs: 1
+format: DIF-fail: dif_pinmux_pad_write_attrs(pinmux, pad, kDifPinmuxPadKindMio, attr, &attr_out) returns %0d
+str_arg_idx: 
+addr: 102ac
+severity: 2
+file: sw/device/lib/testing/pinmux_testutils.c
+line: 174
+nargs: 1
+format: DIF-fail: dif_gpio_read(gpio, io, &state) returns %0d
+str_arg_idx: 
+addr: 102c0
+severity: 2
+file: sw/device/lib/testing/pinmux_testutils.c
+line: 183
+nargs: 1
+format: DIF-fail: dif_pinmux_pad_write_attrs(pinmux, pad, kDifPinmuxPadKindMio, attr, &attr_out) returns %0d
+str_arg_idx: 
+addr: 102d4
+severity: 2
+file: sw/device/lib/testing/pinmux_testutils.c
+line: 188
+nargs: 1
+format: DIF-fail: dif_gpio_read(gpio, io, &state) returns %0d
+str_arg_idx: 
+addr: 102e8
+severity: 2
+file: sw/device/lib/testing/pinmux_testutils.c
+line: 212
+nargs: 1
+format: DIF-fail: dif_pinmux_pad_get_attrs(pinmux, attrs[i].pad, attrs[i].kind, &desired_attr) returns %0d
+str_arg_idx: 
+addr: 102fc
+severity: 2
+file: sw/device/lib/testing/pinmux_testutils.c
+line: 215
+nargs: 1
+format: DIF-fail: dif_pinmux_pad_write_attrs(pinmux, attrs[i].pad, attrs[i].kind, desired_attr, &actual_attr) returns %0d
+str_arg_idx: 
+addr: 10310
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_main.c
+line: 61
+nargs: 0
+format: OTTF currently only supports use of machine-mode ecall for FreeRTOS context switching.
+str_arg_idx: 
+addr: 10324
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_main.c
+line: 160
+nargs: 1
+format: DIF-fail: dif_rstmgr_init( mmio_region_from_addr(TOP_EARLGREY_RSTMGR_AON_BASE_ADDR), &rstmgr) returns %0d
+str_arg_idx: 
+addr: 10338
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_main.c
+line: 162
+nargs: 1
+format: DIF-fail: dif_rstmgr_reset_info_clear(&rstmgr) returns %0d
+str_arg_idx: 
+addr: 1034c
+severity: 0
+file: sw/device/lib/testing/test_framework/ottf_main.c
+line: 169
+nargs: 1
+format: Running %0s
+str_arg_idx: 0
+addr: 10360
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_main.c
+line: 178
+nargs: 1
+format: DIF-fail: dif_rv_core_ibex_init( mmio_region_from_addr(TOP_EARLGREY_RV_CORE_IBEX_CFG_BASE_ADDR), &rv_core_ibex) returns %0d
+str_arg_idx: 
+addr: 10374
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_main.c
+line: 194
+nargs: 0
+format: CHECK-fail: 0
+str_arg_idx: 
+addr: 10388
+severity: 0
+file: sw/device/lib/testing/test_framework/ottf_main.c
+line: 111
+nargs: 1
+format: Finished %0s
+str_arg_idx: 0
+addr: 1039c
+severity: 0
+file: sw/device/lib/testing/test_framework/ottf_main.c
+line: 119
+nargs: 0
+format: Status reported by the test:
+str_arg_idx: 
+addr: 103b0
+severity: 0
+file: sw/device/lib/testing/test_framework/ottf_main.c
+line: 128
+nargs: 1
+format: - %8h
+str_arg_idx: 
+addr: 103c4
+severity: 0
+file: sw/device/lib/testing/test_framework/ottf_main.c
+line: 134
+nargs: 0
+format: Some statuses have been lost due to the limited size of the list.
+str_arg_idx: 
+addr: 103d8
+severity: 0
+file: sw/device/lib/testing/test_framework/freertos_hooks.c
+line: 20
+nargs: 1
+format: %0s
+str_arg_idx: 0
+addr: 103ec
+severity: 0
+file: sw/device/lib/testing/test_framework/freertos_hooks.c
+line: 31
+nargs: 1
+format: FreeRTOS stack overflow. Increase stack size of task: %0s
+str_arg_idx: 0
+addr: 10400
+severity: 2
+file: sw/device/lib/testing/rand_testutils.c
+line: 32
+nargs: 0
+format: CHECK-fail: rv_core_ibex != ((void*)0)
+str_arg_idx: 
+addr: 10414
+severity: 2
+file: sw/device/lib/testing/rand_testutils.c
+line: 82
+nargs: 0
+format: CHECK-fail: max >= min
+str_arg_idx: 
+addr: 10428
+severity: 2
+file: sw/device/lib/testing/rand_testutils.c
+line: 88
+nargs: 0
+format: CHECK-fail: result >= min && result <= max
+str_arg_idx: 
+addr: 1043c
+severity: 2
+file: sw/device/lib/testing/rand_testutils.c
+line: 55
+nargs: 5
+format: CHECK-STATUS-fail: %0c%0c%0c:%0d = %0s
+str_arg_idx: 4
+addr: 10450
+severity: 2
+file: sw/device/lib/testing/rand_testutils.c
+line: 55
+nargs: 1
+format: CHECK-STATUS-fail: 0x%08h
+str_arg_idx: 
+addr: 10464
+severity: 2
+file: sw/device/lib/testing/otp_ctrl_testutils.c
+line: 39
+nargs: 1
+format: Expected a DAI error for access to 0x%0h
+str_arg_idx: 
+addr: 10478
+severity: 2
+file: sw/device/lib/testing/otp_ctrl_testutils.c
+line: 43
+nargs: 1
+format: Expected access locked error for access to 0x%0h
+str_arg_idx: 
+addr: 1048c
+severity: 2
+file: sw/device/lib/testing/otp_ctrl_testutils.c
+line: 47
+nargs: 1
+format: No DAI error expected for access to 0x%0h
+str_arg_idx: 
+addr: 104a0
+severity: 2
+file: sw/device/lib/testing/otp_ctrl_testutils.c
+line: 50
+nargs: 1
+format: No DAI error code expected for access to 0x%0h
+str_arg_idx: 
+addr: 104b4
+severity: 2
+file: sw/device/lib/testing/otp_ctrl_testutils.c
+line: 172
+nargs: 4
+format: OTP partition: %0d addr[0x%0h] got: 0x%08h, expected: 0x%08h
+str_arg_idx: 
+addr: 104c8
+severity: 2
+file: sw/device/lib/testing/otp_ctrl_testutils.c
+line: 145
+nargs: 1
+format: dai_write_error_check code: 0x%0h
+str_arg_idx: 
+addr: 104dc
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_console.c
+line: 43
+nargs: 1
+format: DIF-fail: dif_rv_plic_init( mmio_region_from_addr(TOP_EARLGREY_RV_PLIC_BASE_ADDR), &ottf_plic) returns %0d
+str_arg_idx: 
+addr: 104f0
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_console.c
+line: 52
+nargs: 0
+format: CHECK-fail: kOttfTestConfig.console.type == kOttfConsoleUart
+str_arg_idx: 
+addr: 10504
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_console.c
+line: 73
+nargs: 0
+format: CHECK-fail: unsupported OTTF console interface.
+str_arg_idx: 
+addr: 10518
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_console_uart.c
+line: 59
+nargs: 1
+format: DIF-fail: dif_uart_init(mmio_region_from_addr(base_addr), &console->data.uart.dif) returns %0d
+str_arg_idx: 
+addr: 1052c
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_console_uart.c
+line: 60
+nargs: 0
+format: CHECK-fail: kUartBaudrate must fit in uint32_t
+str_arg_idx: 
+addr: 10540
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_console_uart.c
+line: 62
+nargs: 0
+format: CHECK-fail: kClockFreqPeripheralHz must fit in uint32_t
+str_arg_idx: 
+addr: 10554
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_console_uart.c
+line: 72
+nargs: 1
+format: DIF-fail: dif_uart_configure(&console->data.uart.dif, (dif_uart_config_t){ .baudrate = (uint32_t)kUartBaudrate, .clk_freq_hz = (uint32_t)kClockFreqPeripheralHz, .parity_enable = kDifToggleDisabled, .parity = kDifUartParityEven, .tx_enable = kDifToggleEnabled, .rx_enable = kDifToggleEnabled, }) returns %0d
+str_arg_idx: 
+addr: 10568
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_console_uart.c
+line: 96
+nargs: 1
+format: DIF-fail: dif_uart_watermark_rx_set(uart, kFlowControlRxWatermark) returns %0d
+str_arg_idx: 
+addr: 1057c
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_console_uart.c
+line: 98
+nargs: 1
+format: DIF-fail: dif_uart_irq_set_enabled(uart, kDifUartIrqRxWatermark, kDifToggleEnabled) returns %0d
+str_arg_idx: 
+addr: 10590
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_console_uart.c
+line: 102
+nargs: 1
+format: DIF-fail: dif_rv_plic_irq_set_priority( &ottf_plic, get_flow_control_watermark_plic_id(), kDifRvPlicMaxPriority) returns %0d
+str_arg_idx: 
+addr: 105a4
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_console_uart.c
+line: 105
+nargs: 1
+format: DIF-fail: dif_rv_plic_target_set_threshold(&ottf_plic, kPlicTarget, kDifRvPlicMinPriority) returns %0d
+str_arg_idx: 
+addr: 105b8
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_console_uart.c
+line: 109
+nargs: 1
+format: DIF-fail: dif_rv_plic_irq_set_enabled(&ottf_plic, get_flow_control_watermark_plic_id(), kPlicTarget, kDifToggleEnabled) returns %0d
+str_arg_idx: 
+addr: 105cc
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_console_uart.c
+line: 158
+nargs: 1
+format: DIF-fail: dif_uart_irq_is_pending(uart, kDifUartIrqRxWatermark, &rx) returns %0d
+str_arg_idx: 
+addr: 105e0
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_console_uart.c
+line: 161
+nargs: 1
+format: DIF-fail: dif_uart_irq_acknowledge(uart, kDifUartIrqRxWatermark) returns %0d
+str_arg_idx: 
+addr: 105f4
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_console_uart.c
+line: 173
+nargs: 1
+format: DIF-fail: dif_uart_irq_disable_all(uart, &snapshot) returns %0d
+str_arg_idx: 
+addr: 10608
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_console_uart.c
+line: 175
+nargs: 1
+format: DIF-fail: dif_uart_irq_restore_all(uart, &snapshot) returns %0d
+str_arg_idx: 
+addr: 1061c
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_console_uart.c
+line: 134
+nargs: 1
+format: DIF-fail: dif_uart_irq_set_enabled(uart, kDifUartIrqRxWatermark, kDifToggleEnabled) returns %0d
+str_arg_idx: 
+addr: 10630
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_console_uart.c
+line: 143
+nargs: 1
+format: DIF-fail: dif_uart_irq_set_enabled(uart, kDifUartIrqRxWatermark, kDifToggleDisabled) returns %0d
+str_arg_idx: 
+addr: 10644
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_console_uart.c
+line: 149
+nargs: 1
+format: DIF-fail: dif_uart_bytes_send(uart, &byte, 1, NULL) returns %0d
+str_arg_idx: 
+addr: 10658
+severity: 2
+file: w/device/lib/testing/test_framework/ottf_console_spi.c
+line: 263
+nargs: 5
+format: CHECK-STATUS-fail: %0c%0c%0c:%0d = %0s
+str_arg_idx: 4
+addr: 1066c
+severity: 2
+file: w/device/lib/testing/test_framework/ottf_console_spi.c
+line: 263
+nargs: 1
+format: CHECK-STATUS-fail: 0x%08h
+str_arg_idx: 
+addr: 10680
+severity: 2
+file: w/device/lib/testing/test_framework/ottf_console_spi.c
+line: 274
+nargs: 1
+format: DIF-fail: dif_spi_device_set_flash_status_registers( &console->data.spi.dif, 0x00) returns %0d
+str_arg_idx: 
+addr: 10694
+severity: 2
+file: w/device/lib/testing/test_framework/ottf_console_spi.c
+line: 326
+nargs: 1
+format: DIF-fail: dif_gpio_init(mmio_region_from_addr(TOP_EARLGREY_GPIO_BASE_ADDR), &ottf_console_gpio) returns %0d
+str_arg_idx: 
+addr: 106a8
+severity: 2
+file: w/device/lib/testing/test_framework/ottf_console_spi.c
+line: 329
+nargs: 1
+format: DIF-fail: dif_pinmux_init(mmio_region_from_addr(TOP_EARLGREY_PINMUX_AON_BASE_ADDR), &ottf_console_pinmux) returns %0d
+str_arg_idx: 
+addr: 106bc
+severity: 2
+file: w/device/lib/testing/test_framework/ottf_console_spi.c
+line: 333
+nargs: 1
+format: DIF-fail: dif_spi_device_init_handle(mmio_region_from_addr(base_addr), spi_device) returns %0d
+str_arg_idx: 
+addr: 106d0
+severity: 2
+file: w/device/lib/testing/test_framework/ottf_console_spi.c
+line: 339
+nargs: 1
+format: DIF-fail: dif_spi_device_configure( spi_device, (dif_spi_device_config_t){ .tx_order = kDifSpiDeviceBitOrderMsbToLsb, .rx_order = kDifSpiDeviceBitOrderMsbToLsb, .device_mode = kDifSpiDeviceModeFlashEmulation, }) returns %0d
+str_arg_idx: 
+addr: 106e4
+severity: 2
+file: w/device/lib/testing/test_framework/ottf_console_spi.c
+line: 393
+nargs: 1
+format: DIF-fail: dif_spi_device_set_flash_command_slot( spi_device, slot, kDifToggleEnabled, read_commands[i]) returns %0d
+str_arg_idx: 
+addr: 106f8
+severity: 2
+file: w/device/lib/testing/test_framework/ottf_console_spi.c
+line: 409
+nargs: 1
+format: DIF-fail: dif_spi_device_set_flash_command_slot( spi_device, slot, kDifToggleEnabled, write_commands[i]) returns %0d
+str_arg_idx: 
+addr: 1070c
+severity: 2
+file: w/device/lib/testing/test_framework/ottf_console_spi.c
+line: 419
+nargs: 1
+format: DIF-fail: dif_pinmux_output_select( &ottf_console_pinmux, tx_ready_mio, kTopEarlgreyPinmuxOutselGpioGpio0 + tx_ready_gpio) returns %0d
+str_arg_idx: 
+addr: 10720
+severity: 2
+file: w/device/lib/testing/test_framework/ottf_console_spi.c
+line: 420
+nargs: 1
+format: DIF-fail: dif_gpio_write(&ottf_console_gpio, tx_ready_gpio, false) returns %0d
+str_arg_idx: 
+addr: 10734
+severity: 2
+file: w/device/lib/testing/test_framework/ottf_console_spi.c
+line: 422
+nargs: 1
+format: DIF-fail: dif_gpio_output_set_enabled(&ottf_console_gpio, tx_ready_gpio, true) returns %0d
+str_arg_idx: 
+addr: 10748
+severity: 2
+file: w/device/lib/testing/test_framework/ottf_console_spi.c
+line: 228
+nargs: 1
+format: DIF-fail: dif_spi_device_write_flash_buffer( spi_device, kDifSpiDeviceFlashBufferTypeEFlash, i * ARRAYSIZE(kEmptyPattern), ARRAYSIZE(kEmptyPattern), kEmptyPattern) returns %0d
+str_arg_idx: 
+addr: 1075c
+severity: 2
+file: w/device/lib/testing/test_framework/ottf_console_spi.c
+line: 230
+nargs: 1
+format: DIF-fail: dif_spi_device_set_flash_status_registers(spi_device, 0x00) returns %0d
+str_arg_idx: 
+addr: 10770
+severity: 2
+file: w/device/lib/testing/test_framework/ottf_console_spi.c
+line: 240
+nargs: 1
+format: DIF-fail: dif_spi_device_write_flash_buffer( spi_device, kDifSpiDeviceFlashBufferTypeEFlash, i * ARRAYSIZE(kBootMagicPattern), ARRAYSIZE(kBootMagicPattern), kBootMagicPattern) returns %0d
+str_arg_idx: 
+addr: 10784
+severity: 2
+file: w/device/lib/testing/test_framework/ottf_console_spi.c
+line: 245
+nargs: 5
+format: CHECK-STATUS-fail: %0c%0c%0c:%0d = %0s
+str_arg_idx: 4
+addr: 10798
+severity: 2
+file: w/device/lib/testing/test_framework/ottf_console_spi.c
+line: 245
+nargs: 1
+format: CHECK-STATUS-fail: 0x%08h
+str_arg_idx: 
+addr: 107ac
+severity: 2
+file: w/device/lib/testing/test_framework/ottf_console_spi.c
+line: 312
+nargs: 5
+format: CHECK-STATUS-fail: %0c%0c%0c:%0d = %0s
+str_arg_idx: 4
+addr: 107c0
+severity: 2
+file: w/device/lib/testing/test_framework/ottf_console_spi.c
+line: 312
+nargs: 1
+format: CHECK-STATUS-fail: 0x%08h
+str_arg_idx: 
+addr: 107d4
+severity: 2
+file: w/device/lib/testing/test_framework/ottf_console_spi.c
+line: 314
+nargs: 1
+format: DIF-fail: dif_spi_device_set_flash_status_registers(spi_device, 0x00) returns %0d
+str_arg_idx: 
+addr: 107e8
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_isrs.c
+line: 99
+nargs: 4
+format: FAULT: %0s. MCAUSE=%08h MEPC=%08h MTVAL=%08h
+str_arg_idx: 0
+addr: 107fc
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_isrs.c
+line: 199
+nargs: 1
+format: DIF-fail: dif_rv_plic_irq_claim(&ottf_plic, kPlicTarget, &plic_irq_id) returns %0d
+str_arg_idx: 
+addr: 10810
+severity: 2
+file: sw/device/lib/testing/test_framework/ottf_isrs.c
+line: 208
+nargs: 1
+format: DIF-fail: dif_rv_plic_irq_complete(&ottf_plic, kPlicTarget, plic_irq_id) returns %0d
+str_arg_idx: 
+addr: 10824
+severity: 2
+file: sw/device/lib/testing/flash_ctrl_testutils.c
+line: 38
+nargs: 0
+format: CHECK-fail: dif_result != kDifBadArg
+str_arg_idx: 
+addr: 10838
+severity: 2
+file: sw/device/lib/testing/flash_ctrl_testutils.c
+line: 39
+nargs: 0
+format: CHECK-fail: dif_result != kDifError
+str_arg_idx: 
+addr: 1084c
+severity: 2
+file: sw/device/lib/testing/flash_ctrl_testutils.c
+line: 183
+nargs: 1
+format: Unaligned address 0x%0h
+str_arg_idx: 
+addr: 10860
+severity: 2
+file: sw/device/lib/testing/flash_ctrl_testutils.c
+line: 342
+nargs: 1
+format: DIF-fail: dif_flash_ctrl_get_faults(flash_ctrl, &faults) returns %0d
+str_arg_idx: 
+addr: 10874
+severity: 0
+file: sw/device/lib/testing/flash_ctrl_testutils.c
+line: 348
+nargs: 0
+format: Flash_ctrl fault status has memory_properties_error
+str_arg_idx: 
+addr: 10888
+severity: 0
+file: sw/device/lib/testing/flash_ctrl_testutils.c
+line: 349
+nargs: 0
+format: Flash_ctrl fault status has read_error
+str_arg_idx: 
+addr: 1089c
+severity: 0
+file: sw/device/lib/testing/flash_ctrl_testutils.c
+line: 350
+nargs: 0
+format: Flash_ctrl fault status has prog_window_error
+str_arg_idx: 
+addr: 108b0
+severity: 0
+file: sw/device/lib/testing/flash_ctrl_testutils.c
+line: 351
+nargs: 0
+format: Flash_ctrl fault status has prog_type_error
+str_arg_idx: 
+addr: 108c4
+severity: 0
+file: sw/device/lib/testing/flash_ctrl_testutils.c
+line: 352
+nargs: 0
+format: Flash_ctrl fault status has host_gnt_error
+str_arg_idx: 
+addr: 108d8
+severity: 0
+file: sw/device/lib/testing/flash_ctrl_testutils.c
+line: 353
+nargs: 0
+format: Flash_ctrl fault status has register_integrity_error
+str_arg_idx: 
+addr: 108ec
+severity: 0
+file: sw/device/lib/testing/flash_ctrl_testutils.c
+line: 354
+nargs: 0
+format: Flash_ctrl fault status has phy_integrity_error
+str_arg_idx: 
+addr: 10900
+severity: 0
+file: sw/device/lib/testing/flash_ctrl_testutils.c
+line: 355
+nargs: 0
+format: Flash_ctrl fault status has lifecycle_manager_error
+str_arg_idx: 
+addr: 10914
+severity: 0
+file: sw/device/lib/testing/flash_ctrl_testutils.c
+line: 356
+nargs: 0
+format: Flash_ctrl fault status has shadow_storage_error
+str_arg_idx: 
+addr: 10928
+severity: 0
+file: sw/device/lib/testing/flash_ctrl_testutils.c
+line: 382
+nargs: 10
+format: data region n=%0d st=%0d sz=%0d %0s-%0s-%0s-%0s-%0s-%0s %0s
+str_arg_idx: 3 4 5 6 7 8 9
+addr: 1093c
+severity: 0
+file: sw/device/lib/testing/flash_ctrl_testutils.c
+line: 393
+nargs: 10
+format: info region bank=%0d part=%0d page=%0d %0s-%0s-%0s-%0s-%0s-%0s %0s
+str_arg_idx: 3 4 5 6 7 8 9
+addr: 10950
+severity: 0
+file: sw/device/lib/testing/test_framework/status.c
+line: 28
+nargs: 0
+format: PASS!
+str_arg_idx: 
+addr: 10964
+severity: 0
+file: sw/device/lib/testing/test_framework/status.c
+line: 34
+nargs: 0
+format: FAIL!
+str_arg_idx: 
+addr: 10978
+severity: 0
+file: sw/device/lib/testing/test_framework/status.c
+line: 40
+nargs: 1
+format: test_status_set to 0x%0h
+str_arg_idx:

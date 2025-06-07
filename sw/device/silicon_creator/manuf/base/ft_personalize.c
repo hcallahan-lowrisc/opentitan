@@ -366,22 +366,27 @@ static status_t measure_otp_partition(otp_partition_t partition,
  * scrambling, and reboot.
  */
 static status_t personalize_otp_and_flash_secrets(ujson_t *uj) {
-  // Provision OTP Secret1 partition, and complete provisioning of OTP
-  // CreatorSwCfg partition.
+
+  // (If not already provisioned) Provision OTP Secret1 partition
   if (!status_ok(manuf_personalize_device_secret1_check(&otp_ctrl))) {
     TRY(manuf_personalize_device_secret1(&lc_ctrl, &otp_ctrl));
   }
-  if (!status_ok(
-          manuf_individualize_device_flash_data_default_cfg_check(&otp_ctrl))) {
-    TRY(manuf_individualize_device_field_cfg(
-        &otp_ctrl,
-        OTP_CTRL_PARAM_CREATOR_SW_CFG_FLASH_DATA_DEFAULT_CFG_OFFSET));
+
+  // (If not already provisioned) Provision the OTP CreatorSwCfg flash data region default.
+  if (!status_ok(manuf_individualize_device_flash_data_default_cfg_check(&otp_ctrl))) {
+    // Get here if the CREATOR_SW_CFG_FLASH_DATA_DEFAULT_CFG has _NOT_ been provisioned.
+    // i.e. it's value is anything except 0x90606
+    TRY(manuf_individualize_device_field_cfg(&otp_ctrl, OTP_CTRL_PARAM_CREATOR_SW_CFG_FLASH_DATA_DEFAULT_CFG_OFFSET));
+    // At this point, SECRET1 should now be provisioned, and flash scrambling has been enabled.
+    // Therefore, the current binary loaded into slot-A can no-longer be de-scrambled, and hence we
+    // need to reset and bootstrap again. During bootstrapping, the payload will be scrambled with
+    // the new scrambling keys by the OTP controller.
     base_printf("Bootstrap requested.\n");
     wait_for_interrupt();
   }
 
-  // Provision OTP Secret2 partition and flash info pages 1, 2, and 4 (keymgr
-  // and DICE keygen seeds).
+  // (If not already provisioned) Provision OTP Secret2 partition and flash info
+  // pages 1, 2, and 4 (keymgr and DICE keygen seeds).
   if (!status_ok(manuf_personalize_device_secrets_check(&otp_ctrl))) {
     lc_token_hash_t token_hash;
     // Wait for the host to send the RMA unlock token hash over the console.
@@ -551,6 +556,7 @@ static status_t personalize_gen_dice_certificates(ujson_t *uj) {
   sc_keymgr_advance_state();
   TRY(sc_keymgr_state_check(kScKeymgrStateInit));
   sc_keymgr_advance_state();
+  TRY(sc_keymgr_state_check(kScKeymgrStateCreatorRootKey));
 
   // Measure OTP partitions.
   //
@@ -1086,27 +1092,33 @@ static status_t finalize_otp_partitions(void) {
 }
 
 static status_t configure_ate_gpio_indicators(void) {
-  // IOA6 / GPIO4 is for SPI console RX ready signal.
+  // GPIO4 -> IOA6 is for SPI console RX ready signal.
+  // GPIO3 -> IOA5 is for SPI console TX ready signal.
+  // GPIO2 -> IOA0 is for error reporting.
+  // GPIO1 -> IOA1 is for test done reporting.
+  // GPIO0 -> IOA4 is for test start reporting.
   TRY(dif_pinmux_output_select(
-      &pinmux, kTopEarlgreyPinmuxMioOutIoa6,
-      kTopEarlgreyPinmuxOutselGpioGpio0 + kGpioPinSpiConsoleRxReady));
-  // IOA5 / GPIO3 is for SPI console TX ready signal.
+      &pinmux,
+      kTopEarlgreyPinmuxMioOutIoa6 /*mio_pad_output*/,
+      kTopEarlgreyPinmuxOutselGpioGpio0 + kGpioPinSpiConsoleRxReady /*outsel*/));
   TRY(dif_pinmux_output_select(
-      &pinmux, kTopEarlgreyPinmuxMioOutIoa5,
-      kTopEarlgreyPinmuxOutselGpioGpio0 + kGpioPinSpiConsoleTxReady));
-  // IOA0 / GPIO2 is for error reporting.
+      &pinmux,
+      kTopEarlgreyPinmuxMioOutIoa5 /*mio_pad_output*/,
+      kTopEarlgreyPinmuxOutselGpioGpio0 + kGpioPinSpiConsoleTxReady /*outsel*/));
   TRY(dif_pinmux_output_select(
-      &pinmux, kTopEarlgreyPinmuxMioOutIoa0,
-      kTopEarlgreyPinmuxOutselGpioGpio0 + kGpioPinTestError));
-  // IOA1 / GPIO1 is for test done reporting.
+      &pinmux,
+      kTopEarlgreyPinmuxMioOutIoa0, /*mio_pad_output*/
+      kTopEarlgreyPinmuxOutselGpioGpio0 + kGpioPinTestError /*outsel*/));
   TRY(dif_pinmux_output_select(
-      &pinmux, kTopEarlgreyPinmuxMioOutIoa1,
-      kTopEarlgreyPinmuxOutselGpioGpio0 + kGpioPinTestDone));
-  // IOA4 / GPIO0 is for test start reporting.
+      &pinmux,
+      kTopEarlgreyPinmuxMioOutIoa1, /*mio_pad_output*/
+      kTopEarlgreyPinmuxOutselGpioGpio0 + kGpioPinTestDone /*outsel*/));
   TRY(dif_pinmux_output_select(
-      &pinmux, kTopEarlgreyPinmuxMioOutIoa4,
-      kTopEarlgreyPinmuxOutselGpioGpio0 + kGpioPinTestStart));
-  TRY(dif_gpio_output_set_enabled_all(&gpio, 0x1f));  // Enable first 5 GPIOs.
+      &pinmux,
+      kTopEarlgreyPinmuxMioOutIoa4 /*mio_pad_output*/,
+      kTopEarlgreyPinmuxOutselGpioGpio0 + kGpioPinTestStart /*outsel*/));
+
+  TRY(dif_gpio_output_set_enabled_all(&gpio, /*state*/0x1f));  // Enable first 5 GPIOs.
   TRY(dif_gpio_write_all(&gpio, /*write_val=*/0));    // Intialize all to 0.
   return OK_STATUS();
 }

@@ -1,11 +1,17 @@
 // Copyright lowRISC contributors (OpenTitan project).
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
+
+// Common dvsim modes
+//
+// These are special build_modes which have dedicated logic in dvsim to
+// activate them via the command line. They are normally intended to be enabled
+// via the CLI, and not via .hjson configuration input.
+//
+// These special modes are tagged as 'is_sim_mode: 1'.
+// These are different from the build modes in the sense that these collection of options are appended to actual build_modes.
+
 {
-  // Sim modes are collection of build_opts and run_opts
-  // These are only set on the command line
-  // These are different from the build modes in the sense that these collection of
-  // options are appended to actual build_modes
   build_modes: [
     {
       name: gui
@@ -45,22 +51,6 @@
       is_sim_mode: 1
       en_build_modes: ["{tool}_loopdetect"]
     }
-    // Enables randomization of testbench / RTL build.
-    //
-    // Build randomization is achieved by passing `--build-seed <optional-seed>` on the dvsim
-    // command-line. If not passed, the build is not randomized. Build randomization is achieved
-    // in two ways. One of them is setting the pre-processor macro `BUILD_SEED` to the seed value,
-    // which is done below. The SystemVerilog testbench sources can use the `BUILD_SEED` macro
-    // value to set some design constants (such as parameters) upon instantiation. The `BUILD_SEED`,
-    // if not set externally (by passing the --build-seed switch) is set to 1 in
-    // `hw/dv/sv/dv_utils/dv_macros.svh`. The other way is by passing the {seed} value to utility
-    // scripts that generate packages that contain randomized constants. These utility scripts can
-    // be invoked as a `pre_build_cmd`, wrapped within the `build_seed` sim mode in the DUT
-    // simulation configuration Hjson file. All forms of build randomization must be wrapped within
-    // this `build_seed` sim mode. They will all use the same {seed} value, which allows us to
-    // deterministically reproduce failures. The `--build-seed` switch is expected to be passed
-    // when running the nightly regressions. The `seed` value set by dvsim is a 32-bit unsigned
-    // integer (unless specified on the command-line).
     {
       name: build_seed
       is_sim_mode: 1

@@ -72,14 +72,13 @@ def _transform(ctx, exec_env, name, elf, binary, signed_bin, disassembly, mapfil
             word_size = 32,
         )
     elif ctx.attr.kind == "flash":
-        default = signed_bin if signed_bin else binary
         rom = None
 
         # Build VMEM images to enable GLS testing.
         vmem_base = convert_to_vmem(
             ctx,
             name = name,
-            src = default,
+            src = signed_bin if signed_bin else binary,
             word_size = 64,
         )
         vmem = scramble_flash(
@@ -93,6 +92,8 @@ def _transform(ctx, exec_env, name, elf, binary, signed_bin, disassembly, mapfil
             otp_data_perm = exec_env.otp_data_perm,
             _tool = exec_env.flash_scramble_tool.files_to_run,
         )
+
+        default = vmem_base
     else:
         fail("Not implemented: kind ==", ctx.attr.kind)
 

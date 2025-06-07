@@ -53,6 +53,7 @@ scramble_flash_vmem(
     name = "ft_personalize_sival_silicon_creator_scr_vmem64_signed",
     testonly = True,
     vmem = ":ft_personalize_sival_silicon_creator_vmem64_signed",
+    otp = "//hw/ip/otp_ctrl/data/earlgrey_skus/sival:otp_img_dev_manuf_individualized",
 )
 
 filegroup(
@@ -72,5 +73,8 @@ filegroup(
 filegroup(
     name = "ft_personalize_sival_silicon_creator",
     testonly = True,
-    srcs = [":ft_personalize_sival_silicon_creator_vmem64_signed"],
+    srcs = [
+        ":ft_personalize_sival_silicon_creator_vmem64_signed",
+        ":ft_personalize_sival_silicon_creator_scr_vmem64_signed"
+    ],
 )

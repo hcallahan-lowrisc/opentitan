@@ -51,6 +51,7 @@ package chip_env_pkg;
   import rv_core_ibex_reg_pkg::RV_CORE_IBEX_DV_SIM_WINDOW_OFFSET;
   import i2c_agent_pkg::*;
   import pattgen_agent_pkg::*;
+  import ottf_spi_console_pkg::*;
 
   // macro includes
   `include "uvm_macros.svh"
@@ -117,9 +118,10 @@ package chip_env_pkg;
     OtpTypeLcStTestUnlocked0, // Base OTP image in TestUnlocked0 lifecycle state.
     OtpTypeLcStTestUnlocked1, // Base OTP image in TestUnlocked1 lifecycle state.
     OtpTypeLcStTestUnlocked2, // Base OTP image in TestUnlocked2 lifecycle state.
-    OtpTypeLcStTestLocked0, // Base OTP image in TestUnlocked0 lifecycle state.
-    OtpTypeLcStTestLocked1, // Base OTP image in TestUnlocked0 lifecycle state.
-    OtpTypeCustom             // Custom OTP image specified via `sw_images` plusarg.
+    OtpTypeLcStTestLocked0,   // Base OTP image in TestUnlocked0 lifecycle state.
+    OtpTypeLcStTestLocked1,   // Base OTP image in TestUnlocked0 lifecycle state.
+    OtpTypeCustom,            // Custom OTP image specified via `sw_images` plusarg.
+    OtpNone // No image provided or pre-loaded
   } otp_type_e;
 
   // Two status for LC JTAG to identify if LC state transition is successful.
