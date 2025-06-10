@@ -70,7 +70,8 @@
       run_opts: [
         "+sw_test_timeout_ns=1000000000",
         "+use_otp_image=OtpTypeCustom",
-        "+skip_flash_bkdr_load=1",
+        "+skip_flash_bkdr_load=0",
+        "+use_spi_load_bootstrap=0",
       ]
       run_timeout_mins: 800
     }

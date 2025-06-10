@@ -613,14 +613,14 @@ endclass
       string file; \
       @(inst.readmemh_event); \
       file = inst.get_file(); \
-      `uvm_info(inst.`gfn, $sformatf("Loading mem from file:\n%0s", file), UVM_LOW) \
+      `uvm_info(inst.`gfn, $sformatf("Loading mem from file: %0s", file), UVM_LOW) \
       $readmemh(file, path); \
     end \
     forever begin \
       string file; \
       @(inst.writememh_event); \
       file = inst.get_file(); \
-      `uvm_info(inst.`gfn, $sformatf("Writing mem to file:\n%0s", file), UVM_LOW) \
+      `uvm_info(inst.`gfn, $sformatf("Writing mem to file: %0s", file), UVM_LOW) \
       $writememh(file, path); \
     end \
   join_none
