@@ -72,5 +72,8 @@ filegroup(
 filegroup(
     name = "ft_personalize_sival_silicon_creator",
     testonly = True,
-    srcs = [":ft_personalize_sival_silicon_creator_vmem64_signed"],
+    srcs = [
+        ":ft_personalize_sival_silicon_creator_vmem64_signed"
+        ":ft_personalize_sival_silicon_creator_scr_vmem64_signed"
+    ],
 )
