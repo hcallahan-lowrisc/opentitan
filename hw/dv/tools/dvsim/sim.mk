@@ -71,6 +71,7 @@ ifneq (${sw_images},)
 	# We only copy device SW images, and do not copy host-side artifacts (like
 	# opentitantool) that are also dependencies of the Bazel test target that
 	# encode the software image targets.
+	set -x; \
 	set -e; \
 	for sw_image in ${sw_images}; do \
 		if [[ -z $$sw_image ]]; then \

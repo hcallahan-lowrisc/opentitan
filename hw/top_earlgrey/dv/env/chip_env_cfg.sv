@@ -422,32 +422,42 @@ class chip_env_cfg #(type RAL_T = chip_ral_pkg::chip_reg_block) extends cip_base
   // Finalize the SW image paths, once all SW image settings are done.
   virtual function void resolve_sw_image_paths();
     foreach (sw_images[i]) begin
+
+      // Not really used... (pre-built TOCK images?)
       if ("prebuilt" inside {sw_image_flags[i]}) begin
         sw_images[i] = $sformatf("%0s", sw_images[i]);
+
       end else begin
-        if (i == SwTypeRom) begin
+        if (i == SwTypeRom /* 0 */) begin
+
           // If Rom type AND test_in_rom, append suffix to the image name.
           if ("test_in_rom" inside {sw_image_flags[i]} &&
               !("new_rules" inside {sw_image_flags[i]})) begin
             sw_images[i] = $sformatf("%0s_rom_prog_%0s", sw_images[i], sw_build_device);
+
           // If Rom type but not test_in_rom, no need to tweak name further.
           end else begin
             sw_images[i] = $sformatf("%0s_%0s", sw_images[i], sw_build_device);
           end
-        end else if (i inside {SwTypeTestSlotA, SwTypeTestSlotB}) begin
+
+        end else if (i inside {SwTypeTestSlotA, /* 1 */
+                               SwTypeTestSlotB  /* 2 */}) begin
+
           // If the tag `silicon_creator` is inside the list of flags, we want
           // to use a flash image built for the `silicon_creator` device. This
           // is used for GLS tests that integrate the ROM macro, which is built
           // for the `silicon_creator` device, not the `sim_dv` device.
           if ("silicon_creator" inside {sw_image_flags[i]}) begin
             sw_images[i] = $sformatf("%0s_silicon_creator", sw_images[i]);
+
           // If test type is `opentitan_test` and the flash image was generated
           // by the `opentitan_test` Bazel macro itself, or it was generated
           // by the `opentitan_flash_binary` or `opentitan_binary` Bazel macros,
           // then we only need to append the device suffix.
           end else if ("ot_flash_binary" inside {sw_image_flags[i]} ||
-              "new_rules" inside {sw_image_flags[i]}) begin
+                       "new_rules" inside {sw_image_flags[i]}) begin
             sw_images[i] = $sformatf("%0s_%0s", sw_images[i], sw_build_device);
+
           // If test type is `opentitan_functest` (the legacy OpenTitan Bazel
           // test macro), and said macro generated the flash image, then we
           // need to tweak the name, as the flash binary target has the `_prog`
@@ -456,9 +466,11 @@ class chip_env_cfg #(type RAL_T = chip_ral_pkg::chip_reg_block) extends cip_base
           end else begin
             sw_images[i] = $sformatf("%0s_prog_%0s", sw_images[i], sw_build_device);
           end
+
           // A flash image could be signed, and if it is, Bazel will attach a
           // suffix to the image name.
           if ("signed" inside {sw_image_flags[i]}) begin
+
             // Options match DEFAULT_SIGNING_KEYS in `rules/opentitan.bzl`.
             if ("fake_ecdsa_dev_key_0" inside {sw_image_flags[i]}) begin
               sw_images[i] = $sformatf("%0s.fake_ecdsa_dev_key_0.signed", sw_images[i]);
@@ -473,13 +485,16 @@ class chip_env_cfg #(type RAL_T = chip_ral_pkg::chip_reg_block) extends cip_base
             end else if ("fake_rsa_test_key_0" inside {sw_image_flags[i]}) begin
               sw_images[i] = $sformatf("%0s.fake_rsa_test_key_0.signed", sw_images[i]);
             end else begin
+
               // We default to no key name if none is provided in the SW image tags.
               sw_images[i] = $sformatf("%0s.signed", sw_images[i]);
             end
           end
-        end else if (i == SwTypeOtp) begin
+
+        end else if (i == SwTypeOtp /* 5 */) begin
           otp_images[OtpTypeCustom] = $sformatf("%0s.24.vmem", sw_images[i]);
-        end else if (i == SwTypeDebug) begin
+
+        end else if (i == SwTypeDebug /* 6 (Debug SW - injected into SRAM) */) begin
           sw_images[i] = $sformatf("%0s_%0s", sw_images[i], sw_build_device);
         end
       end
