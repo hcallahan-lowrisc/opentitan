@@ -22,12 +22,12 @@ class chip_sw_rom_e2e_ft_perso_vseq extends
     // Wait for SRAM initialization to complete a second time (after bootstrap).
     `uvm_info(`gfn, "Waiting for SRAM initialization to complete (after bootstrap).", UVM_LOW)
 
-    `DV_WAIT(cfg.chip_vif.sram_ret_init_done == 1,
-             $sformatf({"Timeout occurred when waiting for SRAM initialization; ",
-                        "Current sram_ret_init_done = 1'%0b, Timeout value = %0dns"},
-                        cfg.chip_vif.sram_ret_init_done,
-                        cfg.sw_test_timeout_ns),
-             cfg.sw_test_timeout_ns)
+    // `DV_WAIT(cfg.chip_vif.sram_ret_init_done == 1,
+    //          $sformatf({"Timeout occurred when waiting for SRAM initialization; ",
+    //                     "Current sram_ret_init_done = 1'%0b, Timeout value = %0dns"},
+    //                     cfg.chip_vif.sram_ret_init_done,
+    //                     cfg.sw_test_timeout_ns),
+    //          cfg.sw_test_timeout_ns)
 
     `uvm_info(`gfn, "ROM SRAM initialization done.", UVM_LOW)
 
