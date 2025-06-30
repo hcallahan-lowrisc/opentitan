@@ -27,6 +27,38 @@ class chip_sw_rom_e2e_ft_perso_vseq extends
              cfg.sw_test_timeout_ns)
     `uvm_info(`gfn, "ROM SRAM initialization done.", UVM_LOW)
 
+    // typedef enum {
+    //   FlashBank0Data,
+    //   FlashBank1Data,
+    //   FlashBank0Info,
+    //   FlashBank1Info,
+    //   ICacheWay0Tag,
+    //   ICacheWay1Tag,
+    //   ICacheWay0Data,
+    //   ICacheWay1Data,
+    //   UsbdevBuf,
+    //   OtbnDmem[16],
+    //   OtbnImem,
+    //   Otp,
+    //   RamMain[16],
+    //   RamRet[16],
+    //   Rom
+    // } chip_mem_e;
+    //
+    // typedef enum {
+    //   SwTypeRom       = 0, // Ibex SW - first stage boot ROM.
+    //   SwTypeTestSlotA = 1, // Ibex SW - test SW in (flash) slot A.
+    //   SwTypeTestSlotB = 2, // Ibex SW - test SW in (flash) slot B.
+    //   SwTypeOtbn      = 3, // Otbn SW
+    //   SwTypeOtp       = 4, // Customized OTP image
+    //   SwTypeDebug     = 5  // Debug SW - injected into SRAM.
+    // } sw_type_e;
+
+    cfg.mem_bkdr_util_h[FlashBank0Data].write_mem_to_file("dump_FlashBank0Data.64.scr.vmem");
+    cfg.mem_bkdr_util_h[FlashBank1Data].write_mem_to_file("dump_FlashBank1Data.64.scr.vmem");
+    cfg.mem_bkdr_util_h[FlashBank0Info].write_mem_to_file("dump_FlashBank0Info.64.scr.vmem");
+    cfg.mem_bkdr_util_h[FlashBank1Info].write_mem_to_file("dump_FlashBank1Info.64.scr.vmem");
+
     // Wait for IOA1 (perso done GPIO indicator) to toggle on.
     `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa1] == '1,
              $sformatf("Timed out waiting for IOA1 to go high."),
