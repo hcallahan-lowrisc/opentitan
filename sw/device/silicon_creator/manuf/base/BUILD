@@ -400,6 +400,12 @@ filegroup(
                   ]).to_list(),
 )
 
+# The below alias is needed to run the multislot_empty_test in DV.
+alias(
+    name = "ft_personalize_emulation_sim_dv",
+    actual = "ft_personalize_emulation",
+)
+
 [
     offline_presigning_artifacts(
         name = "provisioning_{}".format(sku),
