@@ -102,31 +102,21 @@ class chip_sw_base_vseq extends chip_base_vseq;
       cfg.mem_bkdr_util_h[chip_mem_e'(RamRet0 + ram_idx)].randomize_mem();
     end
 
-    `uvm_info(`gfn, "Initializing ROM", UVM_MEDIUM)
     // Backdoor load memories with sw images.
-    if (cfg.skip_rom_bkdr_load == 0) begin
-`ifdef DISABLE_ROM_INTEGRITY_CHECK
-      cfg.mem_bkdr_util_h[Rom].load_mem_from_file({cfg.sw_images[SwTypeRom], ".32.vmem"});
-`else
-      cfg.mem_bkdr_util_h[Rom].load_mem_from_file({cfg.sw_images[SwTypeRom], ".39.scr.vmem"});
-`endif
-    end
 
-    if (cfg.skip_flash_bkdr_load == 0) begin
-      if (cfg.sw_images.exists(SwTypeTestSlotA)) begin
-        if (cfg.use_spi_load_bootstrap) begin
-          `uvm_info(`gfn, "Initializing SPI flash bootstrap", UVM_MEDIUM)
-          spi_device_load_bootstrap({cfg.sw_images[SwTypeTestSlotA], ".64.vmem"});
-          cfg.use_spi_load_bootstrap = 1'b0;
-        end else begin
-          cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(
-              {cfg.sw_images[SwTypeTestSlotA], ".64.scr.vmem"});
-        end
-      end
-      if (cfg.sw_images.exists(SwTypeTestSlotB)) begin
+    `uvm_info(`gfn, "Initializing ROM", UVM_MEDIUM)
+    if (!cfg.skip_rom_bkdr_load) cfg.mem_bkdr_util_h[Rom].load_mem_from_file({cfg.sw_images[SwTypeRom], ".39.scr.vmem"});
+
+    `uvm_info(`gfn, "Initializing FLASH", UVM_MEDIUM)
+    if (!cfg.skip_flash_bkdr_load) begin
+      if ((cfg.use_spi_load_bootstrap) && (cfg.sw_images.exists(SwTypeTestSlotA))) begin
         // TODO: support bootstrapping entire flash address space, not just slot A.
-        cfg.mem_bkdr_util_h[FlashBank1Data].load_mem_from_file(
-            {cfg.sw_images[SwTypeTestSlotB], ".64.scr.vmem"});
+        spi_device_load_bootstrap({cfg.sw_images[SwTypeTestSlotA], ".64.vmem"});
+        cfg.use_spi_load_bootstrap = 1'b0;
+      end else begin
+        // bkdr-load both slots if images are provided to the simulation.
+        if (cfg.sw_images.exists(SwTypeTestSlotA)) cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file({cfg.sw_images[SwTypeTestSlotA], ".64.scr.vmem"});
+        if (cfg.sw_images.exists(SwTypeTestSlotB)) cfg.mem_bkdr_util_h[FlashBank1Data].load_mem_from_file({cfg.sw_images[SwTypeTestSlotB], ".64.scr.vmem"});
       end
     end
 
@@ -515,6 +505,8 @@ class chip_sw_base_vseq extends chip_base_vseq;
     uint bytes_to_write;
     uint byte_cnt = 0;
     uint SPI_FLASH_PAGE_SIZE = 256;
+
+    `uvm_info(`gfn, "Initializing SPI flash bootstrap", UVM_LOW)
 
     // Set CSB inactive times to reasonable values. sys_clk is at 24 MHz, and
     // it needs to capture CSB pulses.
