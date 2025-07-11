@@ -2,8 +2,7 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-class chip_sw_rom_e2e_ft_perso_vseq extends
-  chip_sw_rom_e2e_base_vseq;
+class chip_sw_rom_e2e_ft_perso_vseq extends chip_sw_rom_e2e_base_vseq;
   `uvm_object_utils(chip_sw_rom_e2e_ft_perso_vseq)
   `uvm_object_new
 

@@ -73,5 +73,6 @@ filegroup(
     srcs = [
         ":ate_gpio_toggle_test_silicon_creator.dis",
         ":ate_gpio_toggle_test_silicon_creator_vmem64_signed",
+        ":ate_gpio_toggle_test_silicon_creator_scr_vmem64_signed"
     ],
 )
