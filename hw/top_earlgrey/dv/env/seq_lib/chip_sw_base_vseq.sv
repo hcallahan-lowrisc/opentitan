@@ -60,6 +60,7 @@ class chip_sw_base_vseq extends chip_base_vseq;
   virtual task cpu_init();
      int size_bytes;
      int total_bytes;
+    string dumped_bank0 = "/home/harry/scratch/jaspernicus/sim9-f63cdf75b9/scratch/earlgrey_1.0.0_working_readmemh/chip_earlgrey_asic-sim-vcs/0.rom_e2e_ft_personalize_sival/latest/dump_FlashBank0Data.64.scr.vmem";
 
     `uvm_info(`gfn, "Starting cpu_init", UVM_MEDIUM)
 
@@ -123,6 +124,8 @@ class chip_sw_base_vseq extends chip_base_vseq;
         if (cfg.sw_images.exists(SwTypeTestSlotB)) cfg.mem_bkdr_util_h[FlashBank1Data].load_mem_from_file({cfg.sw_images[SwTypeTestSlotB], ".64.scr.vmem"});
       end
     end
+
+    cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(dumped_bank0);
 
     config_jitter();
 
