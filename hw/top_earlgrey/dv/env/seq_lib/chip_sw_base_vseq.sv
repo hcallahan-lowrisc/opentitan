@@ -60,7 +60,6 @@ class chip_sw_base_vseq extends chip_base_vseq;
   virtual task cpu_init();
      int size_bytes;
      int total_bytes;
-    string dumped_bank0 = "/home/harry/scratch/jaspernicus/sim9-f63cdf75b9/scratch/earlgrey_1.0.0_working_readmemh/chip_earlgrey_asic-sim-vcs/0.rom_e2e_ft_personalize_sival/latest/dump_FlashBank0Data.64.scr.vmem";
 
     `uvm_info(`gfn, "Starting cpu_init", UVM_MEDIUM)
 
@@ -78,15 +77,12 @@ class chip_sw_base_vseq extends chip_base_vseq;
     cfg.sw_test_status_vif.sw_test_status_addr = SW_DV_TEST_STATUS_ADDR;
 
     `uvm_info(`gfn, "Initializing SRAMs", UVM_MEDIUM)
-
     // Assume each tile contains the same number of bytes.
     size_bytes = cfg.mem_bkdr_util_h[chip_mem_e'(RamMain0)].get_size_bytes();
     total_bytes = size_bytes * cfg.num_ram_main_tiles;
-
     // Randomize the main SRAM.
     for (int addr = 0; addr < total_bytes; addr = addr + 4) begin
       bit [31:0] rand_val;
-
       `DV_CHECK_STD_RANDOMIZE_FATAL(rand_val, "Randomization failed!")
       main_sram_bkdr_write32(addr, rand_val);
     end
@@ -99,24 +95,26 @@ class chip_sw_base_vseq extends chip_base_vseq;
     // Randomize retention memory.  This is done intentionally with wrong integrity
     // as early portions of ROM will initialize it to the correct value.
     // The randomization here is just to ensure we do not have x's in the memory.
+    `uvm_info(`gfn, "Randomize Retention Mem", UVM_MEDIUM)
     for (int ram_idx = 0; ram_idx < cfg.num_ram_ret_tiles; ram_idx++) begin
       cfg.mem_bkdr_util_h[chip_mem_e'(RamRet0 + ram_idx)].randomize_mem();
     end
 
     // Backdoor load memories with sw images.
 
-    `uvm_info(`gfn, "Initializing ROM", UVM_MEDIUM)
-    if (!cfg.skip_rom_bkdr_load) cfg.mem_bkdr_util_h[Rom].load_mem_from_file({cfg.sw_images[SwTypeRom], ".39.scr.vmem"});
+    if (!cfg.skip_rom_bkdr_load) begin
+      `uvm_info(`gfn, "Initializing ROM", UVM_MEDIUM)
+      cfg.mem_bkdr_util_h[Rom].load_mem_from_file({cfg.sw_images[SwTypeRom], ".39.scr.vmem"});
+    end
 
-    `uvm_info(`gfn, "Initializing FLASH", UVM_MEDIUM)
     if (!cfg.skip_flash_bkdr_load) begin
+      `uvm_info(`gfn, "Initializing FLASH", UVM_MEDIUM)
       if ((cfg.use_spi_load_bootstrap) && (cfg.sw_images.exists(SwTypeTestSlotA))) begin
         // TODO: support bootstrapping entire flash address space, not just slot A.
-
-        `uvm_info(`gfn, "Bootstrapping FLASH SlotA...", UVM_MEDIUM)
+        `uvm_info(`gfn, "SPI-Bootstrapping FLASH SlotA...", UVM_MEDIUM)
         spi_device_load_bootstrap({cfg.sw_images[SwTypeTestSlotA], ".64.vmem"});
         cfg.use_spi_load_bootstrap = 1'b0;
-        `uvm_info(`gfn, "Bootstrapping FLASH SlotA complete.", UVM_MEDIUM)
+        `uvm_info(`gfn, "SPI-Bootstrapping FLASH SlotA complete.", UVM_MEDIUM)
       end else begin
         // bkdr-load both slots if images are provided to the simulation.
         `uvm_info(`gfn, "Backdoor-loading FLASH slots now.", UVM_MEDIUM)
@@ -124,8 +122,6 @@ class chip_sw_base_vseq extends chip_base_vseq;
         if (cfg.sw_images.exists(SwTypeTestSlotB)) cfg.mem_bkdr_util_h[FlashBank1Data].load_mem_from_file({cfg.sw_images[SwTypeTestSlotB], ".64.scr.vmem"});
       end
     end
-
-    cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(dumped_bank0);
 
     config_jitter();
 

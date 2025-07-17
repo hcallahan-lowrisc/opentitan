@@ -6,10 +6,14 @@ class chip_sw_rom_e2e_ft_perso_vseq extends chip_sw_rom_e2e_base_vseq;
   `uvm_object_utils(chip_sw_rom_e2e_ft_perso_vseq)
   `uvm_object_new
 
+  string dumped_bank0 = "/home/harry/projects/opentitan/sw/device/silicon_creator/manuf/base/binaries/dump_FlashBank0Data.64.scr.vmem";
+
   virtual task body();
     super.body();
 
     `uvm_info(`gfn, "chip_sw_rom_e2e_ft_perso_vseq::body()", UVM_LOW)
+
+    cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(dumped_bank0);
 
     // `uvm_info(`gfn, "Initializing SPI flash bootstrap.", UVM_LOW)
     // spi_device_load_bootstrap({cfg.sw_images[SwTypeTestSlotA], ".64.vmem"});
@@ -26,10 +30,19 @@ class chip_sw_rom_e2e_ft_perso_vseq extends chip_sw_rom_e2e_base_vseq;
     //          cfg.sw_test_timeout_ns)
     // `uvm_info(`gfn, "ROM SRAM initialization done.", UVM_LOW)
 
-    // Wait for IOA5 (SPI console TX ready signal) to toggle on.
+    // Wait for IOA4 (when the SpiConsole attempts to request input from the Host)
+    // I thought this should be IOA5? But the waves seem to only show IOA4...
+    `uvm_info(`gfn, "Waiting for IOA4 to go high now...", UVM_LOW)
+    `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa4] == '1,
+             $sformatf("Timed out waiting for IOA4 to go high."),
+             cfg.sw_test_timeout_ns)
+    `uvm_info(`gfn, "Saw IOA4 go high now!", UVM_LOW)
+
+    `uvm_info(`gfn, "Waiting for IOA5 to go high now...", UVM_LOW)
     `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa5] == '1,
              $sformatf("Timed out waiting for IOA5 to go high."),
              cfg.sw_test_timeout_ns)
+    `uvm_info(`gfn, "Saw IOA5 go high now!", UVM_LOW)
 
     // Wait for IOA1 (perso done GPIO indicator) to toggle on.
     // `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa1] == '1,
