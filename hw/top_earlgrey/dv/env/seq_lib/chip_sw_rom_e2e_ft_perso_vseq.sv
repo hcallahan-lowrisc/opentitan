@@ -30,14 +30,14 @@ class chip_sw_rom_e2e_ft_perso_vseq extends chip_sw_rom_e2e_base_vseq;
     //          cfg.sw_test_timeout_ns)
     // `uvm_info(`gfn, "ROM SRAM initialization done.", UVM_LOW)
 
-    // Wait for IOA4 (when the SpiConsole attempts to request input from the Host)
-    // I thought this should be IOA5? But the waves seem to only show IOA4...
+    // Wait for IOA4 (TestStart)
     `uvm_info(`gfn, "Waiting for IOA4 to go high now...", UVM_LOW)
     `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa4] == '1,
              $sformatf("Timed out waiting for IOA4 to go high."),
              cfg.sw_test_timeout_ns)
     `uvm_info(`gfn, "Saw IOA4 go high now!", UVM_LOW)
 
+    // Wait for IOA5 (SPI console TX ready), for the first point the software is awaiting HOST input
     `uvm_info(`gfn, "Waiting for IOA5 to go high now...", UVM_LOW)
     `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa5] == '1,
              $sformatf("Timed out waiting for IOA5 to go high."),

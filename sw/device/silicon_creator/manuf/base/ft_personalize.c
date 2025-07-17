@@ -366,22 +366,22 @@ static status_t measure_otp_partition(otp_partition_t partition,
  * scrambling, and reboot.
  */
 static status_t personalize_otp_and_flash_secrets(ujson_t *uj) {
-  // Provision OTP Secret1 partition, and complete provisioning of OTP
-  // CreatorSwCfg partition.
+  // (If not already provisioned) Provision OTP Secret1 partition
   if (!status_ok(manuf_personalize_device_secret1_check(&otp_ctrl))) {
     TRY(manuf_personalize_device_secret1(&lc_ctrl, &otp_ctrl));
   }
-  if (!status_ok(
-          manuf_individualize_device_flash_data_default_cfg_check(&otp_ctrl))) {
-    TRY(manuf_individualize_device_field_cfg(
-        &otp_ctrl,
-        OTP_CTRL_PARAM_CREATOR_SW_CFG_FLASH_DATA_DEFAULT_CFG_OFFSET));
+
+  // (If not already provisioned) Provision the OTP CreatorSwCfg flash data region default.
+  if (!status_ok(manuf_individualize_device_flash_data_default_cfg_check(&otp_ctrl))) {
+    TRY(manuf_individualize_device_field_cfg(&otp_ctrl, OTP_CTRL_PARAM_CREATOR_SW_CFG_FLASH_DATA_DEFAULT_CFG_OFFSET));
+    // After provisioning FLASH_DATA_DEFAULT_CFG, we need to re-bootstrap the test program
+    // as the existing scrambling keys are no longer valid to de-scramble the Flash Data pages.
     base_printf("Bootstrap requested.\n");
     wait_for_interrupt();
   }
 
-  // Provision OTP Secret2 partition and flash info pages 1, 2, and 4 (keymgr
-  // and DICE keygen seeds).
+  // (If not already provisioned) Provision OTP Secret2 partition and flash info
+  // pages 1, 2, and 4 (keymgr and DICE keygen seeds).
   if (!status_ok(manuf_personalize_device_secrets_check(&otp_ctrl))) {
     lc_token_hash_t token_hash;
     // Wait for the host to send the RMA unlock token hash over the console.
