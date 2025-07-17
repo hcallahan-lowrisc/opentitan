@@ -3,8 +3,21 @@
 # SPDX-License-Identifier: Apache-2.0
 """Invoke Bazel to build software collateral for a simulation.
 
+Loop through the list of sw_images and invoke Bazel on each.
+`sw_images` is a space-separated list of tests to be built into an image.
+Optionally, each item in the list can have additional metadata / flags using
+the delimiter ':'. The format is as follows:
+<label>:<index>:<flag1>:<flag2>
 
+If one delimiter is detected, then the full string is considered to be the
+<label>. If two delimiters are detected, then it must be <label>
+followed by <index>. All trailing <flag> parts are optional.
 
+After the images are built, we use `bazel cquery` to locate the built
+software artifacts so they can be copied to the test bench run directory.
+We only copy device SW images, and do not copy host-side artifacts (like
+opentitantool) that are also dependencies of the Bazel test target that
+encode the software image targets.
 """
 
 import argparse
@@ -56,8 +69,8 @@ class chip_mem_e(Enum):
 class targetFlags:
     """Represent the
 
-	Expected format: <Bazel label>:<index>:<optional-flags>
-	                 <Bazel label>:<index>:<flag1>:<flag2>
+	Expected format: <label>:<index>:<optional-flags>
+	                 <label>:<index>:<flag1>:<flag2>
     """
 
     raw: str
@@ -71,17 +84,29 @@ class targetFlags:
         index = parts[2]
         flags = parts[3:]
 
-def _parse_target_flags(str: target) -> targetFlags:
-    """Parse the target flags for each software image to be built."""
+def _copy_files_to_run_dir(files: list[str], args) -> None:
+    """Copy all artifacts to the run directory.
 
-    flags = target.split(':')
+ 	If the artifact is a .bin, and a .elf file of the same name also exists,
+ 	also copy the equivalent .elf file.
+    """
+
+    for f in files:
+        dst = pathlib.Path(f"{args.run_dir}" / f.name)
+        shutil.copy(f, dst)
+        # If we are copying a .bin file, and the corresponding .elf file exists, also copy that
+        if f.suffix == 'bin':
+            maybe_elf = f.with_suffix('elf')
+            if maybe_elf.exists():
+                dst = pathlib.Path(f"{args.run_dir}" / maybe_elf.name)
+                shutil.copy(maybe_elf, dst)
 
 
-def _build_software_collateral(args) -> None:
-    """Build the software collateral"""
+def _deploy_software_collateral(args) -> None:
+    """Build, then deploy the software collateral"""
 
     for image in args.sw_images:
-        flags = _parse_target_flags(image)
+        flags = targetFlags(image)
 
         bazel_cmd = "./bazelisk.sh"
         bazel_airgapped_opts = []
@@ -90,7 +115,7 @@ def _build_software_collateral(args) -> None:
             # Air-gapped Machine
             bazel_cmd = "bazel"
             bazel_airgapped_opts = [
-				"--define SPECIFY_BINDGEN_LIBSTDCXX=true",
+				"--define", "SPECIFY_BINDGEN_LIBSTDCXX=true",
 				f"--distdir={ENV.get(BAZEL_DISTDIR)}",
 				f"--repository_cache={ENV.get(BAZEL_CACHE)}",
             ]
@@ -115,14 +140,19 @@ def _build_software_collateral(args) -> None:
                                sw_type_e['SwTypeDebug'].value]:
             # For ROM / Flash / OTBN images, 
             if "silicon_creator" in flags.flags:
-                bazel_label = flags.label + "_silicon_creator"
+                bazel_label = f"{flags.label}_silicon_creator"
             else:
-                bazel_label = flags.label + f"_{args.sw_build_device}"
+                bazel_label = f"{flags.label}_{args.sw_build_device}"
             bazel_cquery = f"labels(data, {flags.label}) union labels(srcs, {flags.label})"
         else:
             bazel_label = flags.label
             bazel_cquery = flags.label
 
+        logger.debug(f"sw_image={sw_image}")
+        logger.debug(f"bazel_cmd={bazel_cmd}")
+        logger.debug(f"bazel_opts={bazel_opts}")
+        logger.debug(f"bazel_airgapped_opts={bazel_airgapped_opts}")
+        logger.debug(f"bazel_cquery={bazel_cquery}")
 
         # First, build the software artifacts
         build_cmd = [
@@ -133,7 +163,6 @@ def _build_software_collateral(args) -> None:
             bazel_label,
         ]
         logger.info(f'build_cmd = {build_cmd.join(" ")}')
-
         subprocess.run(build_cmd)
 
         # Query to determine what 'kind' the target is
@@ -145,7 +174,6 @@ def _build_software_collateral(args) -> None:
             *BAZEL_QUERY_FLAGS,
         ]
         logger.info(f'kind_cmd = {kind_cmd.join(" ")}')
-
         subprocess.run(kind_cmd)
 
         match kind:
@@ -161,20 +189,8 @@ def _build_software_collateral(args) -> None:
 					# An opentitan_test rule has all of its needed files in its runfiles.
                     f"--starlark:expr='{BAZEL_STARLARK_EXPR_DATA_RUNFILES_QUERY}'",
                 ]
+                logger.info(f'cquery_cmd = {cquery_cmd.join(" ")}')
                 runfiles = subprocess.run(cquery_cmd)
-
- 				# Copy each artifact to the run directory
- 				# If the artifact is a .bin, and a .elf file of the same name also exists...
- 				# > Also copy the equivalent .elf file to the run directory
-                for f in runfiles:
-                    dst = pathlib.Path(f"{args.run_dir}" / f.name)
-                    shutil.copy(f, dst)
-                    # If we are copying a .bin file, and the corresponding .elf file exists, also copy that
-                    if f.suffix == 'bin':
-                        maybe_elf = f.with_suffix('elf')
-                        if maybe_elf.exists():
-                            dst = pathlib.Path(f"{args.run_dir}" / maybe_elf.name)
-                            shutil.copy(maybe_elf, dst)
 
             case "opentitan_binary" | "alias":
  			    # For outputs of "opentitan_binary" rules, copy all needed files to the run directory.
@@ -188,20 +204,8 @@ def _build_software_collateral(args) -> None:
 					# An opentitan_binary rule has all of its needed files in its runfiles.
                     f"--starlark:expr='{BAZEL_STARLARK_EXPR_RUNFILES_QUERY}'",
                 ]
+                logger.info(f'cquery_cmd = {cquery_cmd.join(" ")}')
                 runfiles = subprocess.run(cquery_cmd)
-
- 				# Copy each artifact to the run directory
- 				# If the artifact is a .bin, and a .elf file of the same name also exists...
- 				# > Also copy the equivalent .elf file to the run directory
-                for f in runfiles:
-                    dst = pathlib.Path(f"{args.run_dir}" / f.name)
-                    shutil.copy(f, dst)
-                    # If we are copying a .bin file, and the corresponding .elf file exists, also copy that
-                    if f.suffix == 'bin':
-                        maybe_elf = f.with_suffix('elf')
-                        if maybe_elf.exists():
-                            dst = pathlib.Path(f"{args.run_dir}" / maybe_elf.name)
-                            shutil.copy(maybe_elf, dst)
 
             case _:
 
@@ -214,46 +218,44 @@ def _build_software_collateral(args) -> None:
                     bazel_cmd,
                     "cquery",
                     *bazel_airgapped_opts,
-                    bazel_label,
+                    bazel_cquery,
                     *BAZEL_QUERY_FLAGS,
 					# Bazel 6 cquery outputs repository targets in canonical format (@//blabla) whereas bazel 5 does not,
 					# so we use a custom starlark printer to remove in leading @ when needed.
                     f"--starlark:expr='{BAZEL_STARLARK_EXPR_QUERY}'",
                 ]
+                logger.info(f'cquery_cmd = {cquery_cmd.join(" ")}')
                 deps = subprocess.run(cquery_cmd)
 
                 for label in deps:
  					# - OTP images are copied
- 					# - Any deps from the following directories are not copied: hw/ util/ sw/host/
-					if [[ $$dep == //hw/ip/otp_ctrl/data* ]] || \
-					  ([[ $$dep != //hw* ]] && [[ $$dep != //util* ]] && [[ $$dep != //sw/host* ]]); then \
+ 					# - Any deps from the following directories are _not_ copied: hw/ util/ sw/host/
+					if (any(substring in label for substring in ['//hw/ip/otp_ctrl/data']) or
+                        (not any(substring in label for substring in ["//hw" "//util" "//sw/host"]))):
 
-                # cquery_cmd = [
-                #     bazel_cmd,
-                #     "cquery",
-                #     *bazel_airgapped_opts,
-                #     bazel_label,
-                #     *BAZEL_QUERY_FLAGS,
-				# 	# Bazel 6 cquery outputs repository targets in canonical format (@//blabla) whereas bazel 5 does not,
-				# 	# so we use a custom starlark printer to remove in leading @ when needed.
-                #     BAZEL_STARLARK_QUERY,
-                # ]
-                # deps = subprocess.run(cquery_cmd)
+                        cquery_cmd = [
+                            bazel_cmd,
+                            "cquery",
+                            *bazel_airgapped_opts,
+                            label,
+                            *BAZEL_QUERY_FLAGS,
+					        # These rules have all needed files in its runfiles.
+                            f"--starlark:expr='{BAZEL_STARLARK_EXPR_RUNFILES_QUERY}'",
+                        ]
+                        logger.info(f'cquery_cmd = {cquery_cmd.join(" ")}')
+                        runfiles = subprocess.run(cquery_cmd)
 
- 				    # Copy each artifact to the run directory
- 				    # If the artifact is a .bin, and a .elf file of the same name also exists...
- 				    # > Also copy the equivalent .elf file to the run directory
-
+        # We have built and queried to determine all the needed software collateral for the simulation
+        # The final step is to copy it to the test's working directory so it can be accessed via relative path.
+        _copy_files_to_run_dir(runfiles, args)
 
 
 def main() -> None:
     """"""
-
     parser = argparse.ArgumentParser()
-
     parser.add_argument("--sw-images",
         type=list[str],
-        help="Bazel targets + additional metadata to describe the sw collateral we need to build")
+        help="Bazel label + additional metadata to describe the needed sw collateral")
     parser.add_argument("--sw-build-opts",
         type=list[str],
         help="Additional opts to be passed while building software")
@@ -271,7 +273,9 @@ def main() -> None:
         help="Run directory where the software artifacts should be placed.")
     args = parser.parse_args(argv)
 
-    _build_software_collateral(args)
+    log_level = logging.DEBUG
+    logger.basicConfig(level=log_level)
+
     _deploy_software_collateral(args)
 
 if __name__ == "__main__":
