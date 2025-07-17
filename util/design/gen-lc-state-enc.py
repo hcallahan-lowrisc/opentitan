@@ -9,6 +9,7 @@ the ECC code specified.
 import argparse
 import logging as log
 from pathlib import Path
+from typing import Optional
 
 import hjson
 from mako.template import Template
@@ -22,23 +23,22 @@ LC_STATE_DEFINITION_FILE = "hw/ip/lc_ctrl/data/lc_ctrl_state.hjson"
 TEMPLATES = ["hw/ip/lc_ctrl/rtl/lc_ctrl_state_pkg.sv.tpl"]
 
 
-def _render_template(template: str, output_file: str, lc_st_enc: LcStEnc):
+def _render_template(template: str, output_file: Optional[str], lc_st_enc: LcStEnc):
     with open(template, 'r') as tplfile:
         tpl = Template(tplfile.read())
+        rendered_template = output_file if output_file else \
+            Path(template).parent.joinpath(Path(template).stem)
+
         # Writing in binary mode with a large buffer size to improve performance
         # in cloud environments (i.e., CI). See #17574.
-        if output_file:
-            with open(output_file, 'wb', buffering=2097152) as outfile:
-                outfile.write(tpl.render(lc_st_enc=lc_st_enc).encode('utf-8'))
-        else:
-            with open(Path(template).parent.joinpath(Path(template).stem),
-                      'wb',
-                      buffering=2097152) as outfile:
-                outfile.write(tpl.render(lc_st_enc=lc_st_enc).encode('utf-8'))
+        with open(rendered_template, 'wb', buffering=2097152) as outfile:
+            outfile.write(tpl.render(lc_st_enc=lc_st_enc).encode('utf-8'))
 
+        log.info(f"Rendered template to : {rendered_template}")
 
 def main():
-    log.basicConfig(level=log.WARNING, format="%(levelname)s: %(message)s")
+    log_format = '%(levelname)s: [%(filename)s:%(lineno)d] %(message)s'
+    log.basicConfig(level=log.INFO, format=log_format)
 
     parser = argparse.ArgumentParser(
         prog="gen-lc-state-enc",
@@ -82,6 +82,7 @@ def main():
         # validate config and generate encoding
         try:
             lc_st_enc = LcStEnc(config)
+            lc_st_enc.generate_random_constants()
         except RuntimeError as err:
             log.error(err)
             exit(1)

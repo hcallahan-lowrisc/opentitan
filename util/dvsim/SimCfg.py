@@ -45,7 +45,7 @@ class SimCfg(FlowCfg):
     # TODO: Find a way to set these in sim cfg instead
     ignored_wildcards = [
         "build_mode", "index", "test", "seed", "svseed", "uvm_test", "uvm_test_seq",
-        "cov_db_dirs", "sw_images", "sw_build_device", "sw_build_cmd",
+        "cov_db_dirs", "sw_images", "sw_build_device", "sw_build_cmds",
         "sw_build_opts"
     ]
 
@@ -244,8 +244,16 @@ class SimCfg(FlowCfg):
 
     def _create_objects(self):
         # Create build and run modes objects
-        self.build_modes = Mode.create_modes(BuildMode, self.build_modes)
+
+        # m_fswi = next(filter(lambda e: e['name'] == "format_sw_images", self.run_modes))
+        # log.info(f"format_sw_images={m_fswi}")
+
+        # self.build_modes = Mode.create_modes(BuildMode, self.build_modes)
         self.run_modes = Mode.create_modes(RunMode, self.run_modes)
+
+        # m_swtmb = next(filter(lambda e: e.name == "sw_test_mode_base", self.run_modes))
+        # log.info(f"m_swtmb={vars(m_swtmb)}")
+        # exit(1)
 
         # Walk through build modes enabled on the CLI and append the opts
         for en_build_mode in self.en_build_modes:
@@ -279,6 +287,7 @@ class SimCfg(FlowCfg):
                     "Mode \"%s\" enabled on the command line is not defined",
                     en_run_mode)
                 sys.exit(1)
+
 
         # Create tests from given list of items
         self.tests = Test.create_tests(self.tests, self)

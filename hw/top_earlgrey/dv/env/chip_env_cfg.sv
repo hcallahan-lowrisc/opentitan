@@ -226,16 +226,16 @@ class chip_env_cfg #(type RAL_T = chip_ral_pkg::chip_reg_block) extends cip_base
 
     // By default, assume these OTP image paths.
     // A customized OTP image may be specified loaded via the `sw_images` plusarg.
-    otp_images[OtpTypeLcStRaw] = "otp_ctrl_img_raw.vmem";
-    otp_images[OtpTypeLcStDev] = "otp_ctrl_img_dev.vmem";
-    otp_images[OtpTypeLcStProd] = "otp_ctrl_img_prod.vmem";
-    otp_images[OtpTypeLcStRma] = "otp_ctrl_img_rma.vmem";
+    otp_images[OtpTypeLcStRaw]           = "otp_ctrl_img_raw.vmem";
+    otp_images[OtpTypeLcStDev]           = "otp_ctrl_img_dev.vmem";
+    otp_images[OtpTypeLcStProd]          = "otp_ctrl_img_prod.vmem";
+    otp_images[OtpTypeLcStRma]           = "otp_ctrl_img_rma.vmem";
     otp_images[OtpTypeLcStTestUnlocked0] = "otp_ctrl_img_test_unlocked0.vmem";
     otp_images[OtpTypeLcStTestUnlocked1] = "otp_ctrl_img_test_unlocked1.vmem";
     otp_images[OtpTypeLcStTestUnlocked2] = "otp_ctrl_img_test_unlocked2.vmem";
-    otp_images[OtpTypeLcStTestLocked0] = "otp_ctrl_img_test_locked0.vmem";
-    otp_images[OtpTypeLcStTestLocked1] = "otp_ctrl_img_test_locked1.vmem";
-    otp_images[OtpTypeCustom] = "";
+    otp_images[OtpTypeLcStTestLocked0]   = "otp_ctrl_img_test_locked0.vmem";
+    otp_images[OtpTypeLcStTestLocked1]   = "otp_ctrl_img_test_locked1.vmem";
+    otp_images[OtpTypeCustom]            = "";
 
     `DV_CHECK_LE_FATAL(num_ram_main_tiles, 16)
     `DV_CHECK_LE_FATAL(num_ram_ret_tiles, 16)

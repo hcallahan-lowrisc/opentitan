@@ -61,13 +61,15 @@
       run_timeout_mins: 800
     }
     {
+      // This test runs the full FT-Personalize provisioning step
       name: rom_e2e_ft_personalize_sival
       uvm_test_seq: chip_sw_rom_e2e_ft_perso_vseq
       sw_images: [
         "//sw/device/silicon_creator/manuf/base/binaries:ft_personalize_sival:1:silicon_creator:signed",
         "//hw/ip/otp_ctrl/data/earlgrey_skus/sival:otp_img_dev_manuf_individualized:4"
+        "//sw/device/lib/testing/test_rom:test_rom:0"
       ]
-      en_run_modes: ["sw_test_mode_test_rom"]
+      en_run_modes: ["sw_test_mode_base"]
       run_opts: [
         "+disable_assert_final_checks",
         // "+sw_test_timeout_ns=1_000_000_000",
@@ -85,8 +87,9 @@
       sw_images: [
         "//sw/device/silicon_creator/manuf/base/binaries:ft_personalize_sival:1:silicon_creator:signed",
         "//hw/ip/otp_ctrl/data/earlgrey_skus/sival:otp_img_dev_manuf_individualized:4"
+        "//sw/device/lib/testing/test_rom:test_rom:0"
       ]
-      en_run_modes: ["sw_test_mode_test_rom"]
+      en_run_modes: ["sw_test_mode_base"]
       run_opts: [
         "+disable_assert_final_checks",
         "+sw_test_timeout_ns=1000000000",

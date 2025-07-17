@@ -39,6 +39,14 @@ class Test(RunMode):
         Process enabled run modes and the set build mode.
         Return a list of test objects.
         '''
+        log.info("create_tests()")
+        run_modes_init = getattr(sim_cfg, "run_modes", [])
+        m_swtmb = next(filter(lambda e: e.name == "sw_test_mode_base", run_modes_init))
+        log.info(f"m_swtmb={vars(m_swtmb)}")
+        m_swtmb = next(filter(lambda e: e.name == "sw_test_mode_base", run_modes_init))
+        log.info(f"m_swtmb={vars(m_swtmb)}")
+        # exit(1)
+
         tests_objs = []
         # Pass 1: Create unique set of tests by merging tests with the same name
         for tdict in tdicts:
@@ -61,9 +69,21 @@ class Test(RunMode):
         build_modes = getattr(sim_cfg, "build_modes", [])
         run_modes = getattr(sim_cfg, "run_modes", [])
 
+        # if (test_obj.name == "rom_e2e_ft_personalize_sival"):
+        #     m_swtmb = next(filter(lambda e: e.name == "sw_test_mode_base", run_modes))
+        #     log.info(f"m_swtmb={vars(m_swtmb)}")
+        #     exit(1)
+
         attrs = Test.defaults
         for test_obj in tests_objs:
             # Unpack run_modes first
+
+            if (test_obj.name == "rom_e2e_ft_personalize_sival"):
+                m_swtmb = next(filter(lambda e: e.name == "sw_test_mode_base", run_modes_init))
+                log.info(f"m_swtmb={vars(m_swtmb)}")
+                m_swtmb = next(filter(lambda e: e.name == "sw_test_mode_base", run_modes))
+                log.info(f"m_swtmb={vars(m_swtmb)}")
+                # exit(1)
 
             # Get the list of names of run modes that are needed for this test
             # but aren't also enabled globally.

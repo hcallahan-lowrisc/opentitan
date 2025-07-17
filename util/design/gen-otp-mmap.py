@@ -2,9 +2,12 @@
 # Copyright lowRISC contributors (OpenTitan project).
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
-r"""Generate RTL and documentation collateral from OTP memory
-map definition file (hjson).
+"""Generate RTL and documentation collateral from OTP memory map definition file (hjson).
+
+
 """
+
+
 import argparse
 import logging as log
 import sys
@@ -81,9 +84,11 @@ def render_template(template: str, target_path: Path, otp_mmap: Dict,
     with target_path.open(mode='w', encoding='UTF-8') as outfile:
         outfile.write(expansion)
 
+    log.info(f"Rendered template to : {target_path}")
 
 def main():
-    log.basicConfig(level=log.WARNING, format="%(levelname)s: %(message)s")
+    log_format = '%(levelname)s: [%(filename)s:%(lineno)d] %(message)s'
+    log.basicConfig(level=log.INFO, format=log_format)
 
     parser = argparse.ArgumentParser(
         prog="gen-otp-mmap",
@@ -106,16 +111,13 @@ def main():
 
         # If specified, override the seed for random netlist constant computation.
         if args.seed:
-            log.warning('Commandline override of seed with {}.'.format(
-                args.seed))
+            log.warning(f"Commandline override of seed = {args.seed}.")
             config['seed'] = args.seed
-        # Otherwise we make sure a seed exists in the HJSON config file.
-        elif 'seed' not in config:
-            log.error('Seed not found in configuration HJSON.')
-            exit(1)
 
         try:
             otp_mmap = OtpMemMap(config)
+            otp_mmap.gen_mmap_random_constants()
+
         except RuntimeError as err:
             log.error(err)
             exit(1)

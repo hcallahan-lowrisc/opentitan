@@ -2,12 +2,32 @@
 # Copyright lowRISC contributors (OpenTitan project).
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
-r"""Takes a compiled VMEM image and processes it for loading into flash.
+r"""Post-process a (raw) Flash .vmem image for backdoor-loading in simulation.
 
-    Specifically, this takes a raw flash image and adds both layers of ECC
-    (integrity and reliablity), and optionally, scrambles the data using the
-    same XEX scrambling scheme used in the flash controller. This enables
-    backdoor loading the flash on simulation platforms (e.g., DV and Verilator).
+To mimic the transforms applied by the OpenTitan Flash Controller on write,
+hence allowing the Controller to successfully read back data that has been
+inserted directly in the memory array, the following processing steps may be required:
+- adds both layers of ECC (integrity and reliablity)
+- (optionally) scrambles the data using Flash_CTRL XEX scrambling scheme
+
+For the Flash scrambling to be applied, an OTP mmap .hjson file and an OTP
+.vmem image file must be provided.
+
+For programs running in place of a production ROM_EXT, they must be scrambled
+according to the Flash Scrambing enablement setting in the OTP parition and
+field CREATOR_SW_CFG::FLASH_DATA_DEFAULT_CFG. Otherwise, the jump at the end
+of ROM execution will not be able to successfully read the pre-loaded ROM_EXT
+image from Flash.
+An OTP .vmem image can be provided to be read for the state of of Flash
+Scrambling enablement in FLASH_DATA_DEFAULT_CFG. To descramble this OTP .vmem
+image, an OTP mmap .hjson file must be provided, along with the matching seed
+value used for Netlist Constant generation. From this information, a scrambled
+Flash .vmem image can be generated which is able to be descrambled by an
+OpenTitan system synthesized with the given OTP mmap configuration + seed
+and loaded with the given OTP .vmem image.
+
+The generated images are suitable for backdoor-loading of Flash models on
+simulation platforms (e.g., DV and Verilator).
 """
 
 import argparse
@@ -17,7 +37,7 @@ import sys
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import hjson
 from pyfinite import ffield
@@ -44,7 +64,6 @@ OTP_SECRET1_PRESENT_KEY_LENGTH = 128  # bits
 OTP_SECRET1_PRESENT_NUM_ROUNDS = 32
 OTP_FLASH_ADDR_KEY_SEED_SIZE = 256  # bits
 OTP_FLASH_DATA_KEY_SEED_SIZE = 256  # bits
-OTP_SECRET1_FLASH_ADDR_KEY_SEED_START = 0
 
 # Flash data / scrambling parameters.
 FLASH_ADDR_KEY_SIZE = 128  # bits
@@ -66,16 +85,26 @@ class FlashScramblingKeyType(Enum):
 # DO NOT EDIT: edit fixed parameters above instead.
 # ------------------------------------------------------------------------------
 # Computed OTP data / scrambling parameters.
-OTP_SECRET1_FLASH_ADDR_KEY_SEED_STOP = (OTP_FLASH_ADDR_KEY_SEED_SIZE //
+# The SECRET1 partition layout looks like:
+#   [
+#    FLASH_ADDR_KEY_SEED,
+#    FLASH_DATA_KEY_SEED,
+#    SRAM_DATA_KEY_SEED,
+#    DIGEST
+#   ]
+OTP_SECRET1_FLASH_ADDR_KEY_SEED_START = 0
+OTP_SECRET1_FLASH_ADDR_KEY_SEED_STOP = OTP_SECRET1_FLASH_ADDR_KEY_SEED_START +
+                                       (OTP_FLASH_ADDR_KEY_SEED_SIZE //
                                         OTP_SECRET1_BLOCK_SIZE)
 OTP_SECRET1_FLASH_DATA_KEY_SEED_START = (OTP_FLASH_ADDR_KEY_SEED_SIZE //
                                          OTP_SECRET1_BLOCK_SIZE)
-OTP_SECRET1_FLASH_DATA_KEY_SEED_STOP = OTP_SECRET1_FLASH_DATA_KEY_SEED_START + (
-    OTP_FLASH_DATA_KEY_SEED_SIZE // OTP_SECRET1_BLOCK_SIZE)
+OTP_SECRET1_FLASH_DATA_KEY_SEED_STOP = OTP_SECRET1_FLASH_DATA_KEY_SEED_START +
+                                       (OTP_FLASH_DATA_KEY_SEED_SIZE //
+                                        OTP_SECRET1_BLOCK_SIZE)
 
 # Computed flash data / scrambling parameters.
-FLASH_KEY_COMPUTATION_KEY_SIZE = OTP_FLASH_ADDR_KEY_SEED_SIZE // 2
-FLASH_KEY_COMPUTATION_KEY_MASK = (2**FLASH_KEY_COMPUTATION_KEY_SIZE) - 1
+FLASH_KEY_DERIVATION_KEY_SIZE = OTP_FLASH_ADDR_KEY_SEED_SIZE // 2
+FLASH_KEY_DERIVATION_KEY_MASK = (2**FLASH_KEY_DERIVATION_KEY_SIZE) - 1
 FLASH_GF_OPERAND_B_MASK = (2**FLASH_WORD_SIZE) - 1
 FLASH_GF_OPERAND_A_MASK = (
     FLASH_GF_OPERAND_B_MASK &
@@ -85,7 +114,7 @@ FLASH_GF_2_64 = ffield.FField(64,
                               gen=((0x1 << 64) | (0x1 << 4) | (0x1 << 3) |
                                    (0x1 << 1) | 0x1))
 
-# Format string for generating new VMEM file.
+# Format string for generating new .vmem file.
 FLASH_VMEM_WORD_SIZE = (FLASH_WORD_SIZE + FLASH_INTEGRITY_ECC_SIZE +
                         FLASH_RELIABILITY_ECC_SIZE)
 VMEM_FORMAT_STR = " {:0" + f"{FLASH_VMEM_WORD_SIZE // 4}" + "X}"
@@ -94,18 +123,29 @@ VMEM_FORMAT_STR = " {:0" + f"{FLASH_VMEM_WORD_SIZE // 4}" + "X}"
 
 @dataclass
 class FlashScramblingConfigs:
-    scrambling_enabled: bool = False
-    otp_secret1_key: int = None
+
+    # Netlist constants
+    otp_secret1_scrambling_key: int = None
     addr_key_iv: int = None
     data_key_iv: int = None
     addr_key_final_const: int = None
     data_key_final_const: int = None
+    # Provisioned / Pre-loaded state of Flash scrambling enablement in FLASH_DATA_DEFAULT_CFG
+    scrambling_enabled: bool = False
+    # Provisioned / Pre-loaded key seeds in SECRET1 partition
     addr_key_seed: int = None
     data_key_seed: int = None
+    # Derived scrambling keys
     addr_key: int = None
     data_key: int = None
 
-    def get_iv(self, key_type: FlashScramblingKeyType):
+    def get_key_seed(self, key_type: FlashScramblingKeyType):
+        if key_type == FlashScramblingKeyType.ADDRESS:
+            return self.addr_key_seed
+        else:
+            return self.data_key_seed
+
+    def get_iv(self, ):
         if key_type == FlashScramblingKeyType.ADDRESS:
             return self.addr_key_iv
         else:
@@ -118,21 +158,34 @@ class FlashScramblingConfigs:
             return self.data_key_final_const
 
 
-def _xex_scramble(data: int, word_addr: int, flash_addr_key: int,
+def _xex_scramble(data: int,
+                  word_addr: int,
+                  flash_addr_key: int,
                   flash_data_key: int) -> int:
+    """Perform a XEX scramble matching the flash_ctrl implementation.
+
+    The PRINCE block cipher is used for encryption.
+    """
+
+    # Determine the tweak from the 'flash_addr_key' and the word address
     operand_a = ((flash_addr_key & FLASH_GF_OPERAND_A_MASK) >>
                  (FLASH_WORD_SIZE - FLASH_ADDR_SIZE)) | word_addr
     operand_b = flash_addr_key & FLASH_GF_OPERAND_B_MASK
-    mask = FLASH_GF_2_64.Multiply(operand_a, operand_b)
-    masked_data = data ^ mask
-    return prince.prince(masked_data, flash_data_key,
-                         FLASH_PRINCE_NUM_HALF_ROUNDS) ^ mask
+    tweak = FLASH_GF_2_64.Multiply(operand_a, operand_b)
+
+    # Apply the XEX, where 'E' uses the PRINCE cipher with the key 'flash_data_key'
+    x = data ^ tweak
+    xe = prince.prince(x, flash_data_key, FLASH_PRINCE_NUM_HALF_ROUNDS)
+    xex = xe ^ tweak
+
+    return xex
 
 
 def _convert_array_2_int(data_array: List[int],
                          data_size: int,
                          little_endian=True) -> int:
     """Converts array of data blocks to an int."""
+
     reformatted_data = 0
     if not little_endian:
         data_array.reverse()
@@ -141,8 +194,19 @@ def _convert_array_2_int(data_array: List[int],
     return reformatted_data
 
 
-def _get_otp_ctrl_netlist_consts(otp_mmap_file: str, otp_seed: int,
-                                 scrambling_configs: FlashScramblingConfigs):
+def _get_otp_ctrl_netlist_consts(otp_mmap_file: str, otp_seed: Optional[int],
+                                 scrambling_configs: FlashScramblingConfigs) -> None:
+    """Parse the OTP mmap .hjson file to generate and extract the needed netlist constants.
+
+    These are:
+    - SECRET1 Scrambling Key (To unscramble the SECRET1 partition from a OTP .vmem image)
+    - Flash Address + Data Scrambling (IV and Cnst_Value)
+
+    If the 'otp_seed' arg is provided, this value will be used to seed the randomization
+    process for generating the netlist constants from the mmap.
+    This will override any default 'seed' value inside the mmap file config.
+    """
+
     # Read in the OTP memory map file to a dictionary.
     with open(otp_mmap_file, 'r') as infile:
         otp_mmap_config = hjson.load(infile)
@@ -161,12 +225,12 @@ def _get_otp_ctrl_netlist_consts(otp_mmap_file: str, otp_seed: int,
             log.error(err)
             exit(1)
 
-    # Extract OTP secret1 partition scrambling key.
+    # Extract OTP SECRET1 partition scrambling key.
     for key in otp_mmap.config["scrambling"]["keys"]:
         if key["name"] == "Secret1Key":
-            scrambling_configs.otp_secret1_key = int(key["value"])
+            scrambling_configs.otp_secret1_scrambling_key = int(key["value"])
 
-    # Extract OTP flash scrambling key IVs.
+    # Extract OTP flash scrambling key IVs and cnst_values.
     for digest in otp_mmap.config["scrambling"]["digests"]:
         if digest["name"] == "FlashAddrKey":
             scrambling_configs.addr_key_iv = digest["iv_value"]
@@ -178,7 +242,19 @@ def _get_otp_ctrl_netlist_consts(otp_mmap_file: str, otp_seed: int,
 
 def _get_flash_scrambling_configs(otp_vmem_file: str, otp_data_perm: list,
                                   configs: FlashScramblingConfigs) -> None:
-    # Open OTP VMEM file and read into memory, skipping comment lines.
+    """Read and parse an OTP .vmem file to extract the Flash scrambling key seeds.
+
+    This requires the SECRET1 Scrambling Key to have already been extracted from the OTP mmap.
+
+    First, the FLASH_DATA_DEFAULT_CFG field from the CREATOR_SW_CFG partition is
+    read to determine if flash scrambling is enabled.
+    If not, we can return immediately.
+
+    If so, extract the SECRET1 partition, descramble it, and then extract
+    the Flash scrambling key seeds.
+    """
+
+    # Open OTP .vmem file and read into memory, skipping comment lines.
     try:
         otp_vmem = Path(otp_vmem_file).read_text()
     except IOError:
@@ -186,46 +262,51 @@ def _get_flash_scrambling_configs(otp_vmem_file: str, otp_data_perm: list,
     otp_vmem_lines = re.findall(r"^@.*$", otp_vmem, flags=re.MULTILINE)
 
     # Retrieve OTP data from the following partitions:
-    # - CREATOR_SW_CFG: which contains the flash scramble enablement flag, and
-    # - SECRET1: which contains the flash scrambling key seeds.
-    # Note, we strip ECC bits from each data word when processing.
+    # - CREATOR_SW_CFG: contains the flash scrambling enablement flag.
+    # - SECRET1:        contains the flash scrambling key seeds.
     flash_data_default_cfg = None
     secret1_data_blocks = []
     otp_data_block = 0
     idx = 0
+
+    def _extract_words_from_line(line: str):
+        # Convert OTP .vmem word from string to int.
+        otp_data_word_w_ecc = int(line.split()[1], 16)
+        # Un-permute bits if necessary.
+        if otp_data_perm:
+            otp_data_word_as_str = format(
+                otp_data_word_w_ecc, "0" + str(OTP_WORD_SIZE_WECC) + "b")
+            otp_data_word_w_ecc = int(
+                inverse_permute_bits(otp_data_word_as_str, otp_data_perm),
+                2)
+        # Drop ECC bits.
+        otp_data_word = otp_data_word_w_ecc & (2**OTP_WORD_SIZE - 1)
+        otp_data_block |= otp_data_word << (idx * OTP_WORD_SIZE)
+        idx += 1
+
     for line in otp_vmem_lines:
-        if (OTP_FLASH_DATA_DEFAULT_CFG_RE.search(line) or
-                OTP_SECRET1_RE.search(line)):
-            # Convert OTP VMEM word from string to int.
-            otp_data_word_w_ecc = int(line.split()[1], 16)
-            # Un-permute bits if necessary.
-            if otp_data_perm:
-                otp_data_word_as_str = format(
-                    otp_data_word_w_ecc, "0" + str(OTP_WORD_SIZE_WECC) + "b")
-                otp_data_word_w_ecc = int(
-                    inverse_permute_bits(otp_data_word_as_str, otp_data_perm),
-                    2)
-            # Drop ECC bits.
-            otp_data_word = otp_data_word_w_ecc & (2**OTP_WORD_SIZE - 1)
-            otp_data_block |= otp_data_word << (idx * OTP_WORD_SIZE)
-            idx += 1
-            if OTP_FLASH_DATA_DEFAULT_CFG_RE.search(line):
-                if idx == (OTP_FLASH_DATA_DEFAULT_CFG_BLOCK_SIZE //
-                           OTP_WORD_SIZE):
-                    flash_data_default_cfg = otp_data_block & 0xff
-                    # If flash data scrambling is disabled, then we can return
-                    # early to save execution time.
-                    if flash_data_default_cfg != MUBI4_TRUE:
-                        configs.scrambling_enabled = False
-                        return
-                    configs.scrambling_enabled = True
-                    otp_data_block = 0
-                    idx = 0
-            if OTP_SECRET1_RE.search(line):
-                if idx == (OTP_SECRET1_BLOCK_SIZE // OTP_WORD_SIZE):
-                    secret1_data_blocks.append(otp_data_block)
-                    otp_data_block = 0
-                    idx = 0
+        is_flash_data_default_cfg_line = OTP_FLASH_DATA_DEFAULT_CFG_RE.search(line)
+        is_secret1_line = OTP_SECRET1_RE.search(line)
+
+        if is_flash_data_default_cfg_line:
+            _extract_words_from_line(line)
+            if idx == (OTP_FLASH_DATA_DEFAULT_CFG_BLOCK_SIZE //
+                       OTP_WORD_SIZE):
+                flash_data_default_cfg = otp_data_block & 0xff
+                # If flash data scrambling is disabled, then we can return
+                # early as fetching the scrambling key seeds won't be required.
+                if flash_data_default_cfg != MUBI4_TRUE:
+                    configs.scrambling_enabled = False
+                    return
+                configs.scrambling_enabled = True
+                otp_data_block = 0
+                idx = 0
+        if is_secret1_line:
+            _extract_words_from_line(line)
+            if idx == (OTP_SECRET1_BLOCK_SIZE // OTP_WORD_SIZE):
+                secret1_data_blocks.append(otp_data_block)
+                otp_data_block = 0
+                idx = 0
 
     # Check we found the data we were looking for in the OTP image.
     if flash_data_default_cfg is None:
@@ -234,14 +315,14 @@ def _get_flash_scrambling_configs(otp_vmem_file: str, otp_data_perm: list,
     if not secret1_data_blocks:
         raise RuntimeError("Cannot read flash scrambling key seeds from OTP.")
 
-    # Descramble SECRET1 partition data blocks and extract flash scrambling key
-    # seeds. The SECRET1 partition layout looks like:
-    # {FLASH_ADDR_KEY_SEED, FLASH_DATA_KEY_SEED, SRAM_DATA_KEY_SEED, DIGEST}
-    otp_secret1_present_cipher = Present(configs.otp_secret1_key,
+    # Descramble SECRET1 partition data blocks.
+    otp_secret1_present_cipher = Present(configs.otp_secret1_scrambling_key,
                                          rounds=OTP_SECRET1_PRESENT_NUM_ROUNDS,
                                          keylen=OTP_SECRET1_PRESENT_KEY_LENGTH)
     descrambled_secret1_blocks = list(
         map(otp_secret1_present_cipher.decrypt, secret1_data_blocks))
+
+    # Finally extract the flash scrambling key seeds via their precomputed offsets.
     configs.addr_key_seed = _convert_array_2_int(
         descrambled_secret1_blocks[OTP_SECRET1_FLASH_ADDR_KEY_SEED_START:
                                    OTP_SECRET1_FLASH_ADDR_KEY_SEED_STOP],
@@ -252,42 +333,42 @@ def _get_flash_scrambling_configs(otp_vmem_file: str, otp_data_perm: list,
         OTP_SECRET1_BLOCK_SIZE)
 
 
-def _compute_flash_scrambling_key(scrambling_configs: FlashScramblingConfigs,
+def _derive_flash_scrambling_key(scrambling_configs: FlashScramblingConfigs,
                                   key_type: FlashScramblingKeyType) -> int:
-    if key_type == FlashScramblingKeyType.ADDRESS:
-        key_seed = scrambling_configs.addr_key_seed
-    else:
-        key_seed = scrambling_configs.data_key_seed
+    """Perform the Static Scrambling Key Derivation, mirroring the hw OTP KDF.
+
+    This matches the hardware implementation in the OTP Controller.
+    """
+
+    # Netlist Constants
+    iv = scrambling_configs.get_iv(key_type)
+    final_cnst = scrambling_configs.get_final_cnst(key_type)
+    # Provisioned / Pre-loaded key seed from SECRET1
+    key_seed = scrambling_configs.get_key_seed(key_type)
+
     full_key = 0
     for i in range(2):
-        round_1_present_key = (key_seed >>
-                               (FLASH_KEY_COMPUTATION_KEY_SIZE *
-                                i)) & FLASH_KEY_COMPUTATION_KEY_MASK
+        round_1_present_key = \
+            (key_seed >> (FLASH_KEY_DERIVATION_KEY_SIZE * i)) & \
+            FLASH_KEY_DERIVATION_KEY_MASK
         key_half = 0
         for j in range(2):
             if j == 0:
                 cipher = Present(round_1_present_key)
-                key_half = cipher.encrypt(scrambling_configs.get_iv(
-                    key_type)) ^ scrambling_configs.get_iv(key_type)
+                key_half = cipher.encrypt(iv) ^ iv
             else:
-                cipher = Present(scrambling_configs.get_final_cnst(key_type))
+                cipher = Present(final_cnst)
                 key_half = cipher.encrypt(key_half) ^ key_half
         full_key |= key_half << (64 * i)
     return full_key
 
 
-def _compute_flash_scrambling_keys(
-        scrambling_configs: FlashScramblingConfigs) -> None:
-    scrambling_configs.addr_key = _compute_flash_scrambling_key(
-        scrambling_configs, FlashScramblingKeyType.ADDRESS)
-    scrambling_configs.data_key = _compute_flash_scrambling_key(
-        scrambling_configs, FlashScramblingKeyType.DATA)
-
-
 def _reformat_flash_vmem(
         flash_vmem_file: str,
         scrambling_configs: FlashScramblingConfigs) -> List[str]:
-    # Open (raw) flash VMEM file and read into memory, skipping comment lines.
+    """Reformat flash .vmem file to add integrity/reliablity ECC and (optional) scrambling."""
+
+    # Open (raw) flash .vmem file and read into memory, skipping comment lines.
     try:
         flash_vmem = Path(flash_vmem_file).read_text()
     except IOError:
@@ -335,7 +416,7 @@ def _reformat_flash_vmem(
                                                data_w_full_ecc)
                 address_offset += 1
 
-        # Append reformatted line to what will be the new output VMEM file.
+        # Append reformatted line to what will be the new output .vmem file.
         reformatted_vmem_lines.append(reformatted_line)
 
     return reformatted_vmem_lines
@@ -346,6 +427,7 @@ def main(argv: List[str]):
     parser = argparse.ArgumentParser()
     parser.add_argument("--in-flash-vmem",
                         type=str,
+                        required=True,
                         help="Input VMEM file to reformat.")
     parser.add_argument("--in-otp-mmap",
                         type=str,
@@ -353,12 +435,16 @@ def main(argv: List[str]):
     parser.add_argument("--in-otp-vmem",
                         type=str,
                         help="Input OTP (VMEM) file to retrieve data from.")
-    parser.add_argument(
-        "--otp-seed",
-        type=int,
-        help=
-        "Configuration override seed used to randomize OTP netlist constants.")
-    parser.add_argument("--out-flash-vmem", type=str, help="Output VMEM file.")
+    parser.add_argument("--otp-seed",
+                        type=int,
+                        help="""
+                        Configuration override seed used to randomize OTP
+                        netlist constants.
+                        """)
+    parser.add_argument("--out-flash-vmem",
+                        type=str,
+                        required=True,
+                        help="Output VMEM file.")
     parser.add_argument("--otp-data-perm",
                         type=vmem_permutation_string,
                         metavar="<map>",
@@ -379,23 +465,40 @@ def main(argv: List[str]):
     args = parser.parse_args(argv)
     scrambling_configs = FlashScramblingConfigs()
 
-    # Validate OTP bit permutation configuration.
+    # (If provided) Validate optional OTP bit permutation configuration.
     if args.otp_data_perm:
         validate_data_perm_option(OTP_WORD_SIZE_WECC, args.otp_data_perm)
 
-    # Read flash scrambling configurations (including: enablement, otp_ctrl
-    # netlist consts, address and data key seeds) directly from OTP VMEM file.
-    if args.in_otp_vmem:
+    # To check if scrambling is enabled, and to pre-scramble the Flash data if it
+    # _IS_ enabled, both the OTP mmap file and an OTP .vmem file are required to
+    # provide the necessary netlist constants and key seeds.
+    if not (args.in_otp_mmap and args.in_otp_vmem):
+        log.info("Cannot pre-scramble Flash .vmem file without both mmap and vmem inputs.")
+        log.info("Scrambling will not be applied.")
+
+    else:
+        # Parse the OTP mmap .hjson file to generate and extract the needed
+        # netlist constants.
         _get_otp_ctrl_netlist_consts(args.in_otp_mmap, args.otp_seed,
                                      scrambling_configs)
+
+        # Read the input OTP .vmem file to determine if scrambling is currently
+        # enabled, and if so, get the flash scrambling key seeds.
         _get_flash_scrambling_configs(args.in_otp_vmem, args.otp_data_perm,
                                       scrambling_configs)
 
-    # Compute flash scrambling keys from seeds.
-    if scrambling_configs.scrambling_enabled:
-        _compute_flash_scrambling_keys(scrambling_configs)
+        # Scrambling may be disabled in the provided OTP .vmem file.
+        # If so, we can skip straight to reformatting step.
+        if scrambling_configs.scrambling_enabled:
+            # Derive flash scrambling keys from netlist constants + key seeds.
+            scrambling_configs.addr_key = _derive_flash_scrambling_key(
+                scrambling_configs, FlashScramblingKeyType.ADDRESS)
+            scrambling_configs.data_key = _derive_flash_scrambling_key(
+                scrambling_configs, FlashScramblingKeyType.DATA)
 
-    # Reformat flash VMEM file to add integrity/reliablity ECC and scrambling.
+
+    # Reformat flash .vmem file to add integrity/reliablity ECC and
+    # (optional) scrambling.
     reformatted_vmem_lines = _reformat_flash_vmem(args.in_flash_vmem,
                                                   scrambling_configs)
 
