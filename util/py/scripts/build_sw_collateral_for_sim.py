@@ -183,10 +183,13 @@ def _run_cmd(cmd : list[str]) -> list[str]:
 
     res = subprocess.run(cmd, capture_output=True, encoding='utf-8', text=True)
 
+    if res.returncode != 0:
+        print(res.stdout, flush=True)
+        print(res.stderr, flush=True)
+        sys.exit(f"_run_cmd -> had a non-zero return code of {res.returncode}.")
+
     logger.debug(f"_run_cmd -> stdout:\n{res.stdout}")
     logger.debug(f"_run_cmd -> stderr:\n{res.stderr}")
-    if res.returncode != 0:
-        sys.exit(f"_run_cmd -> had a non-zero return code of {res.returncode}.")
 
     stdout_lines = res.stdout.split('\n')
     return [s for s in stdout_lines if s]

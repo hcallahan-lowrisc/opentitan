@@ -402,7 +402,7 @@ class LcStEnc():
         # (Re-)Initialize the RNG.
         sp.reseed(LC_SEED_DIVERSIFIER + rng_seed)
         log.debug('')
-        log.debug('Seed: {0:x}'.format(rng_seed))
+        log.debug('LcStEnc RNG Seed: {0:d}'.format(rng_seed))
 
         log.debug('')
         log.debug('Generate hashed tokens.')

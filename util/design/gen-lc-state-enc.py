@@ -38,7 +38,7 @@ def _render_template(template: str, output_file: Optional[str], lc_st_enc: LcStE
 
 def main():
     log_format = '%(levelname)s: [%(filename)s:%(lineno)d] %(message)s'
-    log.basicConfig(level=log.INFO, format=log_format)
+    log.basicConfig(level=log.DEBUG, format=log_format)
 
     parser = argparse.ArgumentParser(
         prog="gen-lc-state-enc",

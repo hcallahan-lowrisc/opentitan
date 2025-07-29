@@ -401,12 +401,13 @@ class OtpMemImg(OtpMemMap):
             item["value"] = common.check_bool(item["value"])
             pre_str = "mubi "
             val_str = \
-                f" kMultiBitBool{item_width}{'True' if item['value'] else 'False'}"
+                f" kMultiBitBool{item_width}_{'True' if item['value'] else 'False'}"
             item["value"] = mubi_value_as_int(item["value"], item_width)
         else:
             item.setdefault('value', '0x0')
             pre_str = ""
-            val_str = '\n' + _value_str()
+            # val_str = '\n' + _value_str()
+            val_str = ' ' + str(item['value'])
 
         # Log the value of the item.
         log.debug('> Adding {}item {} with size {}B and value{}:'.format(
@@ -503,7 +504,7 @@ class OtpMemImg(OtpMemMap):
         part_size = part['size']
         assert part_size % 8 == 0, 'Partition must be 64bit aligned'
 
-        log.debug(f"Streaming out partition '{part_name}'")
+        log.debug(f"Streaming out partition '{part_name}' ...")
 
         # Annotation is propagated into the MEM file as comments
         annotation = ['unallocated'] * part_size
@@ -518,8 +519,10 @@ class OtpMemImg(OtpMemMap):
                 idx = item['offset'] - part_offset + k
                 annotation[idx] = part_name + ': ' + item['name']
                 if 'value' in item:
+                    log.debug(f"item['name'] = {item['name']}")
+                    log.debug(f"item['value'] = {item['value']}")
                     assert not defined[idx], "Unexpected item collision"
-                    data_bytes[idx] = ((item['value'] >> (8 * k)) & 0xFF)
+                    data_bytes[idx] = ((int(item['value'], 0) >> (8 * k)) & 0xFF)
                     defined[idx] = True
 
         # Reshape bytes into 64bit blocks (this must be aligned at this point)
@@ -543,9 +546,11 @@ class OtpMemImg(OtpMemMap):
 
             # Get scrambling key for this partition
             try:
-                key = next(filter(lambda key: key['name'] == key_sel,
-                                  self.config['scrambling']['keys']))
-            else:
+                key = next(filter(
+                    lambda key: key['name'] == key_sel,
+                    self.config['scrambling']['keys']
+                ))
+            except:
                 raise RuntimeError(f"Scrambling key '{key_sel}' cannot be found.")
 
             # Scramble all blocks in partition
@@ -616,22 +621,37 @@ class OtpMemImg(OtpMemMap):
     def gen_random_constants(self) -> None:
         """Initialize the RNG, and use it to generate any parition item random values."""
 
-        rng_seed = check_int(self.config["seed"])
+
+        rng_seed = common.check_int(self.config["seed"])
 
         # (Re-)Initialize the RNG.
-        sp.reseed(OTP_SEED_DIVERSIFIER + rng_seed)
-        log.debug('RNG Seed: {0:x}'.format(rng_seed))
+        sp.reseed(OTP_IMG_SEED_DIVERSIFIER + rng_seed)
+        log.debug('')
+        log.debug('OtpMemImg RNG Seed: {0:d}'.format(rng_seed))
+
+        log.debug('')
+        log.debug('Initializing any random partition item values.')
         log.debug('')
 
         # Use the initialized RNG to generate random values for all '<random>' values.
+        did_randomize = 0
         for part in self.img_config['partitions']:
             for item in part['items']:
                 mmap_item = self.get_item(part['name'], item['name'])
                 item_size = mmap_item['size']
                 item_width = item_size * 8
                 if not mmap_item['ismubi']:
-                    common.random_or_hexvalue(item, 'value', item_width)
+                    isRandomized = common.random_or_hexvalue(item, 'value', item_width)
                     mmap_item['value'] = item['value']
+                    if isRandomized:
+                        did_randomize = 1
+                        # Log the value of the item.
+                        log.debug('> Randomized item {} with size {}B and value 0b{:d}:'.format(
+                            item['name'], item_size, item['value']))
+
+        if not did_randomize:
+            log.debug('')
+            log.debug('No partition item values to randomize.')
 
     def gen_memfile(self) -> str:
         """Generate the contents of a memory image in .vmem file format
@@ -640,9 +660,10 @@ class OtpMemImg(OtpMemMap):
             The memfile contents
         """
 
+        log.debug('')
         log.debug('Generating MEM file contents now.')
         log.debug('')
-        log.debug('Streaming out partition data...')
+        log.debug('Streaming out partition data.')
         log.debug('')
 
         otp_size = self.config['otp']['size']

@@ -98,7 +98,7 @@ def _create_outfile_header(args) -> str:
 
 
 def main():
-    log_level = logging.INFO
+    log_level = log.DEBUG
     log_format = '%(levelname)s: [%(filename)s:%(lineno)d] %(message)s'
     log.basicConfig(level=log_level, format=log_format)
 
@@ -178,7 +178,7 @@ def main():
                         help=f"""
                         Image configuration file in Hjson format.
                         Defaults to {IMAGE_DEFINITION_FILE}
-                        """
+                        """)
     parser.add_argument('--add-cfg',
                         type=Path,
                         metavar='<path>',
@@ -234,17 +234,17 @@ def main():
 
     args = parser.parse_args()
 
-    if args.quiet:
-        log.getLogger().setLevel(log.WARNING)
+    # if args.quiet:
+    #     log.getLogger().setLevel(log.WARNING)
 
     log.info(f"Loading LC state definition file : {args.lc_state_def}")
-    lc_state_cfg = hjson.load(args.lc_state_def.read_text())
+    lc_state_cfg = hjson.loads(args.lc_state_def.read_text(encoding="UTF-8"))
 
     log.info(f"Loading OTP memory map definition file : {args.mmap_def}")
-    otp_mmap_cfg = hjson.load(args.mmap_def.read_text())
+    otp_mmap_cfg = hjson.loads(args.mmap_def.read_text(encoding="UTF-8"))
 
     log.info(f"Loading main image configuration file : {args.img_cfg}")
-    img_cfg = hjson.load(args.img_cfg.read_text())
+    img_cfg = hjson.loads(args.img_cfg.read_text(encoding="UTF-8"))
 
     # Set the initial random seed so that the generated image is
     # deterministically randomized.
@@ -267,11 +267,11 @@ def main():
         # Add additional configuration values to the OTP Image in the form
         # of overlay files
         for f in args.add_cfg:
-            cfg = hjson.load(f.read_text())
-            log.info(f"Loading additive image configuration file {f}")
+            cfg = hjson.loads(f.read_text())
+            log.info('')
+            log.info(f"Loading additive image configuration file '{f}'")
             log.info('')
             otp_mem_img.apply_override_img_config(cfg)
-            log.info('')
 
         # After base image + overrides are applied, generate all the random
         # constants for fields which still take a value of '<random>'

@@ -376,15 +376,15 @@ class OtpMemMap_Validator():
                 raise RuntimeError(
                     f"Partition {part['name']} offset must be 64bit aligned")
 
-            log.debug("Partition {} at offset {} size {}".format(
-                part["name"], part["offset"], part["size"]))
+            log.debug("Partition: offset {:4} | size {:4} | name | {}".format(
+                part["offset"], part["size"], part["name"]))
 
             # Loop over items within a partition
             for k, item in enumerate(part["items"]):
                 item_name = item['name']
                 item['offset'] = current_offset
-                log.debug("> Item {} at offset {} with size {}".format(
-                    item["name"], current_offset, item["size"]))
+                log.debug("> Item: offset {:4} | size {:4} | name | {}".format(
+                    current_offset, item["size"], item["name"]))
                 current_offset += check_int(item["size"])
 
             # If a digest is required, place it at the end of a partition.
@@ -517,17 +517,34 @@ class OtpMemMap():
 
         # First, generate the Netlist Constants in the 'scrambling' section
 
+        log.debug('')
+        log.debug("Generating randomized netlist constants.")
+
         scr = self.config["scrambling"]
         for key in scr["keys"]:
             # Generate a random value for each scrambling key
-            random_or_hexvalue(key, "value", scr["key_size"] * 8)
+            isRandomized = random_or_hexvalue(key, "value", scr["key_size"] * 8)
+            if isRandomized:
+                log.debug('> Randomized scr key {} with size {}B and value {}:'.format(
+                    key['name'], scr["key_size"], key['value']))
+
         for dig in scr["digests"]:
             # For each digest, generate a random value for the Initialization Vector (iv)
             # and the Finalization Constant (cnst)
-            random_or_hexvalue(dig, "iv_value", scr["iv_size"] * 8)
-            random_or_hexvalue(dig, "cnst_value", scr["cnst_size"] * 8)
+            isRandomized = random_or_hexvalue(dig, "iv_value", scr["iv_size"] * 8)
+            if isRandomized:
+                log.debug('> Randomized digest {} iv_value with size {}B and value {}:'.format(
+                    dig['name'], scr["iv_size"], dig['iv_value']))
+
+            isRandomized = random_or_hexvalue(dig, "cnst_value", scr["cnst_size"] * 8)
+            if isRandomized:
+                log.debug('> Randomized digest {} cnst_value with size {}B and value {}:'.format(
+                    dig['name'], scr["cnst_size"], dig['cnst_value']))
 
         # Next, generate the 'inv_default' (Invalid/Initialization Default) values in the partitions
+
+        log.debug('')
+        log.debug("Generating randomized 'inv_default' values for partition items.")
 
         parts = self.config["partitions"]
         # Next, iterate over the partitions
@@ -535,7 +552,11 @@ class OtpMemMap():
             # Loop over items within a partition (including digest items)
             for item in part["items"]:
                 if not item["ismubi"]:
-                    random_or_hexvalue(item, "inv_default", item["size"] * 8)
+                    isRandomized = random_or_hexvalue(item, "inv_default", item["size"] * 8)
+                    if isRandomized:
+                        log.debug(
+                            '> Randomized part {} item {} with size {}B and value {}:'.format(
+                                part['name'], item['name'], item["size"], item["inv_default"]))
 
     def gen_mmap_random_constants(self) -> None:
         """Initialize the RNG, and use it to generate netlist constants and random default values."""
@@ -544,11 +565,14 @@ class OtpMemMap():
 
         # (Re-)Initialize the RNG.
         sp.reseed(OTP_SEED_DIVERSIFIER + rng_seed)
-        log.debug('RNG Seed: {0:x}'.format(rng_seed))
         log.debug('')
+        log.debug('OtpMemMap RNG Seed: {0:d}'.format(rng_seed))
 
         # Use the initialized RNG to generate netlist constants and random default values.
         self.gen_netlist_constants_and_random_field_initializations()
+
+        log.debug('')
+        log.debug("Randomization complete.")
 
     def create_partitions_table(self) -> str:
         """Generates a documentation table for the partitions in the OTP memory map."""

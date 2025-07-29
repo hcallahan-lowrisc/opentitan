@@ -10,6 +10,7 @@ import sys
 import textwrap
 from math import ceil, log2
 from pathlib import Path
+from typing import Union
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
@@ -274,7 +275,7 @@ def permute_bits(bit_str, permutation) -> str:
     return permword
 
 
-def _parse_hex(value: list[str] | str) -> int:
+def _parse_hex(value: Union[list[str], str]) -> int:
     """Parse a hex value into an integer.
 
     Args:
@@ -294,7 +295,7 @@ def _parse_hex(value: list[str] | str) -> int:
         return int(value, 16)
 
 
-def random_or_hexvalue(dict_obj: dict, key: str, num_bits: int) -> None:
+def random_or_hexvalue(dict_obj: dict, key: str, num_bits: int) -> bool:
     """Convert hex value at "key" to an integer or draw a random number.
 
     If the value is set to '<random>', generate a new randomized value
@@ -309,6 +310,7 @@ def random_or_hexvalue(dict_obj: dict, key: str, num_bits: int) -> None:
     # If '<random>', generate a random number of 'num_bits' size.
     if dict_obj[key] == '<random>':
         dict_obj[key] = sp.getrandbits(num_bits)
+        return True
 
     # Otherwise attempt to convert this number to an int.
     else:
@@ -322,8 +324,9 @@ def random_or_hexvalue(dict_obj: dict, key: str, num_bits: int) -> None:
         if dict_obj[key] >= 2**num_bits:
             raise RuntimeError(f"Value '{dict_obj[key]}' is out of range.")
 
+        return False
 
-def vmem_permutation_string(data_perm) -> str | list[str]:
+def vmem_permutation_string(data_perm) -> Union[str, list[str]]:
     """Check VMEM permutation format and expand the ranges."""
 
     if not isinstance(data_perm, str):
