@@ -494,7 +494,7 @@ class RunTest(Deploy):
             "uvm_test_seq": False,
             "sw_images": False,
             "sw_build_device": False,
-            "sw_build_cmd": False,
+            "sw_build_cmds": False,
             "sw_build_opts": False,
             "run_dir": False,
             "pre_run_cmds": False,
