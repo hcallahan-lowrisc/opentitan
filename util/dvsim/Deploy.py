@@ -85,22 +85,13 @@ class Deploy():
     def _define_attrs(self):
         """Defines the attributes this instance needs to have.
 
-        Attributes are extracted from the Mode object / HJson config from
-        which this instance is created, and added to the instance.
-
-        There are two types of attributes:
-        - "mandatory_cmd_attrs"
-          Contributes to the generation of the command directly
-        - "mandatory_misc_attrs"
-          Provides supplementary information pertaining to the job,
-          such as patterns that determine whether it passed or failed.
-
-        Attribute requirements are represented as dicts, with the attribute
-        name as the key, and an initial value of 'False'.
-        When the attribute has been successfully found from the constructor
-        ddict and added to this instance, the value is updated to 'True'.
-        This allows us to check and confirm that all mandatory attributes have
-        been provided by the input material.
+        These attributes are extracted from the Mode object / HJson config with
+        which this instance is created. There are two types of attributes -
+        one contributes to the generation of the command directly; the other
+        provides supplementary information pertaining to the job, such as
+        patterns that determine whether it passed or failed. These are
+        represented as dicts, whose values indicate in boolean whether the
+        extraction was successful.
         """
         # These attributes are explicitly used to construct the job command.
         self.mandatory_cmd_attrs = {}
@@ -118,14 +109,13 @@ class Deploy():
 
     # Function to parse a dict and extract the mandatory cmd and misc attrs.
     def _extract_attrs(self, ddict):
-        """Extracts k/v pairs from the supplied dict, and set as attrs of this object.
+        """Extracts the attributes from the supplied dict.
 
         'ddict' is typically either the Mode object or the entire config
         object's dict. It is used to retrieve the instance attributes defined
         in 'mandatory_cmd_attrs' and 'mandatory_misc_attrs'.
         """
         ddict_keys = ddict.keys()
-
         for key in self.mandatory_cmd_attrs.keys():
             if self.mandatory_cmd_attrs[key] is False:
                 if key in ddict_keys:
@@ -201,17 +191,13 @@ class Deploy():
         substitions may be available in the second pass. Second pass: search
         the entire sim_cfg object."""
 
-        log.info("Before first find_and_sub()")
-        log.info(f"vars(self) = {vars(self)}")
         self.__dict__ = find_and_substitute_wildcards(self.__dict__,
                                                       self.__dict__,
                                                       ignored_subst_vars, True)
-        log.info("After first find_and_sub()")
         self.__dict__ = find_and_substitute_wildcards(self.__dict__,
                                                       self.sim_cfg.__dict__,
                                                       ignored_subst_vars,
                                                       False)
-        log.info("After second find_and_sub()")
 
     def _process_exports(self):
         """Convert 'exports' as a list of dicts in the HJson to a dict.
@@ -508,7 +494,7 @@ class RunTest(Deploy):
             "uvm_test_seq": False,
             "sw_images": False,
             "sw_build_device": False,
-            "sw_build_cmds": False,
+            "sw_build_cmd": False,
             "sw_build_opts": False,
             "run_dir": False,
             "pre_run_cmds": False,

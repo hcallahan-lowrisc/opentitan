@@ -158,8 +158,6 @@ def _subst_wildcards(var, mdict, ignored, ignore_error, seen):
 
         # Treat eval_cmd specially
         if name == 'eval_cmd':
-            log.info("eval_cmd")
-
             cmd = _subst_wildcards(right_str[match.end():], mdict, ignored,
                                    ignore_error, seen)[0]
 
@@ -167,10 +165,7 @@ def _subst_wildcards(var, mdict, ignored, ignore_error, seen):
             # command and we're done.
             cmd_matches = list(wildcard_re.finditer(cmd))
             if not cmd_matches:
-                log.info(f"cmd={cmd}")
-                run_res = run_cmd(cmd)
-                var = var[:match.start()] + run_res
-                log.info(f"run_cmd={run_res}")
+                var = var[:match.start()] + run_cmd(cmd)
                 continue
 
             # Otherwise, check that each of them is ignored, or that

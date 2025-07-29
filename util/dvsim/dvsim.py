@@ -675,7 +675,7 @@ def main():
     # Add log level 'VERBOSE' between INFO and DEBUG
     log.addLevelName(VERBOSE, 'VERBOSE')
 
-    log_format = '%(levelname)s: [%(filename)s:%(lineno)d] %(message)s'
+    log_format = '%(levelname)s: [%(module)s] %(message)s'
     log_level = log.INFO
     if args.verbose == "default":
         log_level = VERBOSE
