@@ -67,7 +67,7 @@ class OtpMemMap_Validator():
             raise RuntimeError("Missing scrambling configuration.")
         if "partitions" not in config:
             raise RuntimeError("Missing partition configuration.")
-        if not isinstance(config["partitions"], list[dict]):
+        if not isinstance(config["partitions"], list):
             raise RuntimeError('The "partitions" key must contain a list')
 
         self.ic = config                 # input config
@@ -77,47 +77,17 @@ class OtpMemMap_Validator():
         """"""
 
         # Validate fields of 'otp' config dict, and define some derived attributes.
-        _validate_otp(self.vc["otp"])
+        OtpMemMap_Validator._validate_otp(self.vc["otp"])
 
         # Validate fields of the 'scrambling' config dict.
-        _validate_scrambling(self.vc["scrambling"])
+        OtpMemMap_Validator._validate_scrambling(self.vc["scrambling"])
         # Get a list of all valid scrambling key names.
-        self.key_names = (key for key in self.vc["scrambling"]["keys"])
+        self.key_names = [key['name'] for key in self.vc["scrambling"]["keys"]]
 
         # Validate all partitions in the memory map.
         self._validate_parts(self.vc["partitions"])
         # Generate a condensed partition dict to assist future lookups
-        self.part_dict = _gen_part_dict(self.vc["partitions"])
-
-    def gen_netlist_constants_and_random_field_initializations(self) -> None:
-        """Iterate over the OTP datastructure and insert random values where required.
-
-        There are two types of random constants we may generate:
-        - Netlist Constants
-        - Initial Random Values for partition items
-        """
-
-        # First, generate the Netlist Constants in the 'scrambling' section
-
-        scr = self.vc["scrambling"]
-        for key in scr["keys"]:
-            # Generate a random value for each scrambling key
-            random_or_hexvalue(key, "value", scr["key_size"] * 8)
-        for dig in scr["digests"]:
-            # For each digest, generate a random value for the Initialization Vector (iv)
-            # and the Finalization Constant (cnst)
-            random_or_hexvalue(dig, "iv_value", scr["iv_size"] * 8)
-            random_or_hexvalue(dig, "cnst_value", scr["cnst_size"] * 8)
-
-        # Next, generate the 'inv_default' (Invalid/Initialization Default) values in the partitions
-
-        parts = self.vc["partitions"]
-        # Next, iterate over the partitions
-        for part in parts:
-            # Loop over items within a partition (including digest items)
-            for item in part["items"]:
-                if not item["ismubi"]:
-                    random_or_hexvalue(item, "inv_default", item["size"] * 8)
+        self.part_dict = OtpMemMap_Validator._gen_part_dict(self.vc["partitions"])
 
     @staticmethod
     def _validate_otp(otp: dict) -> None:
@@ -180,13 +150,14 @@ class OtpMemMap_Validator():
 
         # determine how many aligned blocks are left
         # unaligned bits are not used
-        leftover_blocks = _avail_blocks(self.vc['otp']['size'] - allocated)
+        leftover_blocks = OtpMemMap_Validator._avail_blocks(
+            self.vc['otp']['size'] - allocated)
 
         # sponge partitions are partitions that will accept leftover allocation
         sponge_parts = [p for p in parts if p['absorb']]
 
         # spread out the blocks
-        _dist_blocks(leftover_blocks, sponge_parts)
+        OtpMemMap_Validator._dist_blocks(leftover_blocks, sponge_parts)
 
     @staticmethod
     def _calc_size(part: dict, size: int) -> int:
@@ -201,13 +172,13 @@ class OtpMemMap_Validator():
         return size
 
     @staticmethod
-    def _validate_item(item: dict, buffered: bool, secret: bool):
+    def _validate_item(item: dict, isBuffered: bool, isSecret: bool):
         """Validates a single item within a partition.
 
         Inputs:
             item: the configuration dict of the item
-            buffered: if the item is in a buffered partition
-            secret: if the item is in a secret partition
+            isBuffered: if the item is in a buffered partition
+            isSecret: if the item is in a secret partition
 
         Generate random constant to be used when partition has
         not been initialized yet or when it is in error state.
@@ -242,11 +213,11 @@ class OtpMemMap_Validator():
             # it can be sideloaded. The partition should also be secret for
             # confidentiality.
             if item["iskeymgr_creator"] or item["iskeymgr_owner"]:
-                if not buffered:
+                if not isBuffered:
                     raise RuntimeError(
                         "Key material {} for sideloading into the key manager needs "
                         "to be stored in a buffered partition.".format(item["name"]))
-                if not secret:
+                if not isSecret:
                     raise RuntimeError(
                         "Key material {} for sideloading into the key manager needs "
                         "to be stored in a secret partition.".format(item["name"]))
@@ -262,7 +233,7 @@ class OtpMemMap_Validator():
 
             # Lookup MUBI encoding for the default value
             if not is_width_valid(item_width):
-                raise RuntimeError(f"Mubi value {item["name"]} has invalid width")
+                raise RuntimeError(f"Mubi value {item['name']} has invalid width")
             item["inv_default"] = mubi_value_as_int(item["inv_default"], item_width)
 
     def _validate_part(self, part: dict):
@@ -291,10 +262,10 @@ class OtpMemMap_Validator():
 
         # basic checks
         if part["variant"] not in ["Unbuffered", "Buffered", "LifeCycle"]:
-            raise RuntimeError("Invalid partition type {}".format(part["variant"]))
+            raise RuntimeError(f"Invalid partition type {part['variant']}")
 
         if part["key_sel"] not in (["NoKey"] + self.key_names):
-            raise RuntimeError(f"Invalid 'key_sel' value: {part["key_sel"]}")
+            raise RuntimeError(f"Invalid 'key_sel' value: {part['key_sel']}")
 
         if check_bool(part["secret"]) and part["key_sel"] == "NoKey":
             raise RuntimeError(
@@ -327,18 +298,21 @@ class OtpMemMap_Validator():
         # Validate items and calculate partition size if necessary
 
         # Basic type checks
-        if not isinstance(part['items'], list[dict]):
+        if not isinstance(part['items'], list):
             raise RuntimeError('The "items" key must contain a list')
         if (len(part['items']) == 0):
             raise RuntimeError('A partition cannot have no items.')
         # Check for duplicate item names
-        item_names = (item['name'] for item in part['items'])
+        item_names = [item['name'] for item in part['items']]
         if not len(item_names) == len(set(item_names)):
             raise RuntimeError("Duplicate item names within a partition is not allowed.")
 
         # Validate all items in the partition individually
         for item in part["items"]:
-            _validate_item(item, (part["variant"] == "Buffered"), part["secret"])
+            OtpMemMap_Validator._validate_item(
+                item=item,
+                isBuffered=(part["variant"] == "Buffered"),
+                isSecret=part["secret"])
 
         # Partitions can either hold keymaterial for the creator stage or owner
         # stage, but not both. This is because the two have separate SW write
@@ -350,13 +324,13 @@ class OtpMemMap_Validator():
                 part["iskeymgr_owner"] = True
         if part["iskeymgr_creator"] and part["iskeymgr_owner"]:
             raise RuntimeError(
-                "Partition {} with key material for the key manager cannot be "
-                "associated with the creator AND the owner.".format(part["name"]))
+                f"Partition {part['name']} with key material for the key manager cannot "
+                "be associated with the creator AND the owner.")
 
         # If the 'size' attr was not previously defined, set it
         if "size" not in part:
             size = sum((item['size'] for item in part['items']))
-            part["size"] = _calc_size(part, size)
+            part["size"] = OtpMemMap_Validator._calc_size(part, size)
 
         # Make sure this has integer type.
         part["size"] = check_int(part["size"])
@@ -376,17 +350,18 @@ class OtpMemMap_Validator():
         """
 
         # Check for duplicate partition names
-        item_names = (part['name'] for part in parts)
-        if not len(part_names) == len(set(part_names)):
+        part_names = [part['name'] for part in parts]
+        if not (len(part_names) == len(set(part_names))):
             raise RuntimeError("Duplicate partition names is not allowed.")
 
         # Current DV and HW always assumes the LC partition is the last partition
-        if (parts[-1]["variant"] == "LifeCycle") != is_last:
+        if parts[-1]["variant"] != "LifeCycle":
             raise RuntimeError(
                 "The last partition must always be the life cycle partition")
 
         # Validate all individal partitions (and their items)
-        map(_validate_part(), parts)
+        for p in parts:
+            self._validate_part(p)
 
         # Distribute unallocated bits
         allocated_bytes = sum((part['size'] for part in parts))
@@ -416,9 +391,8 @@ class OtpMemMap_Validator():
             if part["sw_digest"] or part["hw_digest"]:
 
                 # The digest must be placed into the last 64bit word of a partition.
-                expected_digest_offset = check_int(part["offset"]) +
-                                         check_int(part["size"]) - \
-                                         DIGEST_SIZE
+                expected_digest_offset = check_int(part["offset"]) + \
+                                         check_int(part["size"]) - DIGEST_SIZE
                 if current_offset > expected_digest_offset:
                     raise RuntimeError(
                         f"Not enough space left in partition {part['name']}"
@@ -426,15 +400,12 @@ class OtpMemMap_Validator():
                         f"{part['size']}, bytes allocated to items = "
                         f"{current_offset - part['offset']}, digest size = {DIGEST_SIZE}")
 
-                log.debug("> > Digest {} at offset {} with size {}".format(
-                    digest_name, expected_digest_offset, DIGEST_SIZE))
-
                 # Create an item for the digest, and add it to the 'items' attribute
                 digest_name = part["name"] + DIGEST_SUFFIX
                 digest_item = {
                     "name": digest_name,
                     "size": DIGEST_SIZE,
-                    "offset": expected_digest_offset
+                    "offset": expected_digest_offset,
                     "ismubi": False,
                     "isdigest": True,
                     "inv_default": "<random>",
@@ -442,6 +413,9 @@ class OtpMemMap_Validator():
                     "iskeymgr_owner": False
                 }
                 part["items"].append(digest_item)
+
+                log.debug("> > Digest {} at offset {} with size {}".format(
+                    digest_name, expected_digest_offset, DIGEST_SIZE))
 
                 # Update the offset to start the next partition
                 current_offset = expected_digest_offset
@@ -454,7 +428,7 @@ class OtpMemMap_Validator():
                 raise RuntimeError(f"Not enough space in partition {part['name']} "
                                    "to accommodate all items. Bytes available = "
                                    f"{part['size']}, Bytes allocated to items = "
-                                   f"{current_offset - part["offset"]}")
+                                   f"{current_offset - part['offset']}")
             # Update the starting offset for the next partition
             current_offset = partition_end_offset
 
@@ -470,6 +444,7 @@ class OtpMemMap_Validator():
         log.debug(f"Bytes available in OTP: {self.vc['otp']['size']}")
         log.debug(f"Bytes required for partitions: {current_offset}")
 
+    @staticmethod
     def _gen_part_dict(parts: list[dict]) -> dict:
         """Genearte a condensed partition dictionary to assist lookups."""
 
@@ -483,7 +458,7 @@ class OtpMemMap_Validator():
             part_dict[part['name']] = {
                 'index': j,
                 'items': item_dict
-            })
+            }
 
         return part_dict
 
@@ -532,7 +507,37 @@ class OtpMemMap():
         log.debug('Successfully parsed and validated OTP memory map.')
         log.debug('')
 
-    def gen_mmap_random_constants() -> None:
+    def gen_netlist_constants_and_random_field_initializations(self) -> None:
+        """Iterate over the OTP datastructure and insert random values where required.
+
+        There are two types of random constants we may generate:
+        - Netlist Constants
+        - Initial Random Values for partition items
+        """
+
+        # First, generate the Netlist Constants in the 'scrambling' section
+
+        scr = self.config["scrambling"]
+        for key in scr["keys"]:
+            # Generate a random value for each scrambling key
+            random_or_hexvalue(key, "value", scr["key_size"] * 8)
+        for dig in scr["digests"]:
+            # For each digest, generate a random value for the Initialization Vector (iv)
+            # and the Finalization Constant (cnst)
+            random_or_hexvalue(dig, "iv_value", scr["iv_size"] * 8)
+            random_or_hexvalue(dig, "cnst_value", scr["cnst_size"] * 8)
+
+        # Next, generate the 'inv_default' (Invalid/Initialization Default) values in the partitions
+
+        parts = self.config["partitions"]
+        # Next, iterate over the partitions
+        for part in parts:
+            # Loop over items within a partition (including digest items)
+            for item in part["items"]:
+                if not item["ismubi"]:
+                    random_or_hexvalue(item, "inv_default", item["size"] * 8)
+
+    def gen_mmap_random_constants(self) -> None:
         """Initialize the RNG, and use it to generate netlist constants and random default values."""
 
         rng_seed = check_int(self.config["seed"])
