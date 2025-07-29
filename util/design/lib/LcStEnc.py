@@ -41,7 +41,7 @@ def _is_incremental_codeword(word1, word2):
     return ((_word1 & _word2) == _word1)
 
 
-def _get_incremental_codewords(config: dict, base_cand_ecc: str, existing_words: list[str]) -> list[]:
+def _get_incremental_codewords(config: dict, base_cand_ecc: str, existing_words: list[str]) -> list:
     """Get possible incremental codewords fulfilling the constraints.
 
     This method may fail i.e. returning an empty list.
@@ -87,7 +87,7 @@ def _get_incremental_codewords(config: dict, base_cand_ecc: str, existing_words:
     return incr_cands
 
 
-def _get_new_state_word_pair(config: dict, existing_words: list[]) -> tuple[int, int]:
+def _get_new_state_word_pair(config: dict, existing_words: list) -> tuple[int, int]:
     """Randomly generate a new incrementally writable word pair.
 
     This routine starts by invoking the RNG, then checks the
@@ -109,7 +109,7 @@ def _get_new_state_word_pair(config: dict, existing_words: list[]) -> tuple[int,
 
         # Apply the ECC
         base = format(base, '0' + str(width) + 'b')
-        base_cand_ecc = ecc_encode(config, base)
+        base_cand_ecc = ecc_encode(config['secded'], base)
 
         # Enforce a minimum and maximum Hamming weight
         pop_cnt = base_cand_ecc.count('1')
@@ -243,6 +243,7 @@ def _generate_hashed_tokens(config: dict) -> None:
     Generated new '{name}Hashed' token items are added to the list of tokens
     in the config dict.
     """
+    hashed_tokens = []
     for token in config['tokens']:
         # Generate new random values for '<random>' value tokens
         random_or_hexvalue(token, 'value', config['token_size'])
@@ -259,16 +260,18 @@ def _generate_hashed_tokens(config: dict) -> None:
         # Create a new "Hashed" config item and add to the config object list
         hashed_token = OrderedDict()
         hashed_token['name'] = token['name'] + 'Hashed'
-        hashed_token['value'] = \
-        config['tokens'].append(hashed_token)
+        hashed_token['value'] = hashed_value
+
+        hashed_tokens.append(hashed_token)
+
+    config['tokens'] += hashed_tokens
 
 
 def _validate_state_declarations(config: dict):
     """Validates life cycle state and counter declarations."""
+    # Add a new set to store the number of words in each state type for easy recall.
+    config['num_words'] = {}
     for typ in LC_STATE_TYPES.keys():
-        # Add a new set to store the number of words in each state type for easy recall.
-        config['num_words'] = {}
-        typ_num_words = f'{typ}_num_words'
         for k, state in enumerate(config[typ].keys()):
             state_words = config[typ][state]
 
@@ -383,6 +386,7 @@ class LcStEnc():
         log.debug('')
         log.debug('Checking state declarations.')
         _validate_state_declarations(config)
+        log.debug('')
 
         self.config = config
 
@@ -393,7 +397,7 @@ class LcStEnc():
         any random token values before calculating the hashed token values.
         """
 
-        rng_seed = check_int(config['seed'])
+        rng_seed = check_int(self.config['seed'])
 
         # (Re-)Initialize the RNG.
         sp.reseed(LC_SEED_DIVERSIFIER + rng_seed)
