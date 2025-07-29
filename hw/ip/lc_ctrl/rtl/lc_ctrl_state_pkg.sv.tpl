@@ -74,22 +74,22 @@ package lc_ctrl_state_pkg;
 
   parameter int LcValueWidth = ${data_width};
 
-  parameter int NumLcStateValues = ${lc_st_enc.config['num_lc_state_words']};
+  parameter int NumLcStateValues = ${lc_st_enc.config['num_words'].get('lc_state')};
   parameter int LcStateWidth = NumLcStateValues * LcValueWidth;
   parameter int NumLcStates = ${len(lc_st_enc.config['lc_state'])};
   parameter int DecLcStateWidth = vbits(NumLcStates);
-  parameter int NumSocDbgStateValues = ${lc_st_enc.config['num_soc_dbg_state_words']};
+  parameter int NumSocDbgStateValues = ${lc_st_enc.config['num_words'].get('soc_dbg_state')};
   parameter int SocDbgStateWidth = NumSocDbgStateValues * LcValueWidth;
-  parameter int NumOwnershipStateValues = ${lc_st_enc.config['num_ownership_state_words']};
+  parameter int NumOwnershipStateValues = ${lc_st_enc.config['num_words'].get('ownership_state')};
   parameter int OwnershipStateWidth = NumOwnershipStateValues * LcValueWidth;
-  parameter int NumAuthStateValues = ${lc_st_enc.config['num_auth_state_words']};
+  parameter int NumAuthStateValues = ${lc_st_enc.config['num_words'].get('auth_state')};
   parameter int AuthStateWidth = NumAuthStateValues * LcValueWidth;
 
   // Redundant version used in the CSRs.
   parameter int DecLcStateNumRep = 32/DecLcStateWidth;
   parameter int ExtDecLcStateWidth = DecLcStateNumRep*DecLcStateWidth;
 
-  parameter int NumLcCountValues = ${lc_st_enc.config['num_lc_cnt_words']};
+  parameter int NumLcCountValues = ${lc_st_enc.config['num_words'].get('lc_cnt')};
   parameter int LcCountWidth = NumLcCountValues * LcValueWidth;
   parameter int NumLcCountStates = ${len(lc_st_enc.config['lc_cnt'])};
   parameter int DecLcCountWidth = vbits(NumLcCountStates);
