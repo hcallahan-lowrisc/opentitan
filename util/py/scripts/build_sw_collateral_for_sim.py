@@ -192,7 +192,7 @@ def _run_cmd(cmd : list[str]) -> list[str]:
     return [s for s in stdout_lines if s]
 
 
-def _copy_files_to_run_dir(files: set[str], args) -> None:
+def _copy_files_to_run_dir(files: set[str], run_dir: Path) -> None:
     """Copy all target artifacts to the run directory.
 
     If the artifact is a .bin, and a .elf file of the same name also exists,
@@ -200,11 +200,11 @@ def _copy_files_to_run_dir(files: set[str], args) -> None:
     """
 
     for f in [Path(f) for f in files]:
-        shutil.copy(f, Path(args.run_dir))
+        shutil.copy(f, run_dir)
         # If we are copying a .bin file, and the corresponding .elf file exists, also copy that
         maybe_elf = f.with_suffix('.elf')
         if f.suffix == 'bin' and maybe_elf.exists():
-            shutil.copy(maybe_elf, Path(args.run_dir))
+            shutil.copy(maybe_elf, run_dir)
 
 
 def _deploy_software_collateral(args) -> None:
@@ -405,7 +405,7 @@ def _deploy_software_collateral(args) -> None:
         # We have built and queried to determine all the needed software collateral for the simulation
         # The final step is to copy it to the test's working directory so it can be accessed easily
         # via relative path.
-        _copy_files_to_run_dir(runfiles, args)
+        _copy_files_to_run_dir(runfiles, args.run_dir)
         runfiles_str = '\n'.join(runfiles)
         logger.info(
             "Deployed the following collateral:\n"
