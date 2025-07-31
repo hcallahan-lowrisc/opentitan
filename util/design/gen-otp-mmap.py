@@ -106,8 +106,8 @@ def main():
     log.basicConfig(level=log_level,
                     format=log_format,
                     handlers=[
-                        logging.FileHandler("gen-otp-mmap.log"),
-                        logging.StreamHandler()
+                        # log.FileHandler("gen-otp-mmap.log"),
+                        log.StreamHandler()
                     ])
 
     # The placement of sw difs requires this be run from repo_top.

@@ -205,8 +205,8 @@ def main():
     log.basicConfig(level=log_level,
                     format=log_format,
                     handlers=[
-                        logging.FileHandler("gen-otp-img.log"),
-                        logging.StreamHandler()
+                        # log.FileHandler("gen-otp-img.log"),
+                         log.StreamHandler()
                     ])
     # if args.quiet:
     #     log.getLogger().setLevel(log.WARNING)

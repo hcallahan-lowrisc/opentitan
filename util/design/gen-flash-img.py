@@ -474,8 +474,8 @@ def main(argv: List[str]):
     log.basicConfig(level=log_level,
                     format=log_format,
                     handlers=[
-                        logging.FileHandler("gen-flash-img.log"),
-                        logging.StreamHandler()
+                        # log.FileHandler("gen-flash-img.log"),
+                        log.StreamHandler()
                     ])
 
     scrambling_configs = FlashScramblingConfigs()

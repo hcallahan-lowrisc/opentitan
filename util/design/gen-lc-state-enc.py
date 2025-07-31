@@ -63,12 +63,13 @@ def main():
         help='Rust output file that contains the raw unlock token constants.')
     args = parser.parse_args()
 
+    log_level = log.DEBUG
     log_format = '%(levelname)s: [%(filename)s:%(lineno)d] %(message)s'
     log.basicConfig(level=log_level,
                     format=log_format,
                     handlers=[
-                        logging.FileHandler("gen-lc-state-enc.log"),
-                        logging.StreamHandler()
+                        # log.FileHandler("gen-lc-state-enc.log"),
+                        log.StreamHandler()
                     ])
 
     with open(args.lc_state_def_file, 'r') as infile:

@@ -18,10 +18,12 @@ pre_build:
 	@echo "\n[make]: pre_build"
 	mkdir -p ${build_dir}
 ifneq (${pre_build_cmds},)
-	# pre_build_cmds are likely changing the in-tree sources. We hence use FLOCK
-	# utility to prevent multiple builds that may be running in parallel from
-	# stepping on each other. TODO: Enforce the list of pre_build_cmds is
-	# identical across all build modes.
+	#
+	# 'pre_build_cmds' may change the in-tree sources.
+	# Hence, we hence use the FLOCK utility to prevent multiple builds that
+	# may be running in parallel from stepping on each other.
+	#
+	# TODO: Enforce the list of pre_build_cmds is identical across all build modes.
 	${LOCK_ROOT_DIR} 'cd ${build_dir} && ${pre_build_cmds}'
 endif
 

@@ -17,6 +17,12 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
 from topgen import secure_prng as sp  # noqa : E402
 
+OUTFILE_HEADER_TPL = \
+"""
+// Generated on '{}' with the following cmd:
+// $ {} {}
+//
+"""
 
 def wrapped_docstring() -> str:
     """Return a text-wrapped version of the module docstring."""
@@ -367,13 +373,6 @@ def create_outfile_header(file, args) -> str:
     """Returns the file header to be inserted into generated output files.
 
     This prints the datetime and args for reference.
-    """
-
-    OUTFILE_HEADER_TPL = \
-    """
-    // Generated on '{}' with the following cmd:
-    // $ {} {}
-    //
     """
 
     # Generate datetime string

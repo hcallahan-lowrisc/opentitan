@@ -2,7 +2,11 @@
 # Copyright lowRISC contributors (OpenTitan project).
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
-"""Models the OTP memory map, used to generate RTL, pre-load images and documentation.
+"""Models the OTP partition memory map, used to generate RTL packages and documentation.
+
+The derived class OtpMemImg models an OTP system with (non-default) values for each partition
+item, as well as the current lifecycle state. From this, a valid memory image can be generated
+that is targeted towards loading into simulation/emulation environments via a backdoor method.
 
 This class models the OTP partitions and items we are configuring the system to use,
 as well as some netlist constants used in the RTL.
@@ -19,9 +23,6 @@ used to constuct a number of pieces of hardware and documentation collateral, su
 
 A memory image for the state of the OTP system cannot yet be generated, as at a minimum, we
 need to provide a current lifecycle state.
-The derived class OtpMemImg models an OTP system with (non-default) values for each partition
-item, as well as the current lifecycle state. From this, a valid memory image can be generated
-that is targeted towards loading into simulation/emulation environments via a backdoor method.
 """
 
 import copy
@@ -377,7 +378,7 @@ class OtpMemMap_Validator():
             for k, item in enumerate(part["items"]):
                 item_name = item['name']
                 item['offset'] = current_offset
-                log.debug("> Item: offset {:4} | size {:4} | name | {}".format(
+                log.debug("> Item   : offset {:4} | size {:4} | name | {}".format(
                     current_offset, item["size"], item["name"]))
                 current_offset += check_int(item["size"])
 
@@ -528,7 +529,7 @@ class OtpMemMap():
                     isRandomized = random_or_hexvalue(item, "inv_default", item["size"] * 8)
                     if isRandomized:
                         log.debug(
-                            '> Randomized part {} item {} with size {}B and value {}:'.format(
+                            '> Randomized invalid default for part {} item {} size {}B value {}:'.format(
                                 part['name'], item['name'], item["size"], item["inv_default"]))
 
     def gen_mmap_random_constants(self) -> None:
