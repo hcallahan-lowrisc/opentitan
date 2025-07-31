@@ -7,14 +7,14 @@
 
 """
 import argparse
-import datetime
 import logging as log
 import random
+import sys
 from pathlib import Path
 
 import hjson
 
-from lib.common import vmem_permutation_string, wrapped_docstring
+from lib.common import vmem_permutation_string, wrapped_docstring, create_outfile_header
 from lib.OtpMemImg import OtpMemImg
 
 # Make sure the script can also be called from other dirs than
@@ -31,11 +31,6 @@ LC_STATE_DEFINITION_FILE = PROJ_ROOT / Path('hw/ip/lc_ctrl/data/lc_ctrl_state.hj
 # Image file.
 IMAGE_DEFINITION_FILE = PROJ_ROOT / Path('hw/ip/otp_ctrl/data/otp_ctrl_img_dev.hjson')
 
-OUTFILE_HEADER_TPL = """
-// Generated on '{}' with the following cmd:
-// $ gen-otp-img.py {}
-//
-"""
 # Default output MEMfile name (can be overridden on the command line).
 # Note that "BITWIDTH" will be replaced with the architecture's bitness.
 MEMORY_MEM_FILE = 'otp-img.BITWIDTH.vmem'
@@ -72,36 +67,7 @@ def _resolve_seed(args, seed_name: str, config: dict) -> None:
     log.info(f"Seed '{seed_name}' = {config['seed']}")
 
 
-def _create_outfile_header(args) -> str:
-    """Returns the file header to be inserted into generated output files.
-
-    This prints the datetime and args for reference.
-    """
-
-    # Generate datetime string
-    dt = datetime.datetime.now(datetime.timezone.utc)
-    dtstr = dt.strftime("%a, %d %b %Y %H:%M:%S %Z")
-
-    # Generate string of script arguments
-    argstr = ''
-    for arg, argval in sorted(vars(args).items()):
-        if argval:
-            if not isinstance(argval, list):
-                argval = [argval]
-            for a in argval:
-                argname = '-'.join(arg.split('_'))
-                # Get absolute paths for all files specified.
-                a = a.resolve() if isinstance(a, Path) else a
-                argstr += ' \\\n//   --' + argname + ' ' + str(a) + ''
-
-    return OUTFILE_HEADER_TPL.format(dtstr, argstr)
-
-
 def main():
-    log_level = log.DEBUG
-    log_format = '%(levelname)s: [%(filename)s:%(lineno)d] %(message)s'
-    log.basicConfig(level=log_level, format=log_format)
-
     parser = argparse.ArgumentParser(
         prog="gen-otp-img",
         description=wrapped_docstring(),
@@ -234,6 +200,14 @@ def main():
 
     args = parser.parse_args()
 
+    log_level = log.DEBUG
+    log_format = '%(levelname)s: [%(filename)s:%(lineno)d] %(message)s'
+    log.basicConfig(level=log_level,
+                    format=log_format,
+                    handlers=[
+                        logging.FileHandler("gen-otp-img.log"),
+                        logging.StreamHandler()
+                    ])
     # if args.quiet:
     #     log.getLogger().setLevel(log.WARNING)
 
@@ -289,7 +263,7 @@ def main():
     if args.c_out:
         log.info(f'Generating C file: {args.c_out}')
         file_body = otp_mem_img.generate_c_file(
-            file_header=_create_outfile_header(args),
+            file_header=create_outfile_header(sys.argv[0], args),
             templatefile=args.c_template)
         args.c_out.write_bytes(file_body.encode('utf-8'))
         # Return early (The --out flag is ignored if --c-out is given)
@@ -304,7 +278,7 @@ def main():
     # Generated the memfile contents, and write it to disk
     # Use binary mode and a large buffer size to improve performance.
     with open(memfile_path, 'wb', buffering=2097152) as outfile:
-        outfile.write(_create_outfile_header(args).encode('utf-8'))
+        outfile.write(create_outfile_header(sys.argv[0], args).encode('utf-8'))
         outfile.write(otp_mem_img.gen_memfile().encode('utf-8'))
 
 

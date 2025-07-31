@@ -78,8 +78,8 @@ from typing import Union
 import logging
 logger = logging.getLogger(__name__)
 
-BAZEL_QUERY_FLAGS = ["--ui_event_filters=-info",
-                     "--noshow_progress"]
+BAZEL_COMMON_QUERY_FLAGS = ["--ui_event_filters=-info",
+                            "--noshow_progress"]
 
 BAZEL_STARLARK_EXPR_DATA_RUNFILES_FILES_QUERY = \
     r'"\\n".join([f.path for f in target.data_runfiles.files.to_list()])'
@@ -195,7 +195,7 @@ def _run_cmd(cmd : list[str]) -> list[str]:
     return [s for s in stdout_lines if s]
 
 
-def _copy_files_to_run_dir(files: set[str], run_dir: Path) -> None:
+def _copy_files_to_run_dir(files: list[str], run_dir: Path) -> None:
     """Copy all target artifacts to the run directory.
 
     If the artifact is a .bin, and a .elf file of the same name also exists,
@@ -216,10 +216,10 @@ def _deploy_software_collateral(args) -> None:
     images_str = '\n'.join(args.sw_images)
     logger.info(
         "Building and deploying collateral for the following images:\n"
-        "[RUN_DIR]\n"
-        f"{args.run_dir}\n"
         "[IMAGES]\n"
         f"{images_str}\n"
+        "[RUN_DIR]\n"
+        f"{args.run_dir}\n"
     )
 
     bazel_cmd = "./bazelisk.sh"
@@ -331,7 +331,7 @@ def _deploy_software_collateral(args) -> None:
             "cquery",
             *bazel_airgapped_opts,
             bazel_label,
-            *BAZEL_QUERY_FLAGS,
+            *BAZEL_COMMON_QUERY_FLAGS,
             "--output=label_kind",
         )
         logger.info(f'kind_cmd = {" ".join(kind_cmd)}')
@@ -345,6 +345,7 @@ def _deploy_software_collateral(args) -> None:
         # _Note_
         # We may also want to extract collateral to assist debug and development, such as
         # disassembly files for given binaries.
+        runfiles: list[str] = []
         match kind:
             case "opentitan_test" | "opentitan_binary" | "alias":
                 # For targets of this kind, we can query directly for the set of runfiles.
@@ -356,7 +357,7 @@ def _deploy_software_collateral(args) -> None:
                     "cquery",
                     *bazel_airgapped_opts,
                     bazel_label,
-                    *BAZEL_QUERY_FLAGS,
+                    *BAZEL_COMMON_QUERY_FLAGS,
                     "--output=starlark",
                     f"--starlark:file={BAZEL_STARLARK_QUERY_RULE_KIND[kind]}",
                     # f"--starlark:expr='{BAZEL_STARLARK_QUERY_RULE_KIND[kind]}'",
@@ -371,7 +372,7 @@ def _deploy_software_collateral(args) -> None:
                     "cquery",
                     *bazel_airgapped_opts,
                     f'{image_set[image].cquery}',
-                    *BAZEL_QUERY_FLAGS,
+                    *BAZEL_COMMON_QUERY_FLAGS,
                     "--output=starlark",
                 )
                 logger.info(f'cquery_cmd = {" ".join(cquery_cmd)}')
@@ -385,25 +386,42 @@ def _deploy_software_collateral(args) -> None:
                 runfiles = []
                 for label in deps:
                     if (# - OTP preload images are copied
-                        label.startswith('//hw/ip/otp_ctrl/data') or
+                        label.startswith('//hw/ip/otp_ctrl/data')
+                        or
                         # - Any deps from the following directories/packages are _not_ copied:
                         #   - hw/
                         #   - util/
                         #   - sw/host/
-                        (not any(label.startswith(s) for s in ("//hw" "//util" "//sw/host")))):
+                        (not any(label.startswith(s) for s in ("//hw", "//util", "//sw/host")))):
 
                         cquery_cmd = (
                             bazel_cmd,
                             "cquery",
                             *bazel_airgapped_opts,
                             label,
-                            *BAZEL_QUERY_FLAGS,
+                            *BAZEL_COMMON_QUERY_FLAGS,
                             "--output=starlark",
                             f"--starlark:file={BAZEL_STARLARK_FILE_FILES_QUERY}",
                             # f"--starlark:expr='{BAZEL_STARLARK_EXPR_FILES_QUERY}'",
                         )
                         logger.info(f'cquery_cmd = {" ".join(cquery_cmd)}')
                         runfiles += _run_cmd(cquery_cmd)
+
+        # Some rules may return runfiles for many different software devices, but
+        # we only require the files for a specific device (passed by --sw-build-device)
+        # Our bazel rules always append the device as the final element of the filename
+        # before any extensions (the final string fragment before the first period)
+        # Perform a crude string-contains check to determine if this is one of those rules,
+        # and if so, remove files unrelated to this device
+        dev = args.sw_build_device
+        def _f_endswith_dev(f: Path) -> bool:
+            f_stem = str(f).split('.')[0]
+            return f_stem.endswith(dev)
+        is_device_specific = any([_f_endswith_dev(Path(f)) for f in runfiles])
+        if is_device_specific:
+            logger.info(
+                f"This query returned device_specific '{dev}' files, filtering...")
+            runfiles = list(filter(lambda f: _f_endswith_dev(Path(f)), runfiles))
 
         # We have built and queried to determine all the needed software collateral for the simulation
         # The final step is to copy it to the test's working directory so it can be accessed easily
@@ -454,7 +472,22 @@ def _main() -> None:
     log_level = logging.INFO
     log_format = '%(levelname)s: [%(filename)s:%(lineno)d] %(message)s'
     logging.basicConfig(level=log_level, format=log_format)
-    logger.info(args)
+
+    # Generate string of script arguments
+    def _mk_argstr(args) -> str:
+        argstr = ''
+        for arg, argval in sorted(vars(args).items()):
+            if argval:
+                if not isinstance(argval, list):
+                    argval = [argval]
+                for a in argval:
+                    argname = '-'.join(arg.split('_'))
+                    # Get absolute paths for all files specified.
+                    a = a.resolve() if isinstance(a, Path) else a
+                    argstr += ' \\\n//   --' + argname + ' ' + str(a) + ''
+        return argstr
+    # Log the script name and invocation arguments
+    logger.info(f"\n// {sys.argv[0]} {_mk_argstr(args)}")
 
     _deploy_software_collateral(args)
 

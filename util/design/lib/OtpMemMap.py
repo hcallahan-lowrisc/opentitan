@@ -45,6 +45,32 @@ OTP_SEED_DIVERSIFIER = 177149201092001677687
 # This must match the rtl parameter ScrmblBlockWidth / 8
 SCRAMBLE_BLOCK_WIDTH = 8
 
+def _avail_blocks(size: int) -> int:
+    """If remaining number of bytes are not perfectly aligned, truncate."""
+    return int(size / SCRAMBLE_BLOCK_WIDTH)
+
+def _dist_blocks(num_blocks: int, parts: list):
+    """Distribute number of blocks among partitions."""
+    num_parts = len(parts)
+
+    if not num_parts:
+        return
+
+    # Very slow looping
+    for i in range(num_blocks):
+        parts[i % num_parts]['size'] += SCRAMBLE_BLOCK_WIDTH
+
+def _calc_size(part: dict, size: int) -> int:
+    """Return the aligned partition size."""
+
+    size = SCRAMBLE_BLOCK_WIDTH * \
+        int((size + SCRAMBLE_BLOCK_WIDTH - 1) / SCRAMBLE_BLOCK_WIDTH)
+
+    if part["sw_digest"] or part["hw_digest"]:
+        size += DIGEST_SIZE
+
+    return size
+
 
 class OtpMemMap_Validator():
     """This class validates and constructs an OTP mmap configuration.
@@ -81,13 +107,9 @@ class OtpMemMap_Validator():
 
         # Validate fields of the 'scrambling' config dict.
         OtpMemMap_Validator._validate_scrambling(self.vc["scrambling"])
-        # Get a list of all valid scrambling key names.
-        self.key_names = [key['name'] for key in self.vc["scrambling"]["keys"]]
 
         # Validate all partitions in the memory map.
         self._validate_parts(self.vc["partitions"])
-        # Generate a condensed partition dict to assist future lookups
-        self.part_dict = OtpMemMap_Validator._gen_part_dict(self.vc["partitions"])
 
     @staticmethod
     def _validate_otp(otp: dict) -> None:
@@ -127,49 +149,6 @@ class OtpMemMap_Validator():
             dig.setdefault("name", "unknown_key_name")
             dig.setdefault("iv_value", "<random>")
             dig.setdefault("cnst_value", "<random>")
-
-    @staticmethod
-    def _avail_blocks(size: int) -> int:
-        """If remaining number of bytes are not perfectly aligned, truncate."""
-        return int(size / SCRAMBLE_BLOCK_WIDTH)
-
-    @staticmethod
-    def _dist_blocks(num_blocks: int, parts: list):
-        """Distribute number of blocks among partitions."""
-        num_parts = len(parts)
-
-        if not num_parts:
-            return
-
-        # Very slow looping
-        for i in range(num_blocks):
-            parts[i % num_parts]['size'] += SCRAMBLE_BLOCK_WIDTH
-
-    def _dist_unused(self, parts: list[dict], allocated: int):
-        """Distribute unused OTP bits."""
-
-        # determine how many aligned blocks are left
-        # unaligned bits are not used
-        leftover_blocks = OtpMemMap_Validator._avail_blocks(
-            self.vc['otp']['size'] - allocated)
-
-        # sponge partitions are partitions that will accept leftover allocation
-        sponge_parts = [p for p in parts if p['absorb']]
-
-        # spread out the blocks
-        OtpMemMap_Validator._dist_blocks(leftover_blocks, sponge_parts)
-
-    @staticmethod
-    def _calc_size(part: dict, size: int) -> int:
-        """Return the aligned partition size."""
-
-        size = SCRAMBLE_BLOCK_WIDTH * \
-            int((size + SCRAMBLE_BLOCK_WIDTH - 1) / SCRAMBLE_BLOCK_WIDTH)
-
-        if part["sw_digest"] or part["hw_digest"]:
-            size += DIGEST_SIZE
-
-        return size
 
     @staticmethod
     def _validate_item(item: dict, isBuffered: bool, isSecret: bool):
@@ -264,7 +243,8 @@ class OtpMemMap_Validator():
         if part["variant"] not in ["Unbuffered", "Buffered", "LifeCycle"]:
             raise RuntimeError(f"Invalid partition type {part['variant']}")
 
-        if part["key_sel"] not in (["NoKey"] + self.key_names):
+        key_names = ["NoKey"] + [key['name'] for key in self.vc["scrambling"]["keys"]]
+        if part["key_sel"] not in key_names:
             raise RuntimeError(f"Invalid 'key_sel' value: {part['key_sel']}")
 
         if check_bool(part["secret"]) and part["key_sel"] == "NoKey":
@@ -330,7 +310,7 @@ class OtpMemMap_Validator():
         # If the 'size' attr was not previously defined, set it
         if "size" not in part:
             size = sum((item['size'] for item in part['items']))
-            part["size"] = OtpMemMap_Validator._calc_size(part, size)
+            part["size"] = _calc_size(part, size)
 
         # Make sure this has integer type.
         part["size"] = check_int(part["size"])
@@ -338,6 +318,20 @@ class OtpMemMap_Validator():
         # Make sure partition size is aligned.
         if part["size"] % SCRAMBLE_BLOCK_WIDTH:
             raise RuntimeError("Partition size must be 64bit aligned")
+
+    def _dist_unused(self, parts: list[dict], allocated: int):
+        """Distribute unused OTP bits."""
+
+        # determine how many aligned blocks are left
+        # unaligned bits are not used
+        leftover_blocks = _avail_blocks(
+            self.vc['otp']['size'] - allocated)
+
+        # sponge partitions are partitions that will accept leftover allocation
+        sponge_parts = [p for p in parts if p['absorb']]
+
+        # spread out the blocks
+        _dist_blocks(leftover_blocks, sponge_parts)
 
     def _validate_parts(self, parts: list[dict]) -> dict:
         """Validate the OTP partitions in the memory map.
@@ -444,23 +438,6 @@ class OtpMemMap_Validator():
         log.debug(f"Bytes available in OTP: {self.vc['otp']['size']}")
         log.debug(f"Bytes required for partitions: {current_offset}")
 
-    @staticmethod
-    def _gen_part_dict(parts: list[dict]) -> dict:
-        """Genearte a condensed partition dictionary to assist lookups."""
-
-        part_dict = {}
-        for j, part in enumerate(parts):
-            # loop over items within a partition (including digest items added above)
-            item_dict = {}
-            for k, item in enumerate(part["items"]):
-                item_dict[item['name']] = k
-            # Add an entry to the partition dict
-            part_dict[part['name']] = {
-                'index': j,
-                'items': item_dict
-            }
-
-        return part_dict
 
 class OtpMemMap():
     """This class models the base configuration of an OpenTitan OTP system, the memory map.
@@ -479,8 +456,6 @@ class OtpMemMap():
 
     # This holds the config dict.
     config = {}
-    # This holds the partition/item index dict for fast access.
-    part_dict = {}
 
     def __init__(self, config):
         """Construct from a config object dictionary, typically loaded from a mmap .hjson file.
@@ -499,26 +474,24 @@ class OtpMemMap():
 
         self.validator = OtpMemMap_Validator(config)
         self.validator.validate_config()
-
         self.config = self.validator.vc
-        self.part_dict = self.validator.part_dict
 
         log.debug('')
         log.debug('Successfully parsed and validated OTP memory map.')
         log.debug('')
 
-    def gen_netlist_constants_and_random_field_initializations(self) -> None:
+    def gen_netlist_constants(self) -> None:
         """Iterate over the OTP datastructure and insert random values where required.
 
-        There are two types of random constants we may generate:
-        - Netlist Constants
-        - Initial Random Values for partition items
+        There are two types of random netlist constants we may generate:
+        - Static scrambling key seeds and cipher IVs / finalization constants.
+        - Invalid Default Values for buffered partition items
         """
 
         # First, generate the Netlist Constants in the 'scrambling' section
 
         log.debug('')
-        log.debug("Generating randomized netlist constants.")
+        log.debug("Generating randomized scrambling seed netlist constants.")
 
         scr = self.config["scrambling"]
         for key in scr["keys"]:
@@ -541,10 +514,10 @@ class OtpMemMap():
                 log.debug('> Randomized digest {} cnst_value with size {}B and value {}:'.format(
                     dig['name'], scr["cnst_size"], dig['cnst_value']))
 
-        # Next, generate the 'inv_default' (Invalid/Initialization Default) values in the partitions
+        # Next, generate the 'inv_default' (Invalid Default) values for buffered partitions
 
         log.debug('')
-        log.debug("Generating randomized 'inv_default' values for partition items.")
+        log.debug("Generating randomized 'Invalid Default' netlist constants for buffered partition items.")
 
         parts = self.config["partitions"]
         # Next, iterate over the partitions
@@ -559,7 +532,7 @@ class OtpMemMap():
                                 part['name'], item['name'], item["size"], item["inv_default"]))
 
     def gen_mmap_random_constants(self) -> None:
-        """Initialize the RNG, and use it to generate netlist constants and random default values."""
+        """Initialize the RNG, and use it to generate random netlist constants."""
 
         rng_seed = check_int(self.config["seed"])
 
@@ -568,8 +541,8 @@ class OtpMemMap():
         log.debug('')
         log.debug('OtpMemMap RNG Seed: {0:d}'.format(rng_seed))
 
-        # Use the initialized RNG to generate netlist constants and random default values.
-        self.gen_netlist_constants_and_random_field_initializations()
+        # Use the initialized RNG to generate netlist constants
+        self.gen_netlist_constants()
 
         log.debug('')
         log.debug("Randomization complete.")
@@ -709,20 +682,31 @@ class OtpMemMap():
                         tablefmt="pipe",
                         colalign=colalign)
 
-    def get_part(self, part_name: str) -> Optional[str]:
-        """Get partition by name, return None if it does not exist"""
+    def get_part(self, part_name: str) -> Optional[dict]:
+        """Get partition by name.
 
-        entry = self.part_dict.get(part_name)
-        return (None if entry is None else
-                self.config['partitions'][entry['index']])
+        Returns:
+            If found, a dict of the parsed config for the partition
+              or
+            If not found, None
+        """
+        return next(
+            filter(lambda p: p['name'] == part_name,
+                   self.config['partitions']),
+            None #/*default for no-match*/
+        )
 
-    def get_item(self, part_name: str, item_name: str) -> Optional[str]:
-        """Get item by name, return None if it does not exist"""
+    def get_item(self, part_name: str, item_name: str) -> Optional[dict]:
+        """Get partition item by name.
 
-        entry = self.part_dict.get(part_name)
-        if entry is not None:
-            idx = entry['items'].get(item_name, None)
-            return (None if idx is None else
-                    self.config['partitions'][entry['index']]['items'][idx])
-        else:
-            return None
+        Returns:
+            If found, a dict of the parsed config for the item
+              or
+            If not found, None
+        """
+        part = self.get_part(part_name)
+        return next(
+            filter(lambda i: i['name'] == item_name,
+                   part['items']),
+            None #/*default for no-match*/
+        )

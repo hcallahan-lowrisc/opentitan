@@ -37,9 +37,6 @@ def _render_template(template: str, output_file: Optional[str], lc_st_enc: LcStE
         log.info(f"Rendered template to : {rendered_template}")
 
 def main():
-    log_format = '%(levelname)s: [%(filename)s:%(lineno)d] %(message)s'
-    log.basicConfig(level=log.DEBUG, format=log_format)
-
     parser = argparse.ArgumentParser(
         prog="gen-lc-state-enc",
         description=wrapped_docstring(),
@@ -65,6 +62,14 @@ def main():
         metavar='<Rust output file path>',
         help='Rust output file that contains the raw unlock token constants.')
     args = parser.parse_args()
+
+    log_format = '%(levelname)s: [%(filename)s:%(lineno)d] %(message)s'
+    log.basicConfig(level=log_level,
+                    format=log_format,
+                    handlers=[
+                        logging.FileHandler("gen-lc-state-enc.log"),
+                        logging.StreamHandler()
+                    ])
 
     with open(args.lc_state_def_file, 'r') as infile:
         config = hjson.load(infile)

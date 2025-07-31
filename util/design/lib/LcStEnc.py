@@ -140,7 +140,7 @@ def _get_new_state_word_pair(config: dict, existing_words: list) -> tuple[int, i
         # There are valid candidates, draw one at random.
         incr_cand_ecc = sp.choice(incr_cands_ecc)
 
-        log.debug('word {}: {}|{} -> {}|{}'.format(
+        log.debug('word {:4d}: {}|{} -> {}|{}'.format(
             int(len(existing_words) / 2),
             base_cand_ecc[ecc_width:], base_cand_ecc[0:ecc_width],
             incr_cand_ecc[ecc_width:], incr_cand_ecc[0:ecc_width]))

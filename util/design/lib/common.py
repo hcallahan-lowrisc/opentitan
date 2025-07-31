@@ -8,6 +8,7 @@ import random
 import re
 import sys
 import textwrap
+import datetime
 from math import ceil, log2
 from pathlib import Path
 from typing import Union
@@ -294,6 +295,20 @@ def _parse_hex(value: Union[list[str], str]) -> int:
         value = value.translate(str.maketrans('', '', ' \r\n\t'))
         return int(value, 16)
 
+def _try_convert_hex_range(inp, num_bits) -> int:
+    """"""
+    try:
+        val = _parse_hex(inp)
+    except ValueError:
+        raise RuntimeError(
+            f"Cannot convert '{val}' to int.")
+
+    # Check that the range is correct.
+    if val >= 2**num_bits:
+        raise RuntimeError(f"Value '{val}' is out of range.")
+
+    return val
+
 
 def random_or_hexvalue(dict_obj: dict, key: str, num_bits: int) -> bool:
     """Convert hex value at "key" to an integer or draw a random number.
@@ -312,19 +327,14 @@ def random_or_hexvalue(dict_obj: dict, key: str, num_bits: int) -> bool:
         dict_obj[key] = sp.getrandbits(num_bits)
         return True
 
-    # Otherwise attempt to convert this number to an int.
-    else:
-        try:
-            dict_obj[key] = _parse_hex(dict_obj[key])
-        except ValueError:
-            raise RuntimeError(
-                f"Invalid value '{dict_obj[key]}'. Must be hex or '<random>'.")
-
-        # Check that the range is correct.
-        if dict_obj[key] >= 2**num_bits:
-            raise RuntimeError(f"Value '{dict_obj[key]}' is out of range.")
-
+    elif isinstance(dict_obj[key], int):
         return False
+
+    else:
+        # Otherwise attempt to convert this number to an int.
+        dict_obj[key] = _try_convert_hex_range(dict_obj[key], num_bits)
+        return False
+
 
 def vmem_permutation_string(data_perm) -> Union[str, list[str]]:
     """Check VMEM permutation format and expand the ranges."""
@@ -351,3 +361,36 @@ def vmem_permutation_string(data_perm) -> Union[str, list[str]]:
             expanded_perm = list(range(k0, k1 - 1, -1)) + expanded_perm
 
     return expanded_perm
+
+
+def create_outfile_header(file, args) -> str:
+    """Returns the file header to be inserted into generated output files.
+
+    This prints the datetime and args for reference.
+    """
+
+    OUTFILE_HEADER_TPL = \
+    """
+    // Generated on '{}' with the following cmd:
+    // $ {} {}
+    //
+    """
+
+    # Generate datetime string
+    dt = datetime.datetime.now(datetime.timezone.utc)
+    dtstr = dt.strftime("%a, %d %b %Y %H:%M:%S %Z")
+
+    # Generate string of script arguments
+    argstr = ''
+    for arg, argval in sorted(vars(args).items()):
+        if argval:
+            if not isinstance(argval, list):
+                argval = [argval]
+            for a in argval:
+                argname = '-'.join(arg.split('_'))
+                # Get absolute paths for all files specified.
+                a = a.resolve() if isinstance(a, Path) else a
+                argstr += ' \\\n//   --' + argname + ' ' + str(a) + ''
+
+    return OUTFILE_HEADER_TPL.format(dtstr, file, argstr).strip() + '\n'
+

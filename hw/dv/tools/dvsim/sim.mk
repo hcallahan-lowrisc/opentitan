@@ -57,7 +57,6 @@ sw_build: pre_run
 	@echo "\n[make]: sw_build"
 ifneq (${sw_images},)
 	cd ${proj_root} && ${sw_build_cmds} --build-seed=${build_seed}
-	# exit 1
 endif
 
 simulate: sw_build

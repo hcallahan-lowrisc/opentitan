@@ -8,7 +8,7 @@ To mimic the transforms applied by the OpenTitan Flash Controller on write,
 hence allowing the Controller to successfully read back data that has been
 inserted directly in the memory array, the following processing steps may be required:
 - adds both layers of ECC (integrity and reliablity)
-- (optionally) scrambles the data using Flash_CTRL XEX scrambling scheme
+- (optionally) scrambles the data using the Flash_CTRL XEX scrambling scheme
 
 For the Flash scrambling to be applied, an OTP mmap .hjson file and an OTP
 .vmem image file must be provided.
@@ -18,8 +18,8 @@ according to the Flash Scrambing enablement setting in the OTP parition and
 field CREATOR_SW_CFG::FLASH_DATA_DEFAULT_CFG. Otherwise, the jump at the end
 of ROM execution will not be able to successfully read the pre-loaded ROM_EXT
 image from Flash.
-An OTP .vmem image can be provided to be read for the state of of Flash
-Scrambling enablement in FLASH_DATA_DEFAULT_CFG. To descramble this OTP .vmem
+An OTP .vmem image can be provided from which the state of Flash Scrambling
+enablement in FLASH_DATA_DEFAULT_CFG is extracted. To descramble this OTP .vmem
 image, an OTP mmap .hjson file must be provided, along with the matching seed
 value used for Netlist Constant generation. From this information, a scrambled
 Flash .vmem image can be generated which is able to be descrambled by an
@@ -43,7 +43,8 @@ import hjson
 from pyfinite import ffield
 from util.design.lib.common import (inverse_permute_bits,
                                     validate_data_perm_option,
-                                    vmem_permutation_string)
+                                    vmem_permutation_string,
+                                    create_outfile_header)
 from util.design.lib.OtpMemMap import OtpMemMap
 from util.design.lib.Present import Present
 
@@ -79,7 +80,6 @@ class FlashScramblingKeyType(Enum):
     ADDRESS = 1
     DATA = 2
 
-
 # Flash scrambling key computation parameters.
 # ------------------------------------------------------------------------------
 # DO NOT EDIT: edit fixed parameters above instead.
@@ -93,12 +93,12 @@ class FlashScramblingKeyType(Enum):
 #    DIGEST
 #   ]
 OTP_SECRET1_FLASH_ADDR_KEY_SEED_START = 0
-OTP_SECRET1_FLASH_ADDR_KEY_SEED_STOP = OTP_SECRET1_FLASH_ADDR_KEY_SEED_START +
+OTP_SECRET1_FLASH_ADDR_KEY_SEED_STOP = OTP_SECRET1_FLASH_ADDR_KEY_SEED_START + \
                                        (OTP_FLASH_ADDR_KEY_SEED_SIZE //
                                         OTP_SECRET1_BLOCK_SIZE)
 OTP_SECRET1_FLASH_DATA_KEY_SEED_START = (OTP_FLASH_ADDR_KEY_SEED_SIZE //
                                          OTP_SECRET1_BLOCK_SIZE)
-OTP_SECRET1_FLASH_DATA_KEY_SEED_STOP = OTP_SECRET1_FLASH_DATA_KEY_SEED_START +
+OTP_SECRET1_FLASH_DATA_KEY_SEED_STOP = OTP_SECRET1_FLASH_DATA_KEY_SEED_START + \
                                        (OTP_FLASH_DATA_KEY_SEED_SIZE //
                                         OTP_SECRET1_BLOCK_SIZE)
 
@@ -124,7 +124,7 @@ VMEM_FORMAT_STR = " {:0" + f"{FLASH_VMEM_WORD_SIZE // 4}" + "X}"
 @dataclass
 class FlashScramblingConfigs:
 
-    # Netlist constants
+    # OTP mmap netlist constants
     otp_secret1_scrambling_key: int = None
     addr_key_iv: int = None
     data_key_iv: int = None
@@ -132,10 +132,10 @@ class FlashScramblingConfigs:
     data_key_final_const: int = None
     # Provisioned / Pre-loaded state of Flash scrambling enablement in FLASH_DATA_DEFAULT_CFG
     scrambling_enabled: bool = False
-    # Provisioned / Pre-loaded key seeds in SECRET1 partition
+    # Provisioned / Pre-loaded Flash scrambling key seeds in SECRET1 partition
     addr_key_seed: int = None
     data_key_seed: int = None
-    # Derived scrambling keys
+    # Derived Flash scrambling keys (after applying the same transform as the hw OTP KDF)
     addr_key: int = None
     data_key: int = None
 
@@ -145,7 +145,7 @@ class FlashScramblingConfigs:
         else:
             return self.data_key_seed
 
-    def get_iv(self, ):
+    def get_iv(self, key_type: FlashScramblingKeyType):
         if key_type == FlashScramblingKeyType.ADDRESS:
             return self.addr_key_iv
         else:
@@ -221,6 +221,7 @@ def _get_otp_ctrl_netlist_consts(otp_mmap_file: str, otp_seed: Optional[int],
             log.error("No OTP seed provided.")
         try:
             otp_mmap = OtpMemMap(otp_mmap_config)
+            otp_mmap.gen_mmap_random_constants()
         except RuntimeError as err:
             log.error(err)
             exit(1)
@@ -240,7 +241,8 @@ def _get_otp_ctrl_netlist_consts(otp_mmap_file: str, otp_seed: Optional[int],
             scrambling_configs.data_key_final_const = digest["cnst_value"]
 
 
-def _get_flash_scrambling_configs(otp_vmem_file: str, otp_data_perm: list,
+def _get_flash_scrambling_configs(otp_vmem_file: str,
+                                  otp_data_perm: Optional[list],
                                   configs: FlashScramblingConfigs) -> None:
     """Read and parse an OTP .vmem file to extract the Flash scrambling key seeds.
 
@@ -266,6 +268,8 @@ def _get_flash_scrambling_configs(otp_vmem_file: str, otp_data_perm: list,
     # - SECRET1:        contains the flash scrambling key seeds.
     flash_data_default_cfg = None
     secret1_data_blocks = []
+
+    # Helper variables to accumulate parsed blocks
     otp_data_block = 0
     idx = 0
 
@@ -274,13 +278,14 @@ def _get_flash_scrambling_configs(otp_vmem_file: str, otp_data_perm: list,
         otp_data_word_w_ecc = int(line.split()[1], 16)
         # Un-permute bits if necessary.
         if otp_data_perm:
-            otp_data_word_as_str = format(
-                otp_data_word_w_ecc, "0" + str(OTP_WORD_SIZE_WECC) + "b")
-            otp_data_word_w_ecc = int(
-                inverse_permute_bits(otp_data_word_as_str, otp_data_perm),
-                2)
+            bin_fmt_str = "0" + str(OTP_WORD_SIZE_WECC) + "b"
+            otp_data_word_as_str = format(otp_data_word_w_ecc, bin_fmt_str)
+            otp_data_word_w_ecc = \
+                int(inverse_permute_bits(otp_data_word_as_str, otp_data_perm), 2)
         # Drop ECC bits.
         otp_data_word = otp_data_word_w_ecc & (2**OTP_WORD_SIZE - 1)
+        nonlocal otp_data_block
+        nonlocal idx
         otp_data_block |= otp_data_word << (idx * OTP_WORD_SIZE)
         idx += 1
 
@@ -335,7 +340,7 @@ def _get_flash_scrambling_configs(otp_vmem_file: str, otp_data_perm: list,
 
 def _derive_flash_scrambling_key(scrambling_configs: FlashScramblingConfigs,
                                   key_type: FlashScramblingKeyType) -> int:
-    """Perform the Static Scrambling Key Derivation, mirroring the hw OTP KDF.
+    """Perform the Static Scrambling Key Derivation, mirroring the OTP KDF.
 
     This matches the hardware implementation in the OTP Controller.
     """
@@ -463,6 +468,16 @@ def main(argv: List[str]):
                         generate an error.
                         """)
     args = parser.parse_args(argv)
+
+    log_level = log.DEBUG
+    log_format = '%(levelname)s: [%(filename)s:%(lineno)d] %(message)s'
+    log.basicConfig(level=log_level,
+                    format=log_format,
+                    handlers=[
+                        logging.FileHandler("gen-flash-img.log"),
+                        logging.StreamHandler()
+                    ])
+
     scrambling_configs = FlashScramblingConfigs()
 
     # (If provided) Validate optional OTP bit permutation configuration.
@@ -505,6 +520,7 @@ def main(argv: List[str]):
     # Write re-formatted output file. Use binary mode and a large buffer size
     # to improve performance.
     with open(args.out_flash_vmem, "wb", buffering=2097152) as of:
+        of.write(create_outfile_header(sys.argv[0], args).encode('utf-8'))
         of.write("\n".join(reformatted_vmem_lines).encode('utf-8'))
 
 

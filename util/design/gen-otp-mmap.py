@@ -87,8 +87,6 @@ def render_template(template: str, target_path: Path, otp_mmap: Dict,
     log.info(f"Rendered template to : {target_path}")
 
 def main():
-    log_format = '%(levelname)s: [%(filename)s:%(lineno)d] %(message)s'
-    log.basicConfig(level=log.INFO, format=log_format)
 
     parser = argparse.ArgumentParser(
         prog="gen-otp-mmap",
@@ -102,6 +100,15 @@ def main():
                         help='Custom seed for RNG to compute default values.')
 
     args = parser.parse_args()
+
+    log_level = log.DEBUG
+    log_format = '%(levelname)s: [%(filename)s:%(lineno)d] %(message)s'
+    log.basicConfig(level=log_level,
+                    format=log_format,
+                    handlers=[
+                        logging.FileHandler("gen-otp-mmap.log"),
+                        logging.StreamHandler()
+                    ])
 
     # The placement of sw difs requires this be run from repo_top.
     check_in_repo_top()

@@ -127,8 +127,8 @@ def _add_bitness_to_secded(secded_cfg: dict) -> None:
     secded_cfg["bitness"] = bitness
 
 
-def _to_memfile_with_ecc(data,
-                         annotation: list,
+def _to_memfile_with_ecc(data: list[int],
+                         annotation: list[str],
                          secded_cfg: dict,
                          data_perm: list[int]) -> str:
     """Compute ECC and convert into MEM file.
@@ -151,7 +151,6 @@ def _to_memfile_with_ecc(data,
     num_words = len(data) * 8 // data_width
     bytes_per_word = data_width // 8
     bytes_per_word_ecc = (data_width + ecc_width + 7) // 8
-    bit_padding = bytes_per_word_ecc * 8 - data_width - ecc_width
 
     layout_str = f"{num_words} x {secded_cfg['bitness']}bit"
     mem_lines = [
@@ -169,11 +168,14 @@ def _to_memfile_with_ecc(data,
             word += data[byte_address] << (i_byte * 8)
             word_annotations.add(annotation[byte_address])
 
-        word_bin = f"0{word}b"
+        # Convert to bin repr
+        bin_format_str = f"0{data_width}b"
+        word_bin = format(word, bin_format_str)
 
         # ECC encode
         word_bin = common.ecc_encode(secded_cfg, word_bin)
         # Pad to word boundary
+        bit_padding = bytes_per_word_ecc * 8 - data_width - ecc_width
         word_bin = ('0' * bit_padding) + word_bin
         # Permute data (if needed)
         word_bin = common.permute_bits(word_bin, data_perm)
@@ -325,60 +327,55 @@ class OtpMemImg(OtpMemMap):
 
         common.validate_data_perm_option(total_bitlen, self.data_perm)
 
-    def _get_lifecycle_partition_values(self, part: dict) -> None:
+    def _get_lifecycle_partition_values(self, mmap_part: dict, img_part: dict) -> None:
         """Use the LcStEnc object to get the encodings for the LC partition values.
 
-        Add these values as new partition 'items' in the input dictionary.
+        Validate the LIFE_CYCLE partition items given in the image partition.
+
+        Add these values to the LIFE_CYCLE partition 'items' in the config dict.
         """
 
-        part.setdefault('state', 'RAW')
-        part.setdefault('count', 0)
-        part['count'] = common.check_int(part['count'])
+        img_part.setdefault('state', 'RAW')
+        img_part.setdefault('count', 0)
+        img_part['count'] = common.check_int(img_part['count'])
 
         # Validate configuration
-        if len(part['items']) > 0:
+        if len(img_part['items']) > 0:
             raise RuntimeError(
                 'Life cycle items cannot directly be overridden')
-        if part['lock']:
+        img_part['lock'] = common.check_bool(img_part['lock'])
+        if img_part['lock']:
             raise RuntimeError('Life cycle partition cannot be locked')
-        if part['count'] == 0 and part['state'] != "RAW":
+        if img_part['count'] == 0 and img_part['state'] != "RAW":
             raise RuntimeError(
                 'Life cycle transition counter can only be zero in the RAW state')
 
-        # Get the correct encodings, and add them as the partition 'items'
-        state = self.lc_state.encode('lc_state', str(part['state']))
-        count = self.lc_state.encode('lc_cnt', str(part['count']))
-        part['items'] = [
-            {
-                'name': 'LC_STATE',
-                'value': '0x{:X}'.format(state)
-            },
-            {
-                'name': 'LC_TRANSITION_CNT',
-                'value': '0x{:X}'.format(count)
-            }
-        ]
+        # Get the correct encodings
+        state = self.lc_state.encode('lc_state', str(img_part['state']))
+        count = self.lc_state.encode('lc_cnt', str(img_part['count']))
 
+        # Add the encodings to the partition items
+        def _get_lc_item_by_name(name: str) -> dict:
+            return next(filter(lambda i: i['name'] == name, mmap_part["items"]))
+        _get_lc_item_by_name("LC_STATE")['value'] = '0x{:X}'.format(state)
+        _get_lc_item_by_name("LC_TRANSITION_CNT")['value'] = '0x{:X}'.format(count)
 
-    def _merge_item_data(self, part: dict, item: dict) -> None:
-        """Validate and merge the OTP partition item value into the OTP config dict."""
-
-        item.setdefault('name', 'unknown_name')
+    def _merge_item(self, img_part: dict, img_item: dict) -> None:
+        """Validate and merge the OTP image item into the OTP mmap dict."""
 
         # Item must already exist in the base mmap!
-        mmap_item = self.get_item(part['name'], item['name'])
+        mmap_item = self.get_item(img_part['name'], img_item['name'])
         if mmap_item is None:
-            raise RuntimeError('Item {} does not exist'.format(item['name']))
+            raise RuntimeError('Item {} does not exist'.format(img_item['name']))
 
-        item_size = mmap_item['size']
-        item_width = item_size * 8
+        width = mmap_item['size'] * 8
 
         # Helper method to print the value of non-mubi fields
         # - Print out max 64bit per line
-        def _value_str() -> str:
+        def _value_str(val) -> str:
             log_str_lines = []
-            fmt_str = '{:0' + str(item_size * 2) + 'x}'
-            value_str = fmt_str.format(item['value'])
+            fmt_str = '{:0' + str(mmap_item['size'] * 2) + 'x}'
+            value_str = fmt_str.format(val)
             bytes_per_line = 8
             j = 0
             while value_str:
@@ -392,86 +389,104 @@ class OtpMemImg(OtpMemMap):
                 log_str_lines.append('  {:06x}: '.format(j) + line_str)
                 j += bytes_per_line
 
-            return '\n'.join(log_str_lines)
+            return '\n' + '\n'.join(log_str_lines)
 
         # If needed, resolve the mubi value first
         # If not a mubi item, set a default value of 0x0 (if value not already given)
-        if mmap_item['ismubi']:
-            item.setdefault("value", "false")
-            item["value"] = common.check_bool(item["value"])
+        if img_item['value'] == '<random>':
+            # If the image item sets the item value to '<random>', leave it as
+            # this string value, and it will be assigned a new random value
+            # when gen_random_constants() is called after all overlays are applied
+            # if any '<random>' strings remain.
+            mmap_item["value"] = img_item['value']
+            # Format for print
+            pre_str = ""
+            val_str = mmap_item["value"]
+        elif mmap_item['ismubi']:
+            mmap_item.setdefault("value", "false")
+            mmap_item["value"] = common.check_bool(img_item["value"])
+            # Format for print
             pre_str = "mubi "
             val_str = \
-                f" kMultiBitBool{item_width}_{'True' if item['value'] else 'False'}"
-            item["value"] = mubi_value_as_int(item["value"], item_width)
+                f"kMultiBitBool{width}_{'True' if mmap_item['value'] else 'False'}"
+            # Store value as int in the config dict
+            mmap_item["value"] = mubi_value_as_int(mmap_item["value"], width)
         else:
-            item.setdefault('value', '0x0')
+            mmap_item.setdefault('value', '0x0')
+            # Store value as int in the config dict
+            mmap_item["value"] = common._try_convert_hex_range(img_item["value"], width)
+            # Format for print
             pre_str = ""
-            # val_str = '\n' + _value_str()
-            val_str = ' ' + str(item['value'])
+            val_str = ("0x{:0" + str(mmap_item['size'] * 2) + "x}").format(mmap_item['value'])
+            # val_str = _value_str(mmap_item["value"])
 
         # Log the value of the item.
-        log.debug('> Adding {}item {} with size {}B and value{}:'.format(
-            pre_str, item['name'], item_size, val_str))
-
-        # Add the item data into the base OTP mmap dict.
-        mmap_item['value'] = item['value']
+        log.debug('> Adding {}item {} with size {}B and value {}:'.format(
+            pre_str, mmap_item['name'], mmap_item['size'], val_str))
 
         # Key accounting
-        item_check = item.copy()
+        item_check = img_item.copy()
         del item_check['name']
         del item_check['value']
-        _check_unused_keys(item_check, 'in item {}'.format(item['name']))
+        _check_unused_keys(item_check, 'in item {}'.format(img_item['name']))
 
-    def _merge_part_data(self, part):
+    def _merge_part(self, img_part: dict):
         """Validate and merge the partition attributes into the config dict.
 
         If given the LC partition, this method also adds values for the
         lifecycle state / count.
         """
 
-        log.debug(f"Merging values into the '{part['name']}' partition.")
+        log.debug(f"Merging values into the '{img_part['name']}' partition.")
 
-        part.setdefault('name', 'unknown_name')
-        part.setdefault('items', [])
-        part.setdefault('lock', 'false')
+        img_part.setdefault('name', 'unknown_name')
+        img_part.setdefault('items', [])
+        img_part.setdefault('lock', 'false')
 
         # Validate
-        mmap_part = self.get_part(part['name'])
+        mmap_part = self.get_part(img_part['name'])
         if mmap_part is None:
-            raise RuntimeError(f"Partition {part['name']} does not exist")
-        if not isinstance(part['items'], list):
+            raise RuntimeError(f"Partition {img_part['name']} does not exist")
+        if not isinstance(img_part['items'], list):
             raise RuntimeError('the "items" key must contain a list')
 
         # Augment memory map datastructure with lock bit.
-        part['lock'] = common.check_bool(part['lock'])
-        mmap_part['lock'] = part['lock']
-        if part['lock'] and not mmap_part['hw_digest']:
+        mmap_part['lock'] = common.check_bool(img_part['lock'])
+        if mmap_part['lock'] and not mmap_part['hw_digest']:
             raise RuntimeError(
-                f"Partition {part['name']} was marked as 'locked' in the image "
+                f"Partition {img_part['name']} was marked as 'locked' in the image "
                 "configuration, but does not contain a hardware digest."
                 "Only partitions with a hardware digest can be locked.")
 
+        # Merge all items in the partition
+        for img_item in img_part['items']:
+            self._merge_item(img_part, img_item)
+
         # If this is the life_cycle partition, get the state encodings for each
         # item.
-        if part['name'] == 'LIFE_CYCLE':
-            self._get_lifecycle_partition_values(part)
+        if img_part['name'] == 'LIFE_CYCLE':
+            self._get_lifecycle_partition_values(mmap_part, img_part)
 
             # Key accounting
-            part_check = part.copy()
+            part_check = img_part.copy()
             del part_check['state']
             del part_check['count']
 
         else:
-            # Key accounting
-            part_check = part.copy()
-            if len(part['items']) == 0:
+            # Life-Cycle partition items cannot directly be overridden,
+            # and hence 'items' should be entry in the img_config dict
+            # All other partitions should have items.
+            if len(img_part['items']) == 0:
                 log.warning("Partition does not contain any items.")
+
+            # Key accounting
+            part_check = img_part.copy()
 
         # Key accounting
         del part_check['items']
         del part_check['name']
         del part_check['lock']
-        _check_unused_keys(part_check, "in partition {}".format(part['name']))
+        _check_unused_keys(part_check, "in partition {}".format(img_part['name']))
 
     def _merge_parts(self, img_config) -> None:
         """Validate and merge all partition data items in the OTP memory config."""
@@ -483,10 +498,8 @@ class OtpMemImg(OtpMemMap):
             raise RuntimeError('The "partitions" key must contain a list')
 
         # Walk all partition/item data and validate/merge
-        for part in img_config['partitions']:
-            self._merge_part_data(part)
-            for item in part['items']:
-                self._merge_item_data(part, item)
+        for img_part in img_config['partitions']:
+            self._merge_part(img_part)
 
     def _streamout_partition(self, part: dict) -> tuple[list[int], list[str]]:
         """Scramble and stream out partition data as a list of bytes.
@@ -509,20 +522,26 @@ class OtpMemImg(OtpMemMap):
         # Annotation is propagated into the MEM file as comments
         annotation = ['unallocated'] * part_size
         # Need to keep track of defined items for the scrambling.
-        # Undefined regions are left blank (0x0) in the memory.
+        # Undefined blocks are left blank (0x0) in the memory.
         defined = [False] * part_size
 
-        # First chop up all partition items into individual bytes.
+        # First assemble the data from all partition items into an
+        # array of individual bytes.
         data_bytes = [0] * part_size
         for item in part['items']:
+
+            # log.debug("> Item: offset {:4} | size {:4} | name {} = {}".format(
+            #     item["offset"], item["size"], item["name"], item['value']))
+
             for k in range(item['size']):
-                idx = item['offset'] - part_offset + k
+                idx = (item['offset'] + k) - part_offset
+                assert not defined[idx], "Unexpected item collision"
+
                 annotation[idx] = part_name + ': ' + item['name']
-                if 'value' in item:
-                    log.debug(f"item['name'] = {item['name']}")
-                    log.debug(f"item['value'] = {item['value']}")
-                    assert not defined[idx], "Unexpected item collision"
-                    data_bytes[idx] = ((int(item['value'], 0) >> (8 * k)) & 0xFF)
+                data_bytes[idx] = (item['value'] >> (8 * k)) & 0xFF
+
+                # Digest items cannot be defined
+                if not item['isdigest']:
                     defined[idx] = True
 
         # Reshape bytes into 64bit blocks (this must be aligned at this point)
@@ -539,10 +558,13 @@ class OtpMemImg(OtpMemMap):
                 # whole block is considered defined.
                 data_block_defined[k // 8] |= defined[k]
 
+        # log.debug(f"> data_blocks[] = {data_blocks}")
+        # log.debug(f"> data_block_defined[] = {data_block_defined}")
+
         # Check if scrambling is needed
         if part['secret']:
             key_sel = part['key_sel']
-            log.debug(f"> Scramble partition {part_name} with key '{key_sel}'")
+            log.debug(f"> Scrambling secret partition {part_name} with key '{key_sel}'")
 
             # Get scrambling key for this partition
             try:
@@ -553,15 +575,17 @@ class OtpMemImg(OtpMemMap):
             except:
                 raise RuntimeError(f"Scrambling key '{key_sel}' cannot be found.")
 
-            # Scramble all blocks in partition
+            # Scramble all (defined) blocks in partition
             for k in range(len(data_blocks)):
                 if data_block_defined[k]:
                     data_blocks[k] = _present_64bit_encrypt(
                         data_blocks[k], key['value'])
 
-        # Check if a 'hw_digest' partition should have it's digest pre-generated
+        # log.debug(f"> data_blocks[] = {data_blocks}")
+
+        # Check if a 'hw_digest' partition should have its digest pre-generated
         # This is controlled by setting the 'lock' attribute to 'True'.
-        # If so, calculate the digest
+        # If so, calculate the digest and insert it.
         if part['hw_digest']:
 
             # Make sure that the digest has not been overridden manually in the
@@ -576,7 +600,7 @@ class OtpMemImg(OtpMemMap):
                     "as locked.")
 
             if part.setdefault('lock', False):
-                log.debug('> Locking partition by computing digest.')
+                log.debug('> Locking partition by inserting computing digest.')
 
                 # Get the consistency digest constants
                 digestcfg = next(filter(lambda cfg: cfg['name'] == "CnstyDigest",
@@ -588,7 +612,7 @@ class OtpMemImg(OtpMemMap):
                     _present_64bit_digest(data_blocks[0:-1], iv, const)
             else:
                 log.debug(
-                    '> Partition is not locked, hence no digest is computed.')
+                    '> Partition is not locked, hence no digest is inserted.')
 
         # Convert to a list of bytes to make final packing into
         # OTP memory words independent of the cipher block size.
@@ -621,7 +645,6 @@ class OtpMemImg(OtpMemMap):
     def gen_random_constants(self) -> None:
         """Initialize the RNG, and use it to generate any parition item random values."""
 
-
         rng_seed = common.check_int(self.config["seed"])
 
         # (Re-)Initialize the RNG.
@@ -633,25 +656,26 @@ class OtpMemImg(OtpMemMap):
         log.debug('Initializing any random partition item values.')
         log.debug('')
 
+        # import pprint
+        # pprint.pprint(self.config['partitions'])
+
         # Use the initialized RNG to generate random values for all '<random>' values.
         did_randomize = 0
-        for part in self.img_config['partitions']:
+        for part in self.config['partitions']:
             for item in part['items']:
-                mmap_item = self.get_item(part['name'], item['name'])
-                item_size = mmap_item['size']
+                item_size = item['size']
                 item_width = item_size * 8
-                if not mmap_item['ismubi']:
+                if not item['ismubi']:
                     isRandomized = common.random_or_hexvalue(item, 'value', item_width)
-                    mmap_item['value'] = item['value']
                     if isRandomized:
                         did_randomize = 1
                         # Log the value of the item.
-                        log.debug('> Randomized item {} with size {}B and value 0b{:d}:'.format(
+                        log.debug('> Randomized item {} with size {}B and value {:d}:'.format(
                             item['name'], item_size, item['value']))
 
         if not did_randomize:
-            log.debug('')
             log.debug('No partition item values to randomize.')
+            log.debug('')
 
     def gen_memfile(self) -> str:
         """Generate the contents of a memory image in .vmem file format
