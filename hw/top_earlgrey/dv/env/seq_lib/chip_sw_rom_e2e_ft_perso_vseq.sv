@@ -6,7 +6,7 @@ class chip_sw_rom_e2e_ft_perso_vseq extends chip_sw_rom_e2e_base_vseq;
   `uvm_object_utils(chip_sw_rom_e2e_ft_perso_vseq)
   `uvm_object_new
 
-  string dumped_bank0 = "/home/harry/projects/opentitan/sw/device/silicon_creator/manuf/base/binaries/dump_FlashBank0Data.64.scr.vmem";
+  string dumped_bank0 = "/home/harry/projects/opentitan/binaries/dump_FlashBank0Data.64.scr.vmem";
 
   virtual task body();
     super.body();
