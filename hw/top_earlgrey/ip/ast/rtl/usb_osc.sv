@@ -55,7 +55,7 @@ initial begin
   #1;
   init_start = 1'b1;
   #1;
-  $display("\n%m: USB Clock Power-up Frequency: %0d Hz", $rtoi(10**9/CLK_PERIOD));
+  $display("%m: USB Clock Power-up Frequency: %0d Hz", $rtoi(10**9/CLK_PERIOD));
   usb_clk_drift =  max_drift ? ($urandom_range(0, 1) ? MAXUSBDRIFT : -MAXUSBDRIFT) : // +2% or -2%
                                ($urandom_range(0, 2*MAXUSBDRIFT) - MAXUSBDRIFT);  // Up to +/-2%
   $display("%m: USB Clock Drift: %0d ps", usb_clk_drift);

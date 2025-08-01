@@ -32,7 +32,7 @@ initial begin
   #1;
   init_start = 1'b1;
   #1;
-  $display("\n%m: AON Base Clock Power-up Frequency: %0d Hz", $rtoi(10**9/(CLK_PERIOD*ckmul)));
+  $display("%m: AON Base Clock Power-up Frequency: %0d Hz", $rtoi(10**9/(CLK_PERIOD*ckmul)));
   $display("%m: AON %0.1fxBase Clock Power-up Frequency: %0d Hz", ckmul, $rtoi(10**9/CLK_PERIOD));
 end
 

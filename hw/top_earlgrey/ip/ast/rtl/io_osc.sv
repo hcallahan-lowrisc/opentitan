@@ -31,7 +31,7 @@ initial begin
   #1;
   init_start  = 1'b1;
   #1;
-  $display("\n%m: IO Clock Power-up Frequency: %0d Hz", $rtoi(10**9/CLK_PERIOD));
+  $display("%m: IO Clock Power-up Frequency: %0d Hz", $rtoi(10**9/CLK_PERIOD));
 end
 
 // Enable 5us RC Delay on rise
