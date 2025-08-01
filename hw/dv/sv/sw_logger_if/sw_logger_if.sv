@@ -153,12 +153,16 @@ interface sw_logger_if #(
     // Iterate over the available sw names.
     foreach (sw_log_db_files[sw]) begin
       int fd;
-      fd = $fopen(sw_log_db_files[sw], "r");
-      if (!fd) begin
-        `dv_info($sformatf("Failed to open sw log db file %s.", sw_log_db_files[sw]))
+      if($system($sformatf("/usr/bin/env test -f %s", sw_log_db_files[sw])) != 0) begin
+        `dv_info($sformatf("SW log db file %s does not exist, cannot open.", sw_log_db_files[sw]))
         continue;
       end
-      `dv_info($sformatf("Loading sw log db file %s ...", sw_log_db_files[sw]))
+      fd = $fopen(sw_log_db_files[sw], "r");
+      if (!fd) begin
+        `dv_info($sformatf("Failed to open SW log db file %s.", sw_log_db_files[sw]))
+        continue;
+      end
+      `dv_info($sformatf("Loading SW log db file %s ...", sw_log_db_files[sw]))
 
       while (!$feof(fd)) begin
         string        field;
