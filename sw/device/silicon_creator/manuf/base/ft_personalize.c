@@ -384,6 +384,7 @@ static status_t personalize_otp_and_flash_secrets(ujson_t *uj) {
   // pages 1, 2, and 4 (keymgr and DICE keygen seeds).
   if (!status_ok(manuf_personalize_device_secrets_check(&otp_ctrl))) {
     lc_token_hash_t token_hash;
+    TRY(dif_gpio_write(&gpio, kGpioPinTestError, true));
     // Wait for the host to send the RMA unlock token hash over the console.
     base_printf("Waiting For RMA Unlock Token Hash ...\n");
     TRY(dif_gpio_write(&gpio, kGpioPinSpiConsoleRxReady, true));
