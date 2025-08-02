@@ -13,11 +13,11 @@ class chip_sw_rom_e2e_ft_perso_vseq extends chip_sw_rom_e2e_base_vseq;
 
     `uvm_info(`gfn, "chip_sw_rom_e2e_ft_perso_vseq::body()", UVM_LOW)
 
-    // IOA6 / GPIO4 is for SPI console RX ready signal.
-    // IOA5 / GPIO3 is for SPI console TX ready signal.
-    // IOA0 / GPIO2 is for error reporting.
-    // IOA1 / GPIO1 is for test done reporting.
-    // IOA4 / GPIO0 is for test start reporting.
+    // IOA6 (GPIO4) is for SPI console RX ready signal.
+    // IOA5 (GPIO3) is for SPI console TX ready signal.
+    // IOA4 (GPIO0) is for test start reporting.
+    // IOA1 (GPIO1) is for test done reporting.
+    // IOA0 (GPIO2) is for error reporting.
 
     `uvm_info(`gfn, "Backdoor-loading 'init' Flash0 test image now.", UVM_LOW)
     cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(dumped_bank0_init);
@@ -74,8 +74,12 @@ class chip_sw_rom_e2e_ft_perso_vseq extends chip_sw_rom_e2e_base_vseq;
              cfg.sw_test_timeout_ns)
     `uvm_info(`gfn, "Saw IOA4 go high now!", UVM_LOW)
 
+    `uvm_info(`gfn, "Dumping OTP to disk.", UVM_LOW)
+    cfg.mem_bkdr_util_h[Otp].write_mem_to_file("dump_OTP_transportinit.24.vmem");
+
     // Now, the final transport image has been loaded into flash, and we can dump it again to
     // get images suitable for backdoor-loading
+    `uvm_info(`gfn, "Dumping Flash to disk.", UVM_LOW)
     cfg.mem_bkdr_util_h[FlashBank0Data].write_mem_to_file("dump_FlashBank0Data_transport.64.scr.vmem");
     cfg.mem_bkdr_util_h[FlashBank1Data].write_mem_to_file("dump_FlashBank1Data_transport.64.scr.vmem");
     cfg.mem_bkdr_util_h[FlashBank0Info].write_mem_to_file("dump_FlashBank0Info_transport.64.scr.vmem");
