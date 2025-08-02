@@ -540,8 +540,11 @@ class OtpMemImg(OtpMemMap):
                 annotation[idx] = part_name + ': ' + item['name']
                 data_bytes[idx] = (item['value'] >> (8 * k)) & 0xFF
 
-                # Digest items cannot be defined
                 if not item['isdigest']:
+                    # Digest items cannot be defined
+                    continue
+                elif data_bytes[idx] > 0:
+                    # Defined items have a non-zero value
                     defined[idx] = True
 
         # Reshape bytes into 64bit blocks (this must be aligned at this point)
