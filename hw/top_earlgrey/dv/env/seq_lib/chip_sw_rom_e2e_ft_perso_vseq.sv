@@ -46,6 +46,9 @@ class chip_sw_rom_e2e_ft_perso_vseq extends chip_sw_rom_e2e_base_vseq;
     // with the new scrambling key
     // (aka. the final transport image)
 
+    `uvm_info(`gfn, "Dumping OTP to disk.", UVM_LOW)
+    cfg.mem_bkdr_util_h[Otp].write_mem_to_file("dump_OTP_transportinit.24.vmem");
+
     `uvm_info(`gfn, "Resetting chip.", UVM_LOW)
     assert_por_reset();
 

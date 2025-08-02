@@ -126,8 +126,11 @@ class chip_base_vseq #(
     // Initialize all memories via backdoor.
     cfg.mem_bkdr_util_h[FlashBank0Info].set_mem();
     cfg.mem_bkdr_util_h[FlashBank1Info].set_mem();
+
     // Backdoor load the OTP image.
+    `uvm_info(`gfn, "Initializing OTP.", UVM_MEDIUM)
     cfg.mem_bkdr_util_h[Otp].load_mem_from_file(cfg.otp_images[cfg.use_otp_image]);
+
     // Plusargs to selectively clear the provisioning state of some of the OTP partitions.
     // This is useful in tests that make front-door accesses for provisioning purposes.
     void'($value$plusargs("otp_clear_hw_cfg0=%0d", otp_clear_hw_cfg0));
