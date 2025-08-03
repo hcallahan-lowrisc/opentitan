@@ -538,7 +538,14 @@ class OtpMemImg(OtpMemMap):
                 assert not defined[idx], "Unexpected item collision"
 
                 annotation[idx] = part_name + ': ' + item['name']
-                data_bytes[idx] = (item['value'] >> (8 * k)) & 0xFF
+
+                # If the item has not been assigned a value in the Mem Image, it
+                # may not yet have a 'value' key. In that case, the byte is left
+                # as the default value of 0.
+                # #TODO move the notion of 'defined' to where item-values are
+                # merged.
+                if item.get('value', None):
+                    data_bytes[idx] = (item['value'] >> (8 * k)) & 0xFF
 
                 if not item['isdigest']:
                     # Digest items cannot be defined
