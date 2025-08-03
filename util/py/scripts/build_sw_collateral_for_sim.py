@@ -19,11 +19,13 @@ To 'connect' a particular piece of software collateral with the correct
 mechanism to load it into the sim, we append some extra metadata to the Bazel
 Label. We refer to this extra data as 'flags'. For example, the flag "signed"
 is used to set the SW image extension correctly. The flag "test_in_rom" is used
-to indicate a test runs directly out of ROM instead of flash.
+to indicate a test runs directly out of ROM instead of flash. The first flag is
+always the index-flag, which is an integer which identifies which device memory
+system the image should be loaded for (e.g. ROM, OTP, Flash, etc)
 
 A string for each sw image (root filename + index + flags) is also passed through
-to the tesbench, which re-parses (in chip_env_cfg.sv) it to extract the flags and
-index which determines which piece of collateral should be loaded (by filename)
+to the tesbench, which re-parses it (in chip_env_cfg.sv) to extract the index and
+flags which determines which piece of collateral should be loaded (by filename)
 to which simulated memory model.
 
 ACTIONS
@@ -53,9 +55,10 @@ e.g.
                                                                      index
 
 If one delimiter is detected, then the full string is considered to be the
-<label>. If two delimiters are detected, then it must be <label> followed by <index>.
+<label> (i.e. package+target).
+If two delimiters are detected, then it must be <label> followed by <index>.
 All trailing <flags> after the <index> are optional.
-Flags have no specific schema, and ordering of flags is not significant.
+Flags have no specific schema, and ordering of flags (after the index) is not significant.
 A list 'KNOWN_FLAGS' is maintained in this file to ensure each flag is documented.
 
 After the Bazel Target is built, we use `bazel cquery` to locate the built
@@ -160,7 +163,7 @@ class imageFlags:
         self.flags = parts[3:] if len(parts) > 3 else ()
         self.label = f"{self.package}:{self.target}"
 
-        assert all((flag in KNOWN_FLAGS) for flag in self.flags), "Unknown FLAG used in sw_image"
+        assert all((f in KNOWN_FLAGS) for f in self.flags), "Unknown FLAG used in sw_image"
         logger.debug(f"flags={self}")
 
 
@@ -288,7 +291,7 @@ def _deploy_software_collateral(args) -> None:
                 label = f"{flags.label}_{args.sw_build_device}"
 
             # For this type of image, relevant files may be present in both the 'data'
-            # and 'srcs' attributes of the target. Copy both.
+            # and 'srcs' attributes of the target. Query for both.
             cquery = f"labels(data, {label}) union labels(srcs, {label})"
 
         image_set[image] = imageQuery(label, cquery)
@@ -309,10 +312,11 @@ def _deploy_software_collateral(args) -> None:
     # Now the build is complete, deploy the files for each target
     for image in args.sw_images:
         logger.info(f'image={image}')
-        logger.debug(f"bazel_label={image_set[image].label}")
-        logger.debug(f"bazel_cquery={image_set[image].cquery}")
 
         bazel_label = image_set[image].label
+        bazel_cquery = image_set[image].cquery
+        logger.debug(f"bazel_label={bazel_label}")
+        logger.debug(f"bazel_cquery={bazel_cquery}")
 
         if logger.level <= logging.INFO:
             location_query_cmd = (
@@ -371,7 +375,7 @@ def _deploy_software_collateral(args) -> None:
                     bazel_cmd,
                     "cquery",
                     *bazel_airgapped_opts,
-                    f'{image_set[image].cquery}',
+                    f'{bazel_cquery}',
                     *BAZEL_COMMON_QUERY_FLAGS,
                     "--output=starlark",
                 )

@@ -23,8 +23,7 @@ enablement in FLASH_DATA_DEFAULT_CFG is extracted. To descramble this OTP .vmem
 image, an OTP mmap .hjson file must be provided, along with the matching seed
 value used for Netlist Constant generation. From this information, a scrambled
 Flash .vmem image can be generated which is able to be descrambled by an
-OpenTitan system synthesized with the given OTP mmap configuration + seed
-and loaded with the given OTP .vmem image.
+OpenTitan system synthesized with the given OTP mmap configuration + seed.
 
 The generated images are suitable for backdoor-loading of Flash models on
 simulation platforms (e.g., DV and Verilator).
@@ -38,6 +37,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import List, Optional
+from functools import partial
 
 import hjson
 from pyfinite import ffield
@@ -182,13 +182,10 @@ def _xex_scramble(data: int,
 
 
 def _convert_array_2_int(data_array: List[int],
-                         data_size: int,
-                         little_endian=True) -> int:
+                         data_size: int) -> int:
     """Converts array of data blocks to an int."""
 
     reformatted_data = 0
-    if not little_endian:
-        data_array.reverse()
     for i, data in enumerate(data_array):
         reformatted_data |= (data << (i * data_size))
     return reformatted_data
@@ -314,11 +311,12 @@ def _get_flash_scrambling_configs(otp_vmem_file: str,
                 idx = 0
 
     # Check we found the data we were looking for in the OTP image.
-    if flash_data_default_cfg is None:
+    if not flash_data_default_cfg:
         raise RuntimeError(
             "Cannot read flash scrambling enablement state from OTP.")
     if not secret1_data_blocks:
-        raise RuntimeError("Cannot read flash scrambling key seeds from OTP.")
+        raise RuntimeError(
+            "Cannot read flash scrambling key seeds from OTP.")
 
     # Descramble SECRET1 partition data blocks.
     otp_secret1_present_cipher = Present(configs.otp_secret1_scrambling_key,
@@ -328,14 +326,14 @@ def _get_flash_scrambling_configs(otp_vmem_file: str,
         map(otp_secret1_present_cipher.decrypt, secret1_data_blocks))
 
     # Finally extract the flash scrambling key seeds via their precomputed offsets.
-    configs.addr_key_seed = _convert_array_2_int(
+    _convert_64b_array_2_int = \
+        partial(_convert_array_2_int, data_size=OTP_SECRET1_BLOCK_SIZE)
+    configs.addr_key_seed = _convert_64b_array_2_int(
         descrambled_secret1_blocks[OTP_SECRET1_FLASH_ADDR_KEY_SEED_START:
-                                   OTP_SECRET1_FLASH_ADDR_KEY_SEED_STOP],
-        OTP_SECRET1_BLOCK_SIZE)
-    configs.data_key_seed = _convert_array_2_int(
+                                   OTP_SECRET1_FLASH_ADDR_KEY_SEED_STOP])
+    configs.data_key_seed = _convert_64b_array_2_int(
         descrambled_secret1_blocks[OTP_SECRET1_FLASH_DATA_KEY_SEED_START:
-                                   OTP_SECRET1_FLASH_DATA_KEY_SEED_STOP],
-        OTP_SECRET1_BLOCK_SIZE)
+                                   OTP_SECRET1_FLASH_DATA_KEY_SEED_STOP])
 
 
 def _derive_flash_scrambling_key(scrambling_configs: FlashScramblingConfigs,

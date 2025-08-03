@@ -263,8 +263,8 @@ def validate_data_perm_option(word_bit_length: int, data_perm: list[int]) -> Non
             'since it contains duplicated indices.'.format(data_perm))
 
 
-def inverse_permute_bits(bit_str, permutation) -> str:
-    """Un-permute the bits in a bitstring (inverse of `permute_bits`)."""
+def inverse_permute_bits(bit_str: str, permutation: list[int]) -> str:
+    """Un-permute the bits in a bitstring (inverse of `permute_bits()`)."""
     bit_str_len = len(bit_str)
     assert bit_str_len == len(permutation)
     bit_vector = ["0"] * bit_str_len
@@ -273,7 +273,7 @@ def inverse_permute_bits(bit_str, permutation) -> str:
     return ''.join(bit_vector)
 
 
-def permute_bits(bit_str, permutation) -> str:
+def permute_bits(bit_str: str, permutation: list[int]) -> str:
     """Permute the bits in a bitstring."""
     assert len(bit_str) == len(permutation)
     permword = ''
