@@ -16,30 +16,31 @@ class chip_sw_base_vseq extends chip_base_vseq;
 
   virtual task pre_start();
     super.pre_start();
-    set_and_release_sw_strap_nonblocking();
-    // Disable mem checks in scoreboard - it does not factor in memory scrambling.
+
+    // (Forever) drive sw_strap pins only when the ROM / test ROM code is active
+    fork set_and_release_sw_strap_nonblocking(); join_none
+
+    // #TODO The scoreboard does not factor in memory scrambling.
+    // Disable mem checks in scoreboard
     cfg.en_scb_mem_chk = 1'b0;
   endtask
 
-  // Drive sw_strap pins only when the ROM / test ROM code is active
+  // (Forever) drive sw_strap pins only when the ROM / test ROM code is active
   virtual task set_and_release_sw_strap_nonblocking();
     sw_test_status_e prev_status = SwTestStatusUnderReset;
-    fork begin
-      forever begin
-        wait (cfg.sw_test_status_vif.sw_test_status != prev_status);
-        case (cfg.sw_test_status_vif.sw_test_status)
-          SwTestStatusInBootRom: begin
-            cfg.chip_vif.sw_straps_if.drive({3{cfg.use_spi_load_bootstrap}});
-          end
-          SwTestStatusInTest: begin
-            if (disconnect_sw_straps_if)
-              cfg.chip_vif.sw_straps_if.disconnect();
-          end
-          default: ;
-        endcase
-        prev_status = cfg.sw_test_status_vif.sw_test_status;
-      end
-    end join_none
+    forever begin
+      wait (cfg.sw_test_status_vif.sw_test_status != prev_status);
+      case (cfg.sw_test_status_vif.sw_test_status)
+        SwTestStatusInBootRom: begin
+          cfg.chip_vif.sw_straps_if.drive({3{cfg.use_spi_load_bootstrap}});
+        end
+        SwTestStatusInTest: begin
+          if (disconnect_sw_straps_if) cfg.chip_vif.sw_straps_if.disconnect();
+        end
+        default:;
+      endcase
+      prev_status = cfg.sw_test_status_vif.sw_test_status;
+    end
   endtask
 
   virtual task dut_init(string reset_kind = "HARD");
@@ -53,15 +54,16 @@ class chip_sw_base_vseq extends chip_base_vseq;
   // Initialize the chip to enable SW to boot up and execute code.
   //
   // Backdoor load the sw test image, initialize memories, sw logger and test status interfaces.
-  // Note that this function is called the moment POR_N asserts. The chip resources including the
-  // CPU are brought out of reset much later, after the pwrmgr has gone through the wakeup sequence.
-  // Invoke cfg.chip_vif.cpu_clk_rst_vif.wait_for_reset() to bring the simulation to the point where
-  // the CPU is out of reset and ready to execute code.
+  //
+  // > Note that this function is called the moment POR_N asserts.
+  //
+  // The chip resources including the CPU are brought out of reset much later, after the pwrmgr has
+  // gone through the wakeup sequence.
   virtual task cpu_init();
      int size_bytes;
      int total_bytes;
 
-    `uvm_info(`gfn, "Starting cpu_init", UVM_MEDIUM)
+    `uvm_info(`gfn, "chip_sw_base_vseq::cpu_init() START.", UVM_MEDIUM)
 
     // Initialize the sw logger interface.
     foreach (cfg.sw_images[i]) begin
@@ -125,7 +127,7 @@ class chip_sw_base_vseq extends chip_base_vseq;
 
     config_jitter();
 
-    `uvm_info(`gfn, "cpu_init completed", UVM_MEDIUM)
+    `uvm_info(`gfn, "chip_sw_base_vseq::cpu_init() END.", UVM_MEDIUM)
   endtask
 
   task config_jitter();
@@ -263,11 +265,12 @@ class chip_sw_base_vseq extends chip_base_vseq;
     // Disable assertions mentioned in plusargs.
     assert_off();
     cfg.sw_test_status_vif.set_num_iterations(num_trans);
-    // Initialize the CPU to kick off the sw test. TODO: Should be called in pre_start() instead.
+
+    // Initialize the CPU to kick off the sw test.
+    // TODO: Should be called in pre_start() instead.
     if (cfg.early_cpu_init) begin
-      // if early_cpu_init is set, cpu_init is called from
-      // dut_init
-      `uvm_info(`gfn, "early_cpu_init is set. cpu_init is called during dut init", UVM_LOW)
+      // If early_cpu_init is set, cpu_init() was already called from dut_init()
+      `uvm_info(`gfn, "early_cpu_init is set. cpu_init() was called during dut_init()", UVM_LOW)
     end else begin
       cpu_init();
     end
@@ -312,8 +315,7 @@ class chip_sw_base_vseq extends chip_base_vseq;
   endfunction
 
   // Configure the provided spi_agent_cfg to use flash mode, and add the
-  // specification for the following common commands:
-  //   ReadSFDP, ReadStatus1, WriteEnable, ChipErase, and PageProgram.
+  // cmd_infos specifications for some common commands.
   virtual function void spi_agent_configure_flash_cmds(spi_agent_cfg agent_cfg);
     spi_flash_cmd_info info = spi_flash_cmd_info::type_id::create("info");
     info.addr_mode = SpiFlashAddrDisabled;

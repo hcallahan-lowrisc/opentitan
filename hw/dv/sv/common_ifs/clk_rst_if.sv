@@ -256,42 +256,51 @@ interface clk_rst_if #(
     o_rst_n = val;
   endtask
 
-  // apply reset with specified scheme
-  // Note: for power on reset, please ensure pre_reset_dly_clks is set to 0
+  // Generic task to assert and then deassert reset
+  //
+  // - Multiple schemas supported to control if the assert/deassert is sync or async
+  // - Configurable length of reset assertion
+  // - Configurable pre-assert and post-deassert delays
+  //
   task automatic apply_reset(int pre_reset_dly_clks   = 0,
                              int reset_width_clks = $urandom_range(50, 100),
                              int post_reset_dly_clks  = 0,
                              rst_scheme_e rst_n_scheme  = RstAssertAsyncDeassertSync);
-    if (drive_rst_n) begin
-      int dly_ps;
-      dly_ps = $urandom_range(0, clk_period_ps);
-      wait_clks(pre_reset_dly_clks);
-      case (rst_n_scheme)
-        RstAssertSyncDeassertSync: begin
-          o_rst_n <= 1'b0;
-          wait_clks(reset_width_clks);
-          o_rst_n <= 1'b1;
-        end
-        RstAssertAsyncDeassertSync: begin
-          #(dly_ps * 1ps);
-          o_rst_n <= 1'b0;
-          wait_clks(reset_width_clks);
-          o_rst_n <= 1'b1;
-        end
-        RstAssertAsyncDeassertASync: begin
-          #(dly_ps * 1ps);
-          o_rst_n <= 1'b0;
-          wait_clks(reset_width_clks);
-          dly_ps = $urandom_range(0, clk_period_ps);
-          #(dly_ps * 1ps);
-          o_rst_n <= 1'b1;
-        end
-        default: begin
-          `dv_fatal($sformatf("rst_n_scheme %0d not supported", rst_n_scheme), msg_id)
-        end
-      endcase
-      wait_clks(post_reset_dly_clks);
-    end
+    // If the global enable bit for this I/F is not set, just return.
+    if (!drive_rst_n) return;
+
+    `dv_info("clk_rst_if::apply_reset() START")
+
+    wait_clks(pre_reset_dly_clks);
+    case (rst_n_scheme)
+      RstAssertSyncDeassertSync: begin
+        o_rst_n <= 1'b0;
+        wait_clks(reset_width_clks);
+        o_rst_n <= 1'b1;
+      end
+      RstAssertAsyncDeassertSync: begin
+        int dly_ps = $urandom_range(0, clk_period_ps);
+        #(dly_ps * 1ps);
+        o_rst_n <= 1'b0;
+        wait_clks(reset_width_clks);
+        o_rst_n <= 1'b1;
+      end
+      RstAssertAsyncDeassertASync: begin
+        int dly_ps = $urandom_range(0, clk_period_ps);
+        #(dly_ps * 1ps);
+        o_rst_n <= 1'b0;
+        wait_clks(reset_width_clks);
+        dly_ps = $urandom_range(0, clk_period_ps);
+        #(dly_ps * 1ps);
+        o_rst_n <= 1'b1;
+      end
+      default: begin
+        `dv_fatal($sformatf("rst_n_scheme %0d not supported", rst_n_scheme), msg_id)
+      end
+    endcase
+    wait_clks(post_reset_dly_clks);
+
+    `dv_info("clk_rst_if::apply_reset() END")
   endtask
 
   // clk gen when the clock is active, so this waits until the set_active function was called.

@@ -78,32 +78,43 @@ class dv_base_vseq #(type RAL_T               = dv_base_reg_block,
    * startup, reset and shutdown related tasks
    */
   virtual task dut_init(string reset_kind = "HARD");
+    `uvm_info(`gfn, "dv_base_vseq::dut_init() START.", UVM_MEDIUM)
+
     if (do_apply_reset) begin
       apply_reset(reset_kind);
+      // Hook for post-reset actions
       post_apply_reset(reset_kind);
-    end else if (do_wait_for_reset) wait_for_reset(reset_kind);
-    // delay after reset for tl agent check seq_item_port empty
+
+    end else if (do_wait_for_reset) begin
+      wait_for_reset(reset_kind);
+    end
+
+    // Delay after reset for the TL-Agent to check seq_item_port is empty
     #1ps;
+    `uvm_info(`gfn, "dv_base_vseq::dut_init() END.", UVM_MEDIUM)
   endtask
 
+  // Apply and release all resets registered with the cfg object.
+  //
   virtual task apply_reset(string kind = "HARD");
-    if (kind == "HARD") begin
-      if (cfg.clk_rst_vifs.size() > 0) begin
-        fork
-          begin : isolation_fork
-            foreach (cfg.clk_rst_vifs[i]) begin
-              automatic string ral_name = i;
-              fork
-                cfg.clk_rst_vifs[ral_name].apply_reset();
-              join_none
-            end
-            wait fork;
-          end : isolation_fork
-        join
-      end else begin // no ral model and only has default clk_rst_vif
-        cfg.clk_rst_vif.apply_reset();
-      end
-    end // if (kind == "HARD")
+    // Only "HARD" reset is supported.
+    if (kind != "HARD") return;
+
+    `uvm_info(`gfn, "dv_base_vseq::apply_reset() START.", UVM_MEDIUM)
+
+    if (cfg.clk_rst_vifs.size() > 0) begin
+      fork begin : iso_fork
+        foreach (cfg.clk_rst_vifs[i]) begin
+          fork cfg.clk_rst_vifs[i].apply_reset(); join_none
+        end
+        wait fork;
+      end : iso_fork join
+    end else begin
+      // Only has default clk_rst_vif (no ral model)
+      cfg.clk_rst_vif.apply_reset();
+    end
+
+    `uvm_info(`gfn, "dv_base_vseq::apply_reset() END.", UVM_MEDIUM)
   endtask
 
   // Apply all resets in the DUT concurrently to generate a random in-test reset scenario.
