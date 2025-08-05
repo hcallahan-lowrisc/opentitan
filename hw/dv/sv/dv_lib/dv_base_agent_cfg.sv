@@ -24,7 +24,7 @@ class dv_base_agent_cfg extends uvm_object;
   // simulation early if a state is reached where the monitor will never signal 'ok_to_end'.
   // This can be very helpful to enable during development.
   bit watchdog_restart_count_limit_enabled = 1'b0;
-  uint watchdog_restart_count_limit = 1_000;
+  uint watchdog_restart_count_limit = 50;
 
   // Indicates that the interface is under reset. The derived monitor detects and maintains it.
   bit in_reset;
