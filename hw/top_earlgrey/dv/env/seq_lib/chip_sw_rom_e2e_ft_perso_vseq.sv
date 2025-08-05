@@ -6,7 +6,7 @@ class chip_sw_rom_e2e_ft_perso_vseq extends chip_sw_rom_e2e_base_vseq;
   `uvm_object_utils(chip_sw_rom_e2e_ft_perso_vseq)
   `uvm_object_new
 
-  string dumped_bank0_init = "/home/harry/projects/opentitan/binaries/dump_FlashBank0Data.64.scr.vmem";
+  string dumped_bank0_init;
 
   virtual task body();
     super.body();
@@ -14,6 +14,7 @@ class chip_sw_rom_e2e_ft_perso_vseq extends chip_sw_rom_e2e_base_vseq;
     `uvm_info(`gfn, "chip_sw_rom_e2e_ft_perso_vseq::body()", UVM_LOW)
 
     `uvm_info(`gfn, "Backdoor-loading 'init' Flash0 test image now.", UVM_LOW)
+    void'($value$plusargs("dumped_bank0_init=%0s", dumped_bank0_init));
     cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(dumped_bank0_init);
 
     // Wait for IOA4 (TestStart)

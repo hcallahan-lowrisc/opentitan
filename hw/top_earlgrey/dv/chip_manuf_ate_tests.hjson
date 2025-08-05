@@ -74,7 +74,8 @@
         "+disable_assert_final_checks",
         // "+sw_test_timeout_ns=1_000_000_000",
         "+sw_test_timeout_ns=1_000_000_000",
-        "+use_otp_image=OtpTypeCustom",
+        "+use_otp_image=OtpNone",
+        "+dumped_bank0_init={proj_root}/binaries/ft_personalize_sival/dump_FlashBank0Data.64.scr.vmem",
         "+skip_flash_bkdr_load=1",        // Do not backdoor-load Flash
         "+use_spi_load_bootstrap=0",      // Do not SPI-Bootstrap
       ]
@@ -104,7 +105,7 @@
       // scrambling keys and re-bootstrapped the transport image.
       // It begins by loading OTP and Flash .vmem dumps of the chip state after the transport image has been loaded.
       name: rom_e2e_ft_perso_sival_transport_backdoor
-      uvm_test_seq: chip_sw_rom_e2e_ft_perso3_vseq
+      uvm_test_seq: chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq
       sw_images: [
         "//sw/device/lib/testing/test_rom:test_rom:0"
       ]
@@ -113,24 +114,10 @@
         "+disable_assert_final_checks",
         "+sw_test_timeout_ns=1000000000",
         "+use_otp_image=OtpNone",
-      ]
-      run_timeout_mins: 60
-    }
-    {
-      // This test runs the simulation after the perso bootstrapping process has updated the SECRET1 flash
-      // scrambling keys and re-bootstrapped the transport image.
-      // It begins by loading OTP and Flash .vmem dumps of the chip state after the transport image has been loaded.
-      name: rom_e2e_ft_perso_emu_transport_backdoor
-      uvm_test_seq: chip_sw_rom_e2e_ft_perso3_vseq
-      sw_images: [
-        "//sw/device/silicon_creator/manuf/base:ft_personalize_emulation:1:new_rules",
-        "//sw/device/lib/testing/test_rom:test_rom:0"
-      ]
-      en_run_modes: ["sw_test_mode_base"]
-      run_opts: [
-        "+disable_assert_final_checks",
-        "+sw_test_timeout_ns=1000000000",
-        "+use_otp_image=OtpNone",
+        "+dumped_otp_transport={proj_root}/binaries/ft_personalize_sival/dump_OTP_transportinit.24.vmem",
+        "+dumped_bank0_transport={proj_root}/binaries/ft_personalize_sival/dump_FlashBank0Data_transport.64.scr.vmem",
+        "+skip_flash_bkdr_load=1",        // Do not backdoor-load Flash
+        "+use_spi_load_bootstrap=0",      // Do not SPI-Bootstrap
       ]
       run_timeout_mins: 60
     }
@@ -152,6 +139,27 @@
         "+use_spi_load_bootstrap=1",       // Use SPI-Bootstrap in chip_sw_base_vseq
       ]
       run_timeout_mins: 800
+    }
+    {
+      // This test runs the simulation after the perso bootstrapping process has updated the SECRET1 flash
+      // scrambling keys and re-bootstrapped the transport image.
+      // It begins by loading OTP and Flash .vmem dumps of the chip state after the transport image has been loaded.
+      name: rom_e2e_ft_perso_emu_transport_backdoor
+      uvm_test_seq: chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq
+      sw_images: [
+        "//sw/device/lib/testing/test_rom:test_rom:0"
+      ]
+      en_run_modes: ["sw_test_mode_base"]
+      run_opts: [
+        "+disable_assert_final_checks",
+        "+sw_test_timeout_ns=1000000000",
+        "+use_otp_image=OtpNone",
+        "+dumped_otp_transport={proj_root}/binaries/ft_personalize_emulation/dump_OTP_transportinit.24.vmem",
+        "+dumped_bank0_transport={proj_root}/binaries/ft_personalize_emulation/dump_FlashBank0Data_transport.64.scr.vmem",
+        "+skip_flash_bkdr_load=1",        // Do not backdoor-load Flash
+        "+use_spi_load_bootstrap=0",      // Do not SPI-Bootstrap
+      ]
+      run_timeout_mins: 60
     }
   ]
 
