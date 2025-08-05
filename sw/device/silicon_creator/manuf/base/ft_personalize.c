@@ -384,7 +384,8 @@ static status_t personalize_otp_and_flash_secrets(ujson_t *uj) {
   // pages 1, 2, and 4 (keymgr and DICE keygen seeds).
   if (!status_ok(manuf_personalize_device_secrets_check(&otp_ctrl))) {
     lc_token_hash_t token_hash;
-    TRY(dif_gpio_write(&gpio, kGpioPinTestError, true));
+    CHECK_DIF_OK(dif_gpio_write(&gpio, kGpioPinTestError, true));
+    CHECK_DIF_OK(dif_gpio_write(&gpio, kGpioPinTestDone, true));
     // Wait for the host to send the RMA unlock token hash over the console.
     base_printf("Waiting For RMA Unlock Token Hash ...\n");
     TRY(dif_gpio_write(&gpio, kGpioPinSpiConsoleRxReady, true));
@@ -1087,27 +1088,33 @@ static status_t finalize_otp_partitions(void) {
 }
 
 static status_t configure_ate_gpio_indicators(void) {
-  // IOA6 / GPIO4 is for SPI console RX ready signal.
+  // GPIO4 -> IOA6 is for SPI console RX ready signal.
+  // GPIO3 -> IOA5 is for SPI console TX ready signal.
+  // GPIO2 -> IOA0 is for error reporting.
+  // GPIO1 -> IOA1 is for test done reporting.
+  // GPIO0 -> IOA4 is for test start reporting.
   TRY(dif_pinmux_output_select(
-      &pinmux, kTopEarlgreyPinmuxMioOutIoa6,
-      kTopEarlgreyPinmuxOutselGpioGpio0 + kGpioPinSpiConsoleRxReady));
-  // IOA5 / GPIO3 is for SPI console TX ready signal.
+      &pinmux,
+      kTopEarlgreyPinmuxMioOutIoa6 /*mio_pad_output*/,
+      kTopEarlgreyPinmuxOutselGpioGpio0 + kGpioPinSpiConsoleRxReady /*outsel*/));
   TRY(dif_pinmux_output_select(
-      &pinmux, kTopEarlgreyPinmuxMioOutIoa5,
-      kTopEarlgreyPinmuxOutselGpioGpio0 + kGpioPinSpiConsoleTxReady));
-  // IOA0 / GPIO2 is for error reporting.
+      &pinmux,
+      kTopEarlgreyPinmuxMioOutIoa5 /*mio_pad_output*/,
+      kTopEarlgreyPinmuxOutselGpioGpio0 + kGpioPinSpiConsoleTxReady /*outsel*/));
   TRY(dif_pinmux_output_select(
-      &pinmux, kTopEarlgreyPinmuxMioOutIoa0,
-      kTopEarlgreyPinmuxOutselGpioGpio0 + kGpioPinTestError));
-  // IOA1 / GPIO1 is for test done reporting.
+      &pinmux,
+      kTopEarlgreyPinmuxMioOutIoa0, /*mio_pad_output*/
+      kTopEarlgreyPinmuxOutselGpioGpio0 + kGpioPinTestError /*outsel*/));
   TRY(dif_pinmux_output_select(
-      &pinmux, kTopEarlgreyPinmuxMioOutIoa1,
-      kTopEarlgreyPinmuxOutselGpioGpio0 + kGpioPinTestDone));
-  // IOA4 / GPIO0 is for test start reporting.
+      &pinmux,
+      kTopEarlgreyPinmuxMioOutIoa1, /*mio_pad_output*/
+      kTopEarlgreyPinmuxOutselGpioGpio0 + kGpioPinTestDone /*outsel*/));
   TRY(dif_pinmux_output_select(
-      &pinmux, kTopEarlgreyPinmuxMioOutIoa4,
-      kTopEarlgreyPinmuxOutselGpioGpio0 + kGpioPinTestStart));
-  TRY(dif_gpio_output_set_enabled_all(&gpio, 0x1f));  // Enable first 5 GPIOs.
+      &pinmux,
+      kTopEarlgreyPinmuxMioOutIoa4 /*mio_pad_output*/,
+      kTopEarlgreyPinmuxOutselGpioGpio0 + kGpioPinTestStart /*outsel*/));
+
+  TRY(dif_gpio_output_set_enabled_all(&gpio, /*state*/0x1f));  // Enable first 5 GPIOs.
   TRY(dif_gpio_write_all(&gpio, /*write_val=*/0));    // Intialize all to 0.
   return OK_STATUS();
 }
