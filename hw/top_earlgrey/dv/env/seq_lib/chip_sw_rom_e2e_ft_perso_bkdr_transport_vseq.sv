@@ -26,23 +26,16 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
 
     `uvm_info(`gfn, "Backdoor-loading 'transport' OTP image now.", UVM_LOW)
     cfg.mem_bkdr_util_h[Otp].load_mem_from_file(dumped_otp_transport);
-
-    // `uvm_info(`gfn, "Backdoor-loading 'transport' Flash0 test image now.", UVM_LOW)
-    // cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(dumped_bank0_transport);
+    `uvm_info(`gfn, "Backdoor-loading 'transport' Flash0 test image now.", UVM_LOW)
+    cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(dumped_bank0_transport);
 
     // Wait for IOA4 (TestStart)
     await_ioa("IOA4");
 
-    fork
-      // Wait for IOA5 (SPI console TX ready), for the first point the software is awaiting HOST input
-      await_ioa("IOA5");
-      // Wait for IOA0 (ErrorReporting)
-      // (temporarily added to the block we should now be reaching which awaits SPI console input)
-      await_ioa("IOA0");
-      // Wait for IOA1 (TestDoneReporting)
-      // (temporarily added to the block we should now be reaching which awaits SPI console input)
-      await_ioa("IOA1");
-    join
+    // Wait for IOA5 (SPI console TX ready), for the first point the software is awaiting HOST input
+    await_ioa("IOA5");
+
+    // Drive SPI-Console...
 
     // Set test passed.
     override_test_status_and_finish(.passed(1'b1));
