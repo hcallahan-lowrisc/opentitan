@@ -117,6 +117,24 @@
       run_timeout_mins: 60
     }
     {
+      // This test runs the simulation after the perso bootstrapping process has updated the SECRET1 flash
+      // scrambling keys and re-bootstrapped the transport image.
+      // It begins by loading OTP and Flash .vmem dumps of the chip state after the transport image has been loaded.
+      name: rom_e2e_ft_perso_emu_transport_backdoor
+      uvm_test_seq: chip_sw_rom_e2e_ft_perso3_vseq
+      sw_images: [
+        "//sw/device/silicon_creator/manuf/base:ft_personalize_emulation:1:new_rules",
+        "//sw/device/lib/testing/test_rom:test_rom:0"
+      ]
+      en_run_modes: ["sw_test_mode_base"]
+      run_opts: [
+        "+disable_assert_final_checks",
+        "+sw_test_timeout_ns=1000000000",
+        "+use_otp_image=OtpNone",
+      ]
+      run_timeout_mins: 60
+    }
+    {
       // This test is used to dump the Flash contents after SPI-bootstrapping...
       name: rom_e2e_ft_perso_emu_transport_dump
       uvm_test_seq: chip_sw_rom_e2e_ft_perso_dump_vseq
