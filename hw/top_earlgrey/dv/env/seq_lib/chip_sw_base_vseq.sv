@@ -1265,4 +1265,28 @@ class chip_sw_base_vseq extends chip_base_vseq;
     end
   endfunction
 
+  virtual task await_ioa(string name);
+    string timeout_msg = $sformatf("Timed out waiting for %0s to go high.", name);
+
+    // IOA6 (GPIO4) is for SPI console RX ready signal.
+    // IOA5 (GPIO3) is for SPI console TX ready signal.
+    // IOA4 (GPIO0) is for test start reporting.
+    // IOA1 (GPIO1) is for test done reporting.
+    // IOA0 (GPIO2) is for error reporting.
+
+    `uvm_info(`gfn, $sformatf("Waiting for %0s to go high now...", name), UVM_LOW)
+    case (name)
+	    "IOA6": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa5] == '1, timeout_msg, cfg.sw_test_timeout_ns)
+	    "IOA5": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa5] == '1, timeout_msg, cfg.sw_test_timeout_ns)
+	    "IOA4": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa4] == '1, timeout_msg, cfg.sw_test_timeout_ns)
+	    // "IOA3": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa3] == '1, timeout_msg, cfg.sw_test_timeout_ns)
+	    // "IOA2": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa2] == '1, timeout_msg, cfg.sw_test_timeout_ns)
+	    "IOA1": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa1] == '1, timeout_msg, cfg.sw_test_timeout_ns)
+	    "IOA0": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa0] == '1, timeout_msg, cfg.sw_test_timeout_ns)
+	    default : `uvm_fatal(`gfn, "Given name of IOAx pad is not supported by await!")
+    endcase
+
+    `uvm_info(`gfn, $sformatf("Saw %0s go high now!", name), UVM_LOW)
+  endtask: await_ioa
+
 endclass : chip_sw_base_vseq
