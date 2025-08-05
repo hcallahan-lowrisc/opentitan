@@ -767,7 +767,6 @@ class OtpMemImg(OtpMemMap):
                     'ismubi': item['ismubi'],
                     'num_items': item['size'] / alignment,
                 })
-                items.append(item)
 
             if len(items):
                 data[part['name']] = {

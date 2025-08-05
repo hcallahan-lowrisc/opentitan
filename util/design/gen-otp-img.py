@@ -263,7 +263,7 @@ def main():
     if args.c_out:
         log.info(f'Generating C file: {args.c_out}')
         file_body = otp_mem_img.generate_c_file(
-            file_header=create_outfile_header(sys.argv[0], args),
+            fileheader=create_outfile_header(sys.argv[0], args),
             templatefile=args.c_template)
         args.c_out.write_bytes(file_body.encode('utf-8'))
         # Return early (The --out flag is ignored if --c-out is given)
