@@ -5,6 +5,7 @@
 use anyhow::Result;
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
+use std::io::Write;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -12,6 +13,8 @@ use crate::io::console::ConsoleDevice;
 use crate::io::gpio::GpioPin;
 use crate::io::spi::Target;
 use crate::spiflash::flash::SpiFlash;
+use tempfile::NamedTempFile;
+
 
 pub struct SpiConsoleDevice<'a> {
     spi: &'a dyn Target,
@@ -165,6 +168,10 @@ impl<'a> ConsoleDevice for SpiConsoleDevice<'a> {
     }
 
     fn console_write(&self, buf: &[u8]) -> Result<()> {
+        let dump = NamedTempFile::new().unwrap();
+        let (mut dump, path) = dump.keep().unwrap();
+        println!("Dumping 'console_write()' buf to file : {}", path.display());
+        dump.write_all(buf).unwrap();
         let buf_len: usize = buf.len();
         let mut written_data_len: usize = 0;
         while written_data_len < buf_len {
