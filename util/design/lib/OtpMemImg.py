@@ -547,12 +547,16 @@ class OtpMemImg(OtpMemMap):
                 if item.get('value', None):
                     data_bytes[idx] = (item['value'] >> (8 * k)) & 0xFF
 
-                if not item['isdigest']:
-                    # Digest items cannot be defined
-                    continue
-                elif data_bytes[idx] > 0:
-                    # Defined items have a non-zero value
+                    if item['isdigest']:
+                        # Digest items cannot be defined
+                        continue
+
                     defined[idx] = True
+
+                log.debug("> Item: name {} idx {} = 0x{:02x}".format(
+                    item["name"], idx, data_bytes[idx]))
+
+
 
         # Reshape bytes into 64bit blocks (this must be aligned at this point)
         assert len(data_bytes) % 8 == 0, 'data_bytes must be 64bit aligned'
