@@ -50,6 +50,13 @@ otp_json(
                 # sw/device/silicon_creator/lib/sigverify/spx_verify.h for
                 # details on how to disable this feature.
                 "CREATOR_SW_CFG_SIGVERIFY_SPX_EN": otp_hex(0x8d6c8c17),
+                # #TODO disable flash scrambling at the individualized stage. This is
+                # only enabled during personalization after SECRET1 has been provisioned,
+                # and will prevent the personalization program from correctly requesting
+                # a bootstrap.
+                # I've only left this enabled for now as the .vmem files I have dumped to
+                # speed up simulation were created with this enabled, so this avoids having
+                # to re-dump new images.
                 # Enable flash data page scrambling and ECC.
                 "CREATOR_SW_CFG_FLASH_DATA_DEFAULT_CFG": "0000090606",
                 "CREATOR_SW_CFG_FLASH_INFO_BOOT_DATA_CFG": otp_hex(0x0),
