@@ -103,7 +103,7 @@ impl<'a> SpiConsoleDevice<'a> {
 
         if self.get_tx_ready_pin()?.is_some() {
             // When using the TX-indicator pin feature, we always write each SPI frame at the
-            // beginning of the flash buffer, and wait for the host to ready it out before writing
+            // beginning of the flash buffer, and wait for the host to read it out before writing
             // another frame.
             self.next_read_address.set(0);
         } else {
