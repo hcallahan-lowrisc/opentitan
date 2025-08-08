@@ -45,8 +45,10 @@ otp_json(
                 # sw/device/silicon_creator/lib/sigverify/spx_verify.h for
                 # details on how to disable this feature.
                 "CREATOR_SW_CFG_SIGVERIFY_SPX_EN": otp_hex(0x0),
-                # Enable flash data page scrambling and ECC.
-                "CREATOR_SW_CFG_FLASH_DATA_DEFAULT_CFG": "0000090606",
+                  # _DO NOT ENABLE_ flash data page scrambling and ECC.
+                  # This will only be enabled during personalization after SECRET1 / flash scrambling key seeds
+                  # have been provisioned.
+                  # "CREATOR_SW_CFG_FLASH_DATA_DEFAULT_CFG": "0000090606",
                 "CREATOR_SW_CFG_FLASH_INFO_BOOT_DATA_CFG": otp_hex(0x0),
                 "CREATOR_SW_CFG_FLASH_HW_INFO_CFG_OVERRIDE": otp_hex(0x0),
                 # Disable use of entropy for countermeasures. See the definition

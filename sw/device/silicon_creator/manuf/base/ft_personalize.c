@@ -366,16 +366,22 @@ static status_t measure_otp_partition(otp_partition_t partition,
  * scrambling, and reboot.
  */
 static status_t personalize_otp_and_flash_secrets(ujson_t *uj) {
+
   // (If not already provisioned) Provision OTP Secret1 partition
   if (!status_ok(manuf_personalize_device_secret1_check(&otp_ctrl))) {
     TRY(manuf_personalize_device_secret1(&lc_ctrl, &otp_ctrl));
+    // After provisioning SECRET1, we will need to re-bootstrap the test program
+    // as the existing scrambling key seeds are no longer valid to de-scramble
+    // the Flash Data pages.
   }
 
   // (If not already provisioned) Provision the OTP CreatorSwCfg flash data region default.
   if (!status_ok(manuf_individualize_device_flash_data_default_cfg_check(&otp_ctrl))) {
     TRY(manuf_individualize_device_field_cfg(&otp_ctrl, OTP_CTRL_PARAM_CREATOR_SW_CFG_FLASH_DATA_DEFAULT_CFG_OFFSET));
-    // After provisioning FLASH_DATA_DEFAULT_CFG, we need to re-bootstrap the test program
-    // as the existing scrambling keys are no longer valid to de-scramble the Flash Data pages.
+    // At this point, SECRET1 should now be provisioned, and flash scrambling has been enabled.
+    // Therefore, the current binary loaded into slot-A can no-longer be de-scrambled, and hence we
+    // need to reset and bootstrap again. During bootstrapping, the payload will be scrambled with
+    // the new scrambling keys by the OTP controller.
     base_printf("Bootstrap requested.\n");
     wait_for_interrupt();
   }
