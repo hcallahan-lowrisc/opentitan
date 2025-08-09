@@ -9,11 +9,43 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
   string dumped_otp_transport;
   string dumped_bank0_transport;
 
+  string RMA_UNLOCK_TOKEN_HASH_FILE;
+  string RMA_UNLOCK_TOKEN_HASH_CRC_FILE;
+  string MANUF_PERSO_DATA_BACK_FILE;
+  string PERSO_CERTGEN_INPUTS_FILE;
+
+  bit [7:0] RMA_UNLOCK_TOKEN_HASH[];
+  bit [7:0] RMA_UNLOCK_TOKEN_HASH_CRC[];
+  bit [7:0] MANUF_PERSO_DATA_BACK[];
+  bit [7:0] PERSO_CERTGEN_INPUTS[];
+
   virtual task pre_start();
+    int fd;
     super.pre_start();
 
     void'($value$plusargs("dumped_otp_transport=%0s", dumped_otp_transport));
     void'($value$plusargs("dumped_bank0_transport=%0s", dumped_bank0_transport));
+
+    // Get the HOST->DEVICE spi_console inputs
+    void'($value$plusargs("RMA_UNLOCK_TOKEN_HASH_FILE=%0s", RMA_UNLOCK_TOKEN_HASH_FILE));
+    fd = $fopen(RMA_UNLOCK_TOKEN_HASH_FILE, "rb");
+    $fread(RMA_UNLOCK_TOKEN_HASH, fd);
+    $fclose(fd);
+
+    void'($value$plusargs("RMA_UNLOCK_TOKEN_HASH_CRC_FILE=%0s", RMA_UNLOCK_TOKEN_HASH_CRC_FILE));
+    fd = $fopen(RMA_UNLOCK_TOKEN_HASH_CRC_FILE, "rb");
+    $fread(RMA_UNLOCK_TOKEN_HASH_CRC, fd);
+    $fclose(fd);
+
+    void'($value$plusargs("MANUF_PERSO_DATA_BACK_FILE=%0s", MANUF_PERSO_DATA_BACK_FILE));
+    fd = $fopen(MANUF_PERSO_DATA_BACK_FILE, "rb");
+    $fread(MANUF_PERSO_DATA_BACK, fd);
+    $fclose(fd);
+
+    void'($value$plusargs("PERSO_CERTGEN_INPUTS_FILE=%0s", PERSO_CERTGEN_INPUTS_FILE));
+    fd = $fopen(PERSO_CERTGEN_INPUTS_FILE, "rb");
+    $fread(PERSO_CERTGEN_INPUTS, fd);
+    $fclose(fd);
 
     // Enable the 'chip_reg_block' tl_agent to end the simulation if the 'ok_to_end' watchdog
     // resets too many times. This ends the simulation swiftly if something has gone wrong.
@@ -43,9 +75,16 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
 
     // Wait for IOA5 (SPI console TX ready), for the first point the software is awaiting HOST input
     await_ioa("IOA5");
-
     // Send/Receive SPI-Console...
     host_spi_console_wait_for("Waiting For RMA Unlock Token Hash");
+    // (If not already de-asserted) wait for the SPI console TX ready to be cleared by the DEVICE.
+    await_ioa("IOA5", 1'b0);
+
+    // Wait for IOA6 (SPI console RX ready), when the HOST should write the "RMA Unlock Token Hash"
+    await_ioa("IOA6");
+
+    host_spi_console_write(RMA_UNLOCK_TOKEN_HASH);
+    host_spi_console_write(RMA_UNLOCK_TOKEN_HASH_CRC);
 
     // Set test passed.
     override_test_status_and_finish(.passed(1'b1));
@@ -53,7 +92,10 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
 
   function bit findStrRe(string re, string str);
     bit match = uvm_re_match(re, str);
-    $display(" MATCH=%0d, string: \"%s\", regex: \"%s\"", match, str, re);
+    // if match begin
+    //   $display("findStrRe() MATCH=%0d, string: \"%s\", regex: \"%s\"", match, str, re);
+    // end
+    $display("findStrRe() MATCH=%0d, string: \"%s\", regex: \"%s\"", match, str, re);
     return match;
   endfunction
 
@@ -61,11 +103,6 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     string str = "";
     foreach (q[i]) $sformat(str, "%s%0s", str, q[i]);
     return str;
-  endfunction
-
-  function void print_queue_as_str(logic[7:0] q[$]);
-    string str = byte_queue_as_str(q);
-    `uvm_info(`gfn, $sformatf("Printing queue now :\n %0s", str), UVM_LOW)
   endfunction
 
   // spi_console impl
@@ -79,9 +116,11 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
   // const SPI_TX_LAST_CHUNK_MAGIC_ADDRESS : u32   =      0x100;
   // const SPI_BOOT_MAGIC_PATTERN          : u32   = 0xcafeb002;
   //
-  // - tx_ready_pin (IOA5)
+  // - tx_ready_gpio (IOA5 here...)
   //   - Flow-control mechanism for DEVICE->HOST transfers
-  //   - ENABLED for ft_personalize.c
+  //   - ENABLED for ft_personalize.c (`console_tx_indicator.enable = true`)
+  //   - The DEVICE sets the 'tx_ready' gpio when the SPI console buffer has data, and clears
+  //     the gpio when there is no longer data available.
   //   - When using the TX-indicator pin feature, we always write each SPI frame at the
   //     beginning of the flash buffer, and wait for the host to read it out before writing
   //     another frame.
@@ -118,14 +157,10 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     // Get data out of the sequence once completed.
     chunk_q = m_spi_host_seq.rsp.payload_q;
 
-    // `uvm_info(`gfn, "Printing payload_q from host_spi_console_read()...", UVM_LOW)
-    // print_queue_as_str(payload_q);
-
     // `uvm_info(`gfn, "Printing payload_q from host_spi_console_read().", UVM_LOW)
     // foreach(payload_q[idx]) begin
     //   $display("payload_q[%0d]: 0x%02x / %0d / %0s", idx, payload_q[idx], payload_q[idx], payload_q[idx]);
     // end
-
   endtask
 
   virtual task host_spi_console_wait_for(string wait_for); // DEVICE -> HOST
@@ -139,16 +174,42 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
       bit [7:0] q[$];
       host_spi_console_read(q);
       chunk_q = {chunk_q, q};
-      chunk_q_as_str = byte_queue_as_str(chunk_q);
       `uvm_info(`gfn, "Finished host_spi_console_read(), current chunk_q_as_str...", UVM_LOW)
-      print_queue_as_str(chunk_q);
-    end while (!findStrRe(re_wait_for, chunk_q_as_str));
+      `uvm_info(`gfn, $sformatf("Printing queue now :\n %0s", byte_queue_as_str(q)), UVM_LOW)
+    end while (!findStrRe(re_wait_for, byte_queue_as_str(chunk_q)));
 
     `uvm_info(`gfn, "Got the expected string in the spi_console.", UVM_LOW)
   endtask
 
-  virtual task host_spi_console_write(); // HOST -> DEVICE
+  virtual task host_spi_console_write(ref bit [7:0] bytes[]); // HOST -> DEVICE
+    uint SPI_FLASH_PAYLOAD_BUFFER_SIZE = 256; // Don't overwrite the PAYLOAD BUFFER
+    bit [31:0] SPI_TX_ADDRESS = '0;
+    bit [31:0] SPI_TX_LAST_CHUNK_MAGIC_ADDRESS = 9'h100;
+    uint bytes_remaining = $size(bytes);
 
+    host_spi_console_write_buf(bytes, SPI_TX_ADDRESS);
+
+    // do begin
+    //   host_spi_console_write_buf(bytes[63:0]);
+    // end while ();
+
+  endtask
+
+  virtual task host_spi_console_write_buf(ref bit [7:0] bytes[], bit[31:0] addr); // HOST -> DEVICE
+    bit [7:0] byte_addr_q[$] = {};
+    uint payload_size = 64;
+
+    spi_host_flash_seq m_spi_host_seq;
+    `uvm_create_on(m_spi_host_seq, p_sequencer.spi_host_sequencer_h);
+
+    `uvm_info(`gfn, "host_spi_console_write_buf() - Start.", UVM_LOW)
+
+    m_spi_host_seq.opcode = SpiFlashPageProgram;
+    m_spi_host_seq.address_q = {addr[23:16], addr[15:8], addr[7:0]};
+    for (int i = 0; i < payload_size; i++) begin
+      m_spi_host_seq.payload_q.push_back(bytes[i]);
+    end
+    spi_host_flash_issue_write_cmd(m_spi_host_seq);
   endtask
 
 endclass : chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq
