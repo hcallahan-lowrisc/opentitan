@@ -370,13 +370,12 @@ static status_t personalize_otp_and_flash_secrets(ujson_t *uj) {
   // (If not already provisioned) Provision OTP Secret1 partition
   if (!status_ok(manuf_personalize_device_secret1_check(&otp_ctrl))) {
     TRY(manuf_personalize_device_secret1(&lc_ctrl, &otp_ctrl));
-    // After provisioning SECRET1, we will need to re-bootstrap the test program
-    // as the existing scrambling key seeds are no longer valid to de-scramble
-    // the Flash Data pages.
   }
 
   // (If not already provisioned) Provision the OTP CreatorSwCfg flash data region default.
   if (!status_ok(manuf_individualize_device_flash_data_default_cfg_check(&otp_ctrl))) {
+    // Get here if the CREATOR_SW_CFG_FLASH_DATA_DEFAULT_CFG has _NOT_ been provisioned.
+    // i.e. it's value is anything except 0x90606
     TRY(manuf_individualize_device_field_cfg(&otp_ctrl, OTP_CTRL_PARAM_CREATOR_SW_CFG_FLASH_DATA_DEFAULT_CFG_OFFSET));
     // At this point, SECRET1 should now be provisioned, and flash scrambling has been enabled.
     // Therefore, the current binary loaded into slot-A can no-longer be de-scrambled, and hence we
@@ -390,8 +389,6 @@ static status_t personalize_otp_and_flash_secrets(ujson_t *uj) {
   // pages 1, 2, and 4 (keymgr and DICE keygen seeds).
   if (!status_ok(manuf_personalize_device_secrets_check(&otp_ctrl))) {
     lc_token_hash_t token_hash;
-    CHECK_DIF_OK(dif_gpio_write(&gpio, kGpioPinTestError, true));
-    CHECK_DIF_OK(dif_gpio_write(&gpio, kGpioPinTestDone, true));
     // Wait for the host to send the RMA unlock token hash over the console.
     base_printf("Waiting For RMA Unlock Token Hash ...\n");
     TRY(dif_gpio_write(&gpio, kGpioPinSpiConsoleRxReady, true));
