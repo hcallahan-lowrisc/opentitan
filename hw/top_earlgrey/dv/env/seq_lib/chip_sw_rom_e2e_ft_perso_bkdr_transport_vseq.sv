@@ -70,21 +70,30 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     `uvm_info(`gfn, "Backdoor-loading 'transport' Flash0 test image now.", UVM_LOW)
     cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(dumped_bank0_transport);
 
+    // Wait for the DEVICE to execute the ROM and then boot the Flash0 transport image.
+
     // Wait for IOA4 (TestStart)
     await_ioa("IOA4");
 
-    // Wait for IOA5 (SPI console TX ready), for the first point the software is awaiting HOST input
-    await_ioa("IOA5");
-    // Send/Receive SPI-Console...
-    host_spi_console_wait_for("Waiting For RMA Unlock Token Hash");
-    // (If not already de-asserted) wait for the SPI console TX ready to be cleared by the DEVICE.
-    await_ioa("IOA5", 1'b0);
+    // Since we are starting with a .vmem image dumped after provisioning the flash scrambling key
+    // seeds (SECRET1) and enabling scrambling (FLASH_DATA_DEFAULT_CFG), the first spi_console
+    // activity will be waiting for the DEVICE to request the RMA Unlock Token
+    // (in personalize_otp_and_flash_secrets()).
+    host_spi_console_read_wait_for("Waiting For RMA Unlock Token Hash"); // MAGIC STRING
 
-    // Wait for IOA6 (SPI console RX ready), when the HOST should write the "RMA Unlock Token Hash"
-    await_ioa("IOA6");
+    // The device has now requested the Unlock Token.
+    // Write it over the spi console.
 
-    host_spi_console_write(RMA_UNLOCK_TOKEN_HASH);
-    host_spi_console_write(RMA_UNLOCK_TOKEN_HASH_CRC);
+    `DV_SPINWAIT(
+      // WAIT_
+      begin
+        host_spi_console_write(RMA_UNLOCK_TOKEN_HASH);
+        host_spi_console_write(RMA_UNLOCK_TOKEN_HASH_CRC);
+      end,
+      // MSG_
+      "Timeout waiting for the RMA_UNLOCK_TOKEN spi_console_write() to complete." ,
+      // TIMEOUT_NS_
+      5_000)
 
     // Set test passed.
     override_test_status_and_finish(.passed(1'b1));
@@ -163,12 +172,15 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     // end
   endtask
 
-  virtual task host_spi_console_wait_for(string wait_for); // DEVICE -> HOST
+  virtual task host_spi_console_read_wait_for(string wait_for); // DEVICE -> HOST
     bit [7:0] chunk_q[$];
     string    chunk_q_as_str;
     string    re_wait_for = $sformatf(".*%0s.*", wait_for);
 
     `uvm_info(`gfn, $sformatf("Waiting for following string in the spi_console : %0s", wait_for), UVM_LOW)
+
+    `uvm_info(`gfn, "Waiting for the DEVICE to set 'tx_ready' (IOA5)", UVM_LOW)
+    await_ioa("IOA5", 1'b1);
 
     do begin
       bit [7:0] q[$];
@@ -179,6 +191,10 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     end while (!findStrRe(re_wait_for, byte_queue_as_str(chunk_q)));
 
     `uvm_info(`gfn, "Got the expected string in the spi_console.", UVM_LOW)
+
+    // (If not already de-asserted) wait for the SPI console TX ready to be cleared by the DEVICE.
+    `uvm_info(`gfn, "Waiting for the DEVICE to clear 'tx_ready' (IOA5)", UVM_LOW)
+    await_ioa("IOA5", 1'b0);
   endtask
 
   virtual task host_spi_console_write(ref bit [7:0] bytes[]); // HOST -> DEVICE
@@ -187,11 +203,18 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     bit [31:0] SPI_TX_LAST_CHUNK_MAGIC_ADDRESS = 9'h100;
     uint bytes_remaining = $size(bytes);
 
+    `uvm_info(`gfn, "Will write to the spi_console. Awaiting the DEVICE to set 'rx_ready' (IOA6)", UVM_LOW)
+    await_ioa("IOA6", 1'b1);
+
+    `uvm_info(`gfn, "'rx_ready' is set. Writing to the spi_console now.", UVM_LOW)
     host_spi_console_write_buf(bytes, SPI_TX_ADDRESS);
 
     // do begin
     //   host_spi_console_write_buf(bytes[63:0]);
     // end while ();
+
+    `uvm_info(`gfn, "Finished writing to the spi_console. Awaiting the DEVICE to clear 'rx_ready' (IOA6)", UVM_LOW)
+    await_ioa("IOA6", 1'b0);
 
   endtask
 
