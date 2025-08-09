@@ -1267,7 +1267,7 @@ class chip_sw_base_vseq extends chip_base_vseq;
     end
   endfunction
 
-  virtual task await_ioa(string name);
+  virtual task await_ioa(string name, bit val = 1'b1);
     string timeout_msg = $sformatf("Timed out waiting for %0s to go high.", name);
 
     // IOA6 (GPIO4) is for SPI console RX ready signal.
@@ -1278,13 +1278,13 @@ class chip_sw_base_vseq extends chip_base_vseq;
 
     `uvm_info(`gfn, $sformatf("Waiting for %0s to go high now...", name), UVM_LOW)
     case (name)
-	    "IOA6": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa5] == '1, timeout_msg, cfg.sw_test_timeout_ns)
-	    "IOA5": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa5] == '1, timeout_msg, cfg.sw_test_timeout_ns)
-	    "IOA4": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa4] == '1, timeout_msg, cfg.sw_test_timeout_ns)
-	    // "IOA3": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa3] == '1, timeout_msg, cfg.sw_test_timeout_ns)
-	    // "IOA2": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa2] == '1, timeout_msg, cfg.sw_test_timeout_ns)
-	    "IOA1": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa1] == '1, timeout_msg, cfg.sw_test_timeout_ns)
-	    "IOA0": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa0] == '1, timeout_msg, cfg.sw_test_timeout_ns)
+	    "IOA6": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa5] == val, timeout_msg, cfg.sw_test_timeout_ns)
+	    "IOA5": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa5] == val, timeout_msg, cfg.sw_test_timeout_ns)
+	    "IOA4": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa4] == val, timeout_msg, cfg.sw_test_timeout_ns)
+	    // "IOA3": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa3] == val, timeout_msg, cfg.sw_test_timeout_ns)
+	    // "IOA2": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa2] == val, timeout_msg, cfg.sw_test_timeout_ns)
+	    "IOA1": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa1] == val, timeout_msg, cfg.sw_test_timeout_ns)
+	    "IOA0": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa0] == val, timeout_msg, cfg.sw_test_timeout_ns)
 	    default : `uvm_fatal(`gfn, "Given name of IOAx pad is not supported by await!")
     endcase
 
