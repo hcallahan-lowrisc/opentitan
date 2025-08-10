@@ -276,10 +276,11 @@ def _deploy_software_collateral(args) -> None:
                                       sw_type_e.SwTypeOtbn):
 
             if "silicon_creator" in flags.flags:
-                # If the tag `silicon_creator` is inside the list of flags, we want
-                # to use a flash image built for the `silicon_creator` device. This
-                # is used for GLS tests that integrate the ROM macro, which is built
-                # for the `silicon_creator` device, not the `sim_dv` device.
+                # Add the flag `silicon_creator` when using a flash image built
+                # for the `silicon_creator` device.
+                # This is used for GLS tests that integrate the ROM macro, which
+                # is built for the `silicon_creator` device, not the `sim_dv` device.
+                #
                 # Currently, the '_silicon_creator' suffix is added manually when
                 # instantiating rules.
                 label = f"{flags.label}_silicon_creator"
