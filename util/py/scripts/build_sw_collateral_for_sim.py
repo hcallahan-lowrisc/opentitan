@@ -426,7 +426,7 @@ def _deploy_software_collateral(args) -> None:
         if is_device_specific:
             logger.info(
                 f"This query returned device_specific '{dev}' files, filtering...")
-            runfiles = list(filter(lambda f: _f_endswith_dev(Path(f)), runfiles))
+            # runfiles = list(filter(lambda f: _f_endswith_dev(Path(f)), runfiles))
 
         # We have built and queried to determine all the needed software collateral for the simulation
         # The final step is to copy it to the test's working directory so it can be accessed easily
