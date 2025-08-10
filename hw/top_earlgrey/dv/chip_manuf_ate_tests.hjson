@@ -130,7 +130,10 @@
       name: rom_e2e_ft_perso_emu_transport_dump
       uvm_test_seq: chip_sw_rom_e2e_ft_perso_dump_vseq
       sw_images: [
-        "//sw/device/silicon_creator/manuf/base:ft_personalize_emulation:1:new_rules",
+        // Add the 'silicon_creator' flag because the default 'sw_build_device' of sim_dv does
+        // not enable the OTTF, and hence we cannot interact with the perso binary over the
+        // spi_console. (sim_dv assumes use of the sw_logger_if instead of the OTTF)
+        "//sw/device/silicon_creator/manuf/base:ft_personalize_emulation:1:silicon_creator",
         "//hw/ip/otp_ctrl/data/earlgrey_skus/emulation:otp_img_dev_manuf_individualized:4"
         "//sw/device/lib/testing/test_rom:test_rom:0"
       ]
