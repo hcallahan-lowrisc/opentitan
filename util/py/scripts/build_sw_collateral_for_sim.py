@@ -14,7 +14,7 @@ is actually needed by the simulator may be different depending on configuration,
 such as if the binary is scrambled/unscrambled, .vmem or .bin format, etc.
 Our rules are designed to build many possible pieces of collateral at once, all
 with the same common root filename, but with different suffixes and file extensions
-that differentiate their different formats (and uses).
+that differentiate their formats and uses.
 To 'connect' a particular piece of software collateral with the correct
 mechanism to load it into the sim, we append some extra metadata to the Bazel
 Label. We refer to this extra data as 'flags'. For example, the flag "signed"
