@@ -17,9 +17,14 @@ class chip_sw_rom_e2e_ft_perso_vseq extends chip_sw_rom_e2e_base_vseq;
     void'($value$plusargs("dumped_bank0_init=%0s", dumped_bank0_init));
     cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(dumped_bank0_init);
 
+    // Wait until we reach the start of the Test ROM
+    `DV_WAIT(cfg.sw_test_status_vif.sw_test_status == SwTestStatusInBootRom)
+
     // Wait for IOA4 (TestStart)
     await_ioa("IOA4");
-    // Wait for IOA5 (SPI console TX ready), for the first point the software is awaiting HOST input
+
+    // Wait for IOA5 (SPI console TX ready), where the device would send the following string:
+    // "Bootstrap requested.\n"
     await_ioa("IOA5");
 
     // At this point, the test binary has already written to the CreatorSwCfg flash data region default
@@ -52,9 +57,9 @@ class chip_sw_rom_e2e_ft_perso_vseq extends chip_sw_rom_e2e_base_vseq;
     cfg.mem_bkdr_util_h[FlashBank0Info].write_mem_to_file("dump_FlashBank0Info_transport.64.scr.vmem");
     cfg.mem_bkdr_util_h[FlashBank1Info].write_mem_to_file("dump_FlashBank1Info_transport.64.scr.vmem");
 
-    // Wait for IOA0 (ErrorReporting)
-    // (temporarily added to the block we should now be reaching which awaits SPI console input)
-    await_ioa("IOA0");
+    // Wait for IOA5 (SPI console TX ready), where the device would send the following string:
+    // "Waiting For RMA Unlock Token Hash ...\n"
+    await_ioa("IOA5");
 
     // Set test passed.
     override_test_status_and_finish(.passed(1'b1));
