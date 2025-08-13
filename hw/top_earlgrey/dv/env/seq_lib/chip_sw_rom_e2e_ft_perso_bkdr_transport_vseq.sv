@@ -182,7 +182,7 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     // seeds (SECRET1) and enabling scrambling (FLASH_DATA_DEFAULT_CFG), the first spi_console
     // activity will be waiting for the DEVICE to request the RMA Unlock Token
     // (in personalize_otp_and_flash_secrets()).
-    host_spi_console_read_wait_for(SYNC_STR_READ_RMA_TOKEN); // MAGIC STRING
+    cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_RMA_TOKEN); // MAGIC STRING
 
     // The device has now requested the Unlock Token.
     // Write it over the spi console.
@@ -194,8 +194,8 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
         await_ioa("IOA6", 1'b1);
 
         `uvm_info(`gfn, "'rx_ready' is set. Writing to the spi_console now.", UVM_LOW)
-        host_spi_console_write(RMA_UNLOCK_TOKEN_HASH);
-        host_spi_console_write(RMA_UNLOCK_TOKEN_HASH_CRC);
+        cfg.spi_console_h.host_spi_console_write(RMA_UNLOCK_TOKEN_HASH);
+        cfg.spi_console_h.host_spi_console_write(RMA_UNLOCK_TOKEN_HASH_CRC);
 
         `uvm_info(`gfn, "Finished writing to the spi_console. Awaiting the DEVICE to clear 'rx_ready' (IOA6)", UVM_LOW)
         await_ioa("IOA6", 1'b0);
@@ -219,7 +219,7 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     cfg.mem_bkdr_util_h[Otp].write_mem_to_file("dump_OTP_perso_secrets.24.vmem");
 
     // Next, we provision all device certificates.
-    host_spi_console_read_wait_for(SYNC_STR_READ_PERSO_DICE_CERTS); // MAGIC STRING
+    cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_PERSO_DICE_CERTS); // MAGIC STRING
 
     `DV_SPINWAIT(
       // WAIT_
@@ -228,7 +228,7 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
         await_ioa("IOA6", 1'b1);
 
         `uvm_info(`gfn, "'rx_ready' is set. Writing to the spi_console now.", UVM_LOW)
-        host_spi_console_write(PERSO_CERTGEN_INPUTS);
+        cfg.spi_console_h.host_spi_console_write(PERSO_CERTGEN_INPUTS);
 
         `uvm_info(`gfn, "Finished writing to the spi_console. Awaiting the DEVICE to clear 'rx_ready' (IOA6)", UVM_LOW)
         await_ioa("IOA6", 1'b0);
@@ -239,7 +239,7 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
       500_000)
 
     // Wait until the device exports the TBS certificates.
-    host_spi_console_read_wait_for(SYNC_STR_WRITE_TBS_CERTS); // MAGIC STRING
+    cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_WRITE_TBS_CERTS); // MAGIC STRING
 
     ///////////////////////////////////////////////
     // Set test passed.
@@ -254,7 +254,7 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     // Nothing to do, we already have the answer in a file.
 
     // Wait until the device indicates it can import the endorsed certificate files.
-    host_spi_console_read_wait_for(SYNC_STR_READ_ENDORSED_CERTS); // MAGIC STRING
+    cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_ENDORSED_CERTS); // MAGIC STRING
 
     `DV_SPINWAIT(
       // WAIT_
@@ -263,7 +263,7 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
         await_ioa("IOA6", 1'b1);
 
         `uvm_info(`gfn, "'rx_ready' is set. Writing to the spi_console now.", UVM_LOW)
-        host_spi_console_write(MANUF_PERSO_DATA_BACK);
+        cfg.spi_console_h.host_spi_console_write(MANUF_PERSO_DATA_BACK);
 
         `uvm_info(`gfn, "Finished writing to the spi_console. Awaiting the DEVICE to clear 'rx_ready' (IOA6)", UVM_LOW)
         await_ioa("IOA6", 1'b0);
@@ -274,12 +274,12 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
       500_000)
 
     // Wait until the device indicates it has successfully imported the endorsed certificate files.
-    host_spi_console_read_wait_for(SYNC_STR_READ_FINISHED_CERT_IMPORTS); // MAGIC STRING
+    cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_FINISHED_CERT_IMPORTS); // MAGIC STRING
 
     // The device checks the imported certificate package...
 
     // Wait until the device indicates it has successfully completed perso!
-    host_spi_console_read_wait_for(SYNC_STR_READ_PERSO_DONE); // MAGIC STRING
+    cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_PERSO_DONE); // MAGIC STRING
 
     // Set test passed.
     override_test_status_and_finish(.passed(1'b1));
@@ -310,243 +310,5 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
       $display("q[%0d]: 0x%02x / %0d / %0s", idx, q[idx], q[idx], q[idx]);
     end
   endfunction
-
-  // spi_console impl
-  //
-  // CONSTANTS
-  // const SPI_FRAME_HEADER_SIZE           : usize =   12;
-  // const SPI_FLASH_READ_BUFFER_SIZE      : u32   = 2048;
-  // const SPI_FLASH_PAYLOAD_BUFFER_SIZE   : usize =  256;
-  // const SPI_MAX_DATA_LENGTH             : usize = 2036;
-  // const SPI_FRAME_MAGIC_NUMBER          : u32   = 0xa5a5beef;
-  // const SPI_TX_LAST_CHUNK_MAGIC_ADDRESS : u32   =      0x100;
-  // const SPI_BOOT_MAGIC_PATTERN          : u32   = 0xcafeb002;
-  //
-  //
-  // DEVICE->HOST transfers
-  // (READS from our perspective)
-  //
-  //     FRAME STRUCTURE
-  //
-  //      -----------------------------------------------
-  //      |      Magic Number     | 4-bytes  |          |
-  //      -----------------------------------|          |
-  //      |      Frame Number     | 4-bytes  |  Header  |
-  //      -----------------------------------|          |
-  //      |   Data Length (bytes) | 4-bytes  |          |
-  //      -----------------------------------|----------|
-  //      |      Data (word aligned)         |          |
-  //      -----------------------------------|   Data   |
-  //      |     0xFF Pad Bytes    | <4-bytes |          |
-  //      -----------------------------------|----------|
-  //
-  //     - tx_ready_gpio (IOA5 here...)
-  //       - Flow-control mechanism for DEVICE->HOST transfers
-  //       - ENABLED for ft_personalize.c (`console_tx_indicator.enable = true`)
-  //       - The DEVICE sets the 'tx_ready' gpio when the SPI console buffer has data, and clears
-  //         the gpio when there is no longer data available.
-  //       - When using the TX-indicator pin feature, we always write each SPI frame at the
-  //         beginning of the flash buffer, and wait for the host to read it out before writing
-  //         another frame.
-  //
-  //
-  // HOST->DEVICE transfers
-  // (WRITES from our perspective)
-  //
-  //     - DEVICE signals ready by asserting RX-indicator (RxReady)
-  //     - Message is chunked in payloads, each of which are written (via upload command) to address zero.
-  //       - After each upload, HOST polls busy to await the DEVICE to read back the buffer.
-  //     - For final chunk, HOST uploads it to a special address (SPI_TX_LAST_CHUNK_MAGIC_ADDRESS)
-  //     - After DEVICE reads the final chunk, it de-asserts the RX-indicator (RxReady)
-  //
-
-
-  //////////////////
-  // CONSOLE READ //
-  //////////////////
-  // host_spi_console_read()
-  // host_spi_console_read_frame()
-  // host_spi_console_read_wait_for()
-
-  // Drive a single ReadNormal operation from the DEVICE spi console.
-  //
-  //
-  virtual task host_spi_console_read(input int        size,
-                                     input bit [31:0] addr,
-                                     ref bit [7:0]    chunk_q[$]); // DEVICE -> HOST
-    // Set the flash read address
-    bit [7:0] byte_addr_q[$] = {addr[23:16], addr[15:8], addr[7:0]};
-
-    spi_host_flash_seq m_spi_host_seq;
-    `uvm_create_on(m_spi_host_seq, p_sequencer.spi_host_sequencer_h);
-
-    `DV_CHECK_RANDOMIZE_WITH_FATAL(m_spi_host_seq,
-      opcode == SpiFlashReadNormal;
-      address_q.size() == byte_addr_q.size();
-      foreach (byte_addr_q[i]) address_q[i] == byte_addr_q[i];
-      payload_q.size() == size;
-      read_size == size;
-    )
-
-    `uvm_info(`gfn, "host_spi_console_read() - Start.", UVM_LOW)
-    `uvm_send(m_spi_host_seq)
-    `uvm_info(`gfn, "host_spi_console_read() - End.", UVM_LOW)
-
-    // Get data out of the sequence once completed.
-    foreach (m_spi_host_seq.rsp.payload_q[i]) chunk_q.push_back(m_spi_host_seq.rsp.payload_q[i]);
-
-  endtask : host_spi_console_read
-
-  // Read a single frame from the DEVICE spi console.
-  //
-  //
-  virtual task host_spi_console_read_frame(ref bit [7:0] chunk_q[$]); // DEVICE -> HOST
-    uint SPI_FLASH_READ_BUFFER_SIZE = 2048; // Don't overwrite our PAYLOAD BUFFER
-    uint SPI_MAX_DATA_LENGTH = 2036;
-    uint SPI_FRAME_HEADER_SIZE = 12;
-    bit [31:0] header_data_bytes;
-
-    // First, get the header of the current frame.
-    begin : get_header
-      bit [31:0] magic_number = 32'ha5a5beef;
-      bit [31:0] header_magic_number;
-      bit [31:0] header_frame_number;
-      bit [7:0] header_q[$];
-      host_spi_console_read(.size(SPI_FRAME_HEADER_SIZE), .addr(0), .chunk_q(header_q));
-      header_magic_number = reverse_endianess({>>{header_q[0:3]}});
-      header_frame_number = reverse_endianess({>>{header_q[4:7]}});
-      header_data_bytes =   reverse_endianess({>>{header_q[8:11]}});
-      `uvm_info(`gfn, $sformatf("Got header : 0x%0s", byte_q_as_hex(header_q)), UVM_LOW)
-      `uvm_info(`gfn, $sformatf("Got header : %0p", header_q), UVM_LOW)
-      `uvm_info(`gfn,
-                $sformatf("Magic Number : 0x%02x Frame Number : 0x%02x, Num_Data_Bytes : 0x%02x",
-                          header_magic_number, header_frame_number, header_data_bytes),
-                UVM_LOW)
-      `DV_CHECK_EQ(header_magic_number, magic_number, "Incorrect SPI Console Header MAGIC_NUM")
-      `DV_CHECK_LT(header_data_bytes, SPI_MAX_DATA_LENGTH, "Cannot handle this many data bytes!")
-    end
-
-    // Next, get all the data_bytes from the frame.
-    while (header_data_bytes > 0) begin
-      bit [7:0] data_q[$];
-      host_spi_console_read(.size(header_data_bytes), .addr(SPI_FRAME_HEADER_SIZE), .chunk_q(data_q));
-      `uvm_info(`gfn, $sformatf("Got data_bytes : %0s", byte_q_as_str(data_q)), UVM_LOW)
-      // #TODO Assume we read all bytes in one go, for now. The DV_CHECK_EQ in the header block will
-      // stop us for now if the payload is too large.
-      header_data_bytes = 0;
-
-      // Append the bytes from this read transfer to the overall queue.
-      chunk_q = {chunk_q, data_q};
-    end
-
-  endtask : host_spi_console_read_frame
-
-  //
-  //
-  //
-  virtual task host_spi_console_read_wait_for(input string wait_for); // DEVICE -> HOST
-    bit [7:0] chunk_q[$];
-    string    chunk_q_as_str;
-
-    `uvm_info(`gfn, $sformatf("Waiting for following string in the spi_console : %0s", wait_for), UVM_LOW)
-
-    `uvm_info(`gfn, "Waiting for the DEVICE to set 'tx_ready' (IOA5)", UVM_LOW)
-    await_ioa("IOA5", 1'b1);
-
-    // Next, get all the data_bytes from the frame until we see the expected message in the buffer.
-    do begin
-      bit [7:0] data_q[$];
-      host_spi_console_read_frame(.chunk_q(data_q));
-      `uvm_info(`gfn, $sformatf("Got data_bytes : %0s", byte_q_as_str(data_q)), UVM_LOW)
-      // Append the bytes from this read transfer to the overall queue.
-      chunk_q = {chunk_q, data_q};
-    end while (!findStrRe(wait_for, byte_q_as_str(chunk_q)));
-
-    `uvm_info(`gfn, "Got the expected string in the spi_console.", UVM_LOW)
-
-    // (If not already de-asserted) wait for the SPI console TX ready to be cleared by the DEVICE.
-    `uvm_info(`gfn, "Waiting for the DEVICE to clear 'tx_ready' (IOA5)", UVM_LOW)
-    await_ioa("IOA5", 1'b0);
-
-  endtask : host_spi_console_read_wait_for
-
-  ///////////////////
-  // CONSOLE WRITE //
-  ///////////////////
-  // host_spi_console_write()
-  // host_spi_console_write_buf()
-
-  //
-  //
-  //
-  virtual task host_spi_console_write(input bit [7:0] bytes[]); // HOST -> DEVICE
-    uint SPI_FLASH_PAYLOAD_BUFFER_SIZE = 256; // Don't overwrite the PAYLOAD BUFFER
-    bit [31:0] SPI_TX_ADDRESS = '0;
-    bit [31:0] SPI_TX_LAST_CHUNK_MAGIC_ADDRESS = 9'h100;
-    uint written_data_len = 0;
-
-    `uvm_info(`gfn,
-              $sformatf("console_write()(str) :: len = %0d : %0s",
-                        $size(bytes), byte_array_as_str(bytes)),
-              UVM_LOW)
-
-    do begin
-      // - chunk_len holds the size of the current chunk we are about to write
-      // - write_address is the address the current chunk will be written to
-      uint chunk_len;
-      bit [31:0] write_address;
-
-      uint remaining_len = $size(bytes) - written_data_len;
-
-      if (remaining_len > SPI_FLASH_PAYLOAD_BUFFER_SIZE) begin
-        // If the remaining data cannot fit inside a single write operation
-        // (limited by the size of the DEVICE payload buffer size), then
-        // just send a max-size chunk this time around.
-        chunk_len = SPI_FLASH_PAYLOAD_BUFFER_SIZE;
-        write_address = SPI_TX_ADDRESS;
-      end else begin
-        // The remaining data fits in a single chunk. Send this chunk to the
-        // MAGIC_ADDRESS to signal to the DEVICE it is the final chunk.
-        chunk_len = remaining_len;
-        write_address = SPI_TX_LAST_CHUNK_MAGIC_ADDRESS;
-      end
-      `uvm_info(`gfn,
-                $sformatf("console_write() :: bytes=%0d, chunk_len=%0d, remaining=%0d, addr=32'h%8x",
-                          $size(bytes), chunk_len, remaining_len, write_address),
-                UVM_LOW)
-      begin
-        bit [7:0] bytes_q[$];
-        for (int i = 0; i < chunk_len; i++) begin
-          bytes_q.push_back(bytes[i + written_data_len]);
-        end
-        `uvm_info(`gfn,
-                  $sformatf("bytes_q.size() = %0d", bytes_q.size()),
-                  UVM_LOW)
-        host_spi_console_write_buf(bytes_q, write_address);
-      end
-      written_data_len += chunk_len;
-    end while ($size(bytes) - written_data_len > 0);
-
-  endtask : host_spi_console_write
-
-  //
-  //
-  //
-  virtual task host_spi_console_write_buf(input bit [7:0] bytes_q[$], input bit[31:0] addr); // HOST -> DEVICE
-    uint bytes_q_size = bytes_q.size();
-    spi_host_flash_seq m_spi_host_seq;
-    `uvm_create_on(m_spi_host_seq, p_sequencer.spi_host_sequencer_h);
-    m_spi_host_seq.opcode = SpiFlashPageProgram;
-    m_spi_host_seq.address_q = {addr[23:16], addr[15:8], addr[7:0]};
-    for (int i = 0; i < bytes_q_size; i++) begin
-      m_spi_host_seq.payload_q.push_back(bytes_q.pop_front());
-    end
-
-    `uvm_info(`gfn, "host_spi_console_write_buf() - Start.", UVM_LOW)
-    `uvm_info(`gfn, $sformatf("Sending payload data_bytes(hex) : 0x%0s", byte_q_as_hex(m_spi_host_seq.payload_q)), UVM_LOW)
-    `uvm_info(`gfn, $sformatf("Sending payload data_bytes(str) : %0s", byte_q_as_str(m_spi_host_seq.payload_q)), UVM_LOW)
-    spi_host_flash_issue_write_cmd(m_spi_host_seq);
-    `uvm_info(`gfn, "host_spi_console_write_buf() - End.", UVM_LOW)
-  endtask : host_spi_console_write_buf
 
 endclass : chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq
