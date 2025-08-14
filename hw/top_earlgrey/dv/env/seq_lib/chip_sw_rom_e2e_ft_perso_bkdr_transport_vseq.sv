@@ -20,6 +20,8 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
   bit [7:0] MANUF_PERSO_DATA_BACK[20535];
   int       len1, len2, len3, len4;
 
+  uint spinwait_timeout_ns = 30_000_000; // 30ms
+
   function void log_l(string str);
     `uvm_info(`gfn, str, UVM_LOW)
   endfunction
@@ -173,7 +175,10 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(dumped_bank0_transport);
 
     // Wait until we reach the start of the Test ROM
-    `DV_WAIT(cfg.sw_test_status_vif.sw_test_status == SwTestStatusInBootRom)
+    `DV_WAIT(
+      /*WAIT_COND_*/ cfg.sw_test_status_vif.sw_test_status == SwTestStatusInBootRom,
+      /*MSG_*/ "wait timeout occurred!",
+      /*TIMEOUT_NS_*/ spinwait_timeout_ns)
 
     // Wait for IOA4 (TestStart)
     await_ioa("IOA4");
@@ -190,7 +195,10 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     // After the OTP SECRET2 partition is programmed, the chip performs a SW reset.
     // (so we need to reset the SPI console frame counter).
     `uvm_info(`gfn, "Waiting for sw_reset() after personalize_device_secrets completion...", UVM_LOW)
-    `DV_SPINWAIT(cfg.chip_vif.cpu_clk_rst_if.wait_for_reset();)
+    `DV_SPINWAIT(
+      /*WAIT_*/ cfg.chip_vif.cpu_clk_rst_if.wait_for_reset();,
+      /*MSG_*/ "Timeout waiting for sw_reset() to occur and complete.",
+      /*TIMEOUT_NS_*/ spinwait_timeout_ns)
 
     // Wait for IOA4 (TestStart) the next time we boot the test binary after reset
     `uvm_info(`gfn, "Device out of reset, awaiting re-boot and the assertion of TestStart.", UVM_LOW)

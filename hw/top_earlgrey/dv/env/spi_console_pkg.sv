@@ -14,7 +14,7 @@ package spi_console_pkg;
 `include "uvm_macros.svh"
 `include "dv_macros.svh"
 
-  // uint default_spinwait_timeout_ns = 10_000_000; // 10ms
+  uint spinwait_timeout_ns = 10_000_000; // 10ms
   uint write_timeout_ns = 20_000_000; // 20ms
 
   // Typical SPI flash opcodes.
@@ -115,7 +115,7 @@ package spi_console_pkg;
       string timeout_msg = $sformatf("Timed out waiting for idx:%0d to be %0d.", idx, val);
 
       `uvm_info(`gfn, $sformatf("Waiting for idx:%0d to be %0d now...", idx, val), UVM_LOW)
-      `DV_WAIT(flow_ctrl_vif.pins[idx] == val, timeout_msg, default_spinwait_timeout_ns)
+      `DV_WAIT(flow_ctrl_vif.pins[idx] == val, timeout_msg, spinwait_timeout_ns)
       `uvm_info(`gfn, $sformatf("Saw idx:%0d as %0d now!", idx, val), UVM_LOW)
     endtask: await_ioa
 
@@ -412,7 +412,7 @@ package spi_console_pkg;
     //
     //
     //
-    virtual task host_spi_console_wait_on_busy(uint timeout_ns = default_spinwait_timeout_ns,
+    virtual task host_spi_console_wait_on_busy(uint timeout_ns = spinwait_timeout_ns,
                                                uint min_interval_ns = 1000);
       spi_host_flash_seq m_spi_host_seq;
       uvm_object_wrapper w_ = m_spi_host_seq.get_type();
