@@ -150,13 +150,13 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
 
     // SYNCHRONIZATION STRINGS
 
-    string SYNC_STR_READ_BOOTSTRAP_REQ = "Bootstrap requested.\n";
-    string SYNC_STR_READ_RMA_TOKEN = "Waiting For RMA Unlock Token Hash ...\n";
-    string SYNC_STR_READ_PERSO_DICE_CERTS = "Waiting for certificate inputs ...\n";
-    string SYNC_STR_WRITE_TBS_CERTS = "Exporting TBS certificates ...\n";
-    string SYNC_STR_READ_ENDORSED_CERTS = "Importing endorsed certificates ...\n";
+    string SYNC_STR_READ_BOOTSTRAP_REQ         = "Bootstrap requested.\n";
+    string SYNC_STR_READ_RMA_TOKEN             = "Waiting For RMA Unlock Token Hash ...\n";
+    string SYNC_STR_READ_PERSO_DICE_CERTS      = "Waiting for certificate inputs ...\n";
+    string SYNC_STR_WRITE_TBS_CERTS            = "Exporting TBS certificates ...\n";
+    string SYNC_STR_READ_ENDORSED_CERTS        = "Importing endorsed certificates ...\n";
     string SYNC_STR_READ_FINISHED_CERT_IMPORTS = "Finished importing certificates.\n";
-    string SYNC_STR_READ_PERSO_DONE = "Personalization done.\n";
+    string SYNC_STR_READ_PERSO_DONE            = "Personalization done.\n";
 
     // Some other prints for logging are :
     // write_cert_to_dice_page()
@@ -183,35 +183,18 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     // activity will be waiting for the DEVICE to request the RMA Unlock Token
     // (in personalize_otp_and_flash_secrets()).
     cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_RMA_TOKEN); // MAGIC STRING
-
-    // The device has now requested the Unlock Token.
-    // Write it over the spi console.
-
-    `DV_SPINWAIT(
-      // WAIT_
-      begin
-        `uvm_info(`gfn, "Will write to the spi_console. Awaiting the DEVICE to set 'rx_ready' (IOA6)", UVM_LOW)
-        await_ioa("IOA6", 1'b1);
-
-        `uvm_info(`gfn, "'rx_ready' is set. Writing to the spi_console now.", UVM_LOW)
-        cfg.spi_console_h.host_spi_console_write(RMA_UNLOCK_TOKEN_HASH);
-        cfg.spi_console_h.host_spi_console_write(RMA_UNLOCK_TOKEN_HASH_CRC);
-
-        `uvm_info(`gfn, "Finished writing to the spi_console. Awaiting the DEVICE to clear 'rx_ready' (IOA6)", UVM_LOW)
-        await_ioa("IOA6", 1'b0);
-      end,
-      // MSG_
-      "Timeout waiting for the RMA_UNLOCK_TOKEN spi_console_write() operations to complete." ,
-      // TIMEOUT_NS_
-      500_000)
+    // The device has now requested the Unlock Token. Write it over the spi console.
+    cfg.spi_console_h.host_spi_console_write_when_ready('{RMA_UNLOCK_TOKEN_HASH,
+                                                          RMA_UNLOCK_TOKEN_HASH_CRC});
 
     // After the OTP SECRET2 partition is programmed, the chip performs a SW reset.
     // (so we need to reset the SPI console frame counter).
-    // #TODO wait and observe a reset cycle
+    `uvm_info(`gfn, "Waiting for sw_reset() after personalize_device_secrets completion...", UVM_LOW)
+    `DV_SPINWAIT(cfg.chip_vif.cpu_clk_rst_if.wait_for_reset();)
 
     // Wait for IOA4 (TestStart) the next time we boot the test binary after reset
-    await_ioa("IOA4", 1'b0);
-    await_ioa("IOA4", 1'b1);
+    `uvm_info(`gfn, "Device out of reset, awaiting re-boot and the assertion of TestStart.", UVM_LOW)
+    await_ioa("IOA4");
 
     // At this point, personalize_otp_and_flash_secrets() has completed. Dump the state of the OTP
     // so we can re-load from this point in the future.
@@ -219,26 +202,12 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     cfg.mem_bkdr_util_h[Otp].write_mem_to_file("dump_OTP_perso_secrets.24.vmem");
 
     // Next, we provision all device certificates.
+    `uvm_info(`gfn, "Awaiting sync-str to start write of certificate provisioning data...", UVM_LOW)
     cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_PERSO_DICE_CERTS); // MAGIC STRING
-
-    `DV_SPINWAIT(
-      // WAIT_
-      begin
-        `uvm_info(`gfn, "Will write to the spi_console. Awaiting the DEVICE to set 'rx_ready' (IOA6)", UVM_LOW)
-        await_ioa("IOA6", 1'b1);
-
-        `uvm_info(`gfn, "'rx_ready' is set. Writing to the spi_console now.", UVM_LOW)
-        cfg.spi_console_h.host_spi_console_write(PERSO_CERTGEN_INPUTS);
-
-        `uvm_info(`gfn, "Finished writing to the spi_console. Awaiting the DEVICE to clear 'rx_ready' (IOA6)", UVM_LOW)
-        await_ioa("IOA6", 1'b0);
-      end,
-      // MSG_
-      "Timeout waiting for the PERSO_CERTGEN_INPUTS spi_console_write() operations to complete.",
-      // TIMEOUT_NS_
-      500_000)
+    cfg.spi_console_h.host_spi_console_write_when_ready('{PERSO_CERTGEN_INPUTS});
 
     // Wait until the device exports the TBS certificates.
+    `uvm_info(`gfn, "Awaiting sync-str to start read of exported certificate payload...", UVM_LOW)
     cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_WRITE_TBS_CERTS); // MAGIC STRING
 
     ///////////////////////////////////////////////
@@ -254,31 +223,18 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     // Nothing to do, we already have the answer in a file.
 
     // Wait until the device indicates it can import the endorsed certificate files.
+    `uvm_info(`gfn, "Awaiting sync-str to start write of endorsed certificates...", UVM_LOW)
     cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_ENDORSED_CERTS); // MAGIC STRING
-
-    `DV_SPINWAIT(
-      // WAIT_
-      begin
-        `uvm_info(`gfn, "Will write to the spi_console. Awaiting the DEVICE to set 'rx_ready' (IOA6)", UVM_LOW)
-        await_ioa("IOA6", 1'b1);
-
-        `uvm_info(`gfn, "'rx_ready' is set. Writing to the spi_console now.", UVM_LOW)
-        cfg.spi_console_h.host_spi_console_write(MANUF_PERSO_DATA_BACK);
-
-        `uvm_info(`gfn, "Finished writing to the spi_console. Awaiting the DEVICE to clear 'rx_ready' (IOA6)", UVM_LOW)
-        await_ioa("IOA6", 1'b0);
-      end,
-      // MSG_
-      "Timeout waiting for the MANUF_PERSO_DATA_BACK spi_console_write() operations to complete.",
-      // TIMEOUT_NS_
-      500_000)
+    cfg.spi_console_h.host_spi_console_write_when_ready('{MANUF_PERSO_DATA_BACK});
 
     // Wait until the device indicates it has successfully imported the endorsed certificate files.
+    `uvm_info(`gfn, "Awaiting sync-str for completion of endorsed certificate import...", UVM_LOW)
     cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_FINISHED_CERT_IMPORTS); // MAGIC STRING
 
     // The device checks the imported certificate package...
 
     // Wait until the device indicates it has successfully completed perso!
+    `uvm_info(`gfn, "Awaiting sync-str for completion of personalization...", UVM_LOW)
     cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_PERSO_DONE); // MAGIC STRING
 
     // Set test passed.

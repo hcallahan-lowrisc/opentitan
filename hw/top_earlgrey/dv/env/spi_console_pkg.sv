@@ -186,8 +186,8 @@ package spi_console_pkg;
 
       spi_host_flash_seq m_spi_host_seq;
       uvm_object_wrapper w_ = m_spi_host_seq.get_type();
-      $cast(m_spi_host_seq,
-            create_item(/*type_var*/ w_, /*l_sequencer*/ spi_host_sequencer_h, "m_spi_host_seq"));
+      $cast(m_spi_host_seq, create_item(
+        /*type_var*/ w_, /*l_sequencer*/ spi_host_sequencer_h, /*name*/ "m_spi_host_seq"));
 
       `DV_CHECK_RANDOMIZE_WITH_FATAL(m_spi_host_seq,
         opcode == SpiFlashReadNormal;
@@ -198,10 +198,7 @@ package spi_console_pkg;
       )
 
       `uvm_info(`gfn, "host_spi_console_read() - Start.", UVM_LOW)
-      m_spi_host_seq.start(/*sequencer*/ spi_host_sequencer_h,
-                           /*parent_sequence*/ seq_h,
-                           /*priority*/ -1,
-                           0);
+      m_spi_host_seq.start(/*sequencer*/ spi_host_sequencer_h, /*parent_sequence*/ seq_h);
       `uvm_info(`gfn, "host_spi_console_read() - End.", UVM_LOW)
 
       // Get data out of the sequence once completed.
@@ -216,7 +213,7 @@ package spi_console_pkg;
       uint SPI_FLASH_READ_BUFFER_SIZE = 2048; // Don't overwrite our PAYLOAD BUFFER
       uint SPI_MAX_DATA_LENGTH = 2036;
       uint SPI_FRAME_HEADER_SIZE = 12;
-      bit [31:0] header_data_bytes;
+      bit [31:0] header_data_bytes = 0;
 
       // First, get the header of the current frame.
       begin : get_header
@@ -244,7 +241,7 @@ package spi_console_pkg;
         host_spi_console_read(.size(header_data_bytes), .addr(SPI_FRAME_HEADER_SIZE), .chunk_q(data_q));
         `uvm_info(`gfn, $sformatf("Got data_bytes : %0s", byte_q_as_str(data_q)), UVM_LOW)
         // #TODO Assume we read all bytes in one go, for now. The DV_CHECK_EQ in the header block will
-        // stop us for now if the payload is too large.
+        // stop us dead for now if the payload is too large.
         header_data_bytes = 0;
 
         // Append the bytes from this read transfer to the overall queue.
@@ -286,9 +283,33 @@ package spi_console_pkg;
     // CONSOLE WRITE //
     ///////////////////
     // host_spi_console_write()
+    // host_spi_console_write()
     // host_spi_console_write_buf()
     // host_spi_console_issue_write_cmd()
     // host_spi_console_wait_on_busy()
+
+    //
+    //
+    //
+    virtual task host_spi_console_write_when_ready(input bit [7:0] bytes[][]); // HOST -> DEVICE
+
+      `uvm_info(`gfn, "Will write to the spi_console. Awaiting the DEVICE to set 'rx_ready' (IOA6)", UVM_LOW)
+      await_ioa(rx_ready_idx, 1'b1);
+
+      `uvm_info(`gfn, "'rx_ready' is set. Writing to the spi_console now.", UVM_LOW)
+      `DV_SPINWAIT(
+        // WAIT_
+        foreach (bytes[i]) host_spi_console_write(bytes[i]);,
+        // MSG_
+        "Timeout waiting for spi_console_write_when_ready() operations to complete.",
+        // TIMEOUT_NS_
+        500_000
+      )
+
+      `uvm_info(`gfn, "Finished writing to the spi_console. Awaiting the DEVICE to clear 'rx_ready' (IOA6)", UVM_LOW)
+      await_ioa(rx_ready_idx, 1'b0);
+
+    endtask : host_spi_console_write_when_ready
 
     //
     //
@@ -299,10 +320,8 @@ package spi_console_pkg;
       bit [31:0] SPI_TX_LAST_CHUNK_MAGIC_ADDRESS = 9'h100;
       uint written_data_len = 0;
 
-      `uvm_info(`gfn,
-                $sformatf("console_write()(str) :: len = %0d : %0s",
-                          $size(bytes), byte_array_as_str(bytes)),
-                UVM_LOW)
+      `uvm_info(`gfn, $sformatf("console_write()(str) :: len = %0d : %0s", $size(bytes),
+        byte_array_as_str(bytes)), UVM_LOW)
 
       do begin
         // - chunk_len holds the size of the current chunk we are about to write
@@ -351,8 +370,8 @@ package spi_console_pkg;
 
       spi_host_flash_seq m_spi_host_seq;
       uvm_object_wrapper w_ = m_spi_host_seq.get_type();
-      $cast(m_spi_host_seq,
-            create_item(/*type_var*/ w_, /*l_sequencer*/ spi_host_sequencer_h, "m_spi_host_seq"));
+      $cast(m_spi_host_seq, create_item(
+        /*type_var*/ w_, /*l_sequencer*/ spi_host_sequencer_h, /*name*/ "m_spi_host_seq"));
 
       m_spi_host_seq.opcode = SpiFlashPageProgram;
       m_spi_host_seq.address_q = {addr[23:16], addr[15:8], addr[7:0]};
@@ -373,22 +392,16 @@ package spi_console_pkg;
     virtual task host_spi_console_issue_write_cmd(spi_host_flash_seq write_seq);
 
       // First, enable writes.
-
       spi_host_flash_seq m_spi_host_seq;
       uvm_object_wrapper w_ = m_spi_host_seq.get_type();
-      $cast(m_spi_host_seq,
-            create_item(/*type_var*/ w_, /*l_sequencer*/ spi_host_sequencer_h, "m_spi_host_seq"));
+      $cast(m_spi_host_seq, create_item(
+        /*type_var*/ w_, /*l_sequencer*/ spi_host_sequencer_h, /*name*/ "m_spi_host_seq"));
       m_spi_host_seq.opcode = SpiFlashWriteEnable;
       m_spi_host_seq.start(/*sequencer*/ spi_host_sequencer_h,
-                           /*parent_sequence*/ seq_h,
-                           /*priority*/ -1,
-                           0);
+                           /*parent_sequence*/ seq_h);
 
       // Next, perform the write
-      write_seq.start(/*sequencer*/ spi_host_sequencer_h,
-                      /*parent_sequence*/ seq_h,
-                      /*priority*/ -1,
-                      0);
+      write_seq.start(/*sequencer*/ spi_host_sequencer_h, /*parent_sequence*/ seq_h);
 
       // Finally, wait for busy to be cleared
       host_spi_console_wait_on_busy();
@@ -402,30 +415,28 @@ package spi_console_pkg;
                                                uint min_interval_ns = 1000);
       spi_host_flash_seq m_spi_host_seq;
       uvm_object_wrapper w_ = m_spi_host_seq.get_type();
-      $cast(m_spi_host_seq,
-            create_item(/*type_var*/ w_, /*l_sequencer*/ spi_host_sequencer_h, "m_spi_host_seq"));
+      $cast(m_spi_host_seq, create_item(
+        /*type_var*/ w_, /*l_sequencer*/ spi_host_sequencer_h, /*name*/ "m_spi_host_seq"));
 
       `DV_SPINWAIT(
         // WAIT_
-        while (1) begin
+        do begin
+          // Wait before polling.
+          #(min_interval_ns);
           clk_rst_vif.wait_clks($urandom_range(1, 100));
+
           `DV_CHECK_RANDOMIZE_WITH_FATAL(m_spi_host_seq,
             opcode == SpiFlashReadSts1;
             address_q.size() == 0;
             payload_q.size() == 1;
             read_size == 1;
           )
-          m_spi_host_seq.start(/*sequencer*/ spi_host_sequencer_h,
-                               /*parent_sequence*/ seq_h,
-                               /*priority*/ -1,
-                               0);
+          m_spi_host_seq.start(/*sequencer*/ spi_host_sequencer_h, /*parent_sequence*/ seq_h);
 
-          // Check the busy bit (bit 0)
-          if (m_spi_host_seq.rsp.payload_q[0][0] === 0) break;
-          #(min_interval_ns);
-        end,
+          // Check the busy bit (bit[0]), loop while busy (=1)
+        end while (m_spi_host_seq.rsp.payload_q[0][0] === 1);,
         // MSG_
-        ,
+        $sformatf("Timed-out (%0d ns) before the SPI Flash reported not-busy after a write operation", timeout_ns),
         // TIMEOUT_NS_
         timeout_ns
       )
