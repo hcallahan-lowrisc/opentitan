@@ -263,7 +263,7 @@ package spi_console_pkg;
       while (header_data_bytes > 0) begin
         bit [7:0] data_q[$];
         host_spi_console_read(.size(header_data_bytes), .addr(SPI_FRAME_HEADER_SIZE), .chunk_q(data_q));
-        `uvm_info(`gfn, $sformatf("Got data_bytes : %0s", byte_q_as_str(data_q)), UVM_LOW)
+        `uvm_info(`gfn, $sformatf("Got data_bytes in chunk : %0s", byte_q_as_str(data_q)), UVM_HIGH)
         // #TODO Assume we read all bytes in one go, for now. The DV_CHECK_EQ in the header block will
         // stop us dead for now if the payload is too large.
         header_data_bytes = 0;
