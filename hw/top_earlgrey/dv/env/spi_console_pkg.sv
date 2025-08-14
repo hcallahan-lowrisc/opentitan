@@ -191,6 +191,7 @@ package spi_console_pkg;
     // host_spi_console_read()
     // host_spi_console_read_frame()
     // host_spi_console_read_wait_for()
+    // host_spi_console_read_payload()
 
     // Drive a single ReadNormal operation from the DEVICE spi console.
     //
@@ -285,6 +286,7 @@ package spi_console_pkg;
 
       `uvm_info(`gfn, "Waiting for the DEVICE to set 'tx_ready' (IOA5)", UVM_LOW)
       await_ioa(tx_ready_idx, 1'b1);
+      `uvm_info(`gfn, "DEVICE set 'tx_ready' now.", UVM_LOW)
 
       // Next, get all the data_bytes from the frame until we see the expected message in the buffer.
       do begin
@@ -294,45 +296,120 @@ package spi_console_pkg;
         // Append the bytes from this read transfer to the overall queue.
         chunk_q = {chunk_q, data_q};
       end while (!findStrRe(wait_for, byte_q_as_str(chunk_q)));
-
       `uvm_info(`gfn, "Got the expected string in the spi_console.", UVM_LOW)
 
       // (If not already de-asserted) wait for the SPI console TX ready to be cleared by the DEVICE.
       `uvm_info(`gfn, "Waiting for the DEVICE to clear 'tx_ready' (IOA5)", UVM_LOW)
       await_ioa(tx_ready_idx, 1'b0);
+      `uvm_info(`gfn, "DEVICE cleared 'tx_ready' now.", UVM_LOW)
 
     endtask : host_spi_console_read_wait_for
+
+    //
+    //
+    //
+    virtual task host_spi_console_read_payload(ref bit [7:0] chunk_q[$]); // DEVICE -> HOST
+
+      `uvm_info(`gfn, "Waiting for the DEVICE to set 'tx_ready' (IOA5)", UVM_LOW)
+      await_ioa(tx_ready_idx, 1'b1);
+      `uvm_info(`gfn, "DEVICE set 'tx_ready' now.", UVM_LOW)
+
+      // Next, get all the data_bytes from the frame until we see the expected message in the buffer.
+      host_spi_console_read_frame(.chunk_q(chunk_q));
+      `uvm_info(`gfn, $sformatf("Got data_bytes : %0s", byte_q_as_str(chunk_q)), UVM_LOW)
+
+      // (If not already de-asserted) wait for the SPI console TX ready to be cleared by the DEVICE.
+      `uvm_info(`gfn, "Waiting for the DEVICE to clear 'tx_ready' (IOA5)", UVM_LOW)
+      await_ioa(tx_ready_idx, 1'b0);
+      `uvm_info(`gfn, "DEVICE cleared 'tx_ready' now.", UVM_LOW)
+
+    endtask : host_spi_console_read_payload
 
     ///////////////////
     // CONSOLE WRITE //
     ///////////////////
+    // host_spi_console_wait_on_busy()
+    // host_spi_console_write_op()
+    // host_spi_console_write_buf()
     // host_spi_console_write_when_ready()
     // host_spi_console_write()
-    // host_spi_console_write_buf()
-    // host_spi_console_issue_write_cmd()
-    // host_spi_console_wait_on_busy()
 
     //
     //
     //
-    virtual task host_spi_console_write_when_ready(input bit [7:0] bytes[][]); // HOST -> DEVICE
-
-      `uvm_info(`gfn, "Will write to the spi_console. Awaiting the DEVICE to set 'rx_ready' (IOA6)", UVM_LOW)
-      await_ioa(rx_ready_idx, 1'b1);
+    virtual task host_spi_console_wait_on_busy(uint timeout_ns = spinwait_timeout_ns,
+                                               uint min_interval_ns = 1000);
+      spi_host_flash_seq m_spi_host_seq;
+      `spi_console_create_on(m_spi_host_seq);
 
       `DV_SPINWAIT(
         // WAIT_
-        foreach (bytes[i]) host_spi_console_write(bytes[i]);,
+        do begin
+          // Wait before polling.
+          #(min_interval_ns);
+          clk_rst_vif.wait_clks($urandom_range(1, 100));
+
+          `DV_CHECK_RANDOMIZE_WITH_FATAL(m_spi_host_seq,
+            opcode == SpiFlashReadSts1;
+            address_q.size() == 0;
+            payload_q.size() == 1;
+            read_size == 1;
+          )
+          m_spi_host_seq.start(/*sequencer*/ spi_host_sequencer_h, /*parent_sequence*/ seq_h);
+
+          // Check the busy bit (bit[0]), loop while busy (=1)
+        end while (m_spi_host_seq.rsp.payload_q[0][0] === 1);,
         // MSG_
-        "Timeout waiting for spi_console_write_when_ready() operations to complete.",
+        $sformatf("Timed-out (%0d ns) before the SPI Flash reported not-busy after a write operation", timeout_ns),
         // TIMEOUT_NS_
-        write_timeout_ns
+        timeout_ns
       )
+    endtask : host_spi_console_wait_on_busy
 
-      `uvm_info(`gfn, "Finished writing to the spi_console. Awaiting the DEVICE to clear 'rx_ready' (IOA6)", UVM_LOW)
-      await_ioa(rx_ready_idx, 1'b0);
+    //
+    //
+    //
+    virtual task host_spi_console_write_op(spi_host_flash_seq write_seq);
 
-    endtask : host_spi_console_write_when_ready
+      // First, enable writes.
+      spi_host_flash_seq m_spi_host_seq;
+      `spi_console_create_on(m_spi_host_seq);
+
+      m_spi_host_seq.opcode = SpiFlashWriteEnable;
+      m_spi_host_seq.start(/*sequencer*/ spi_host_sequencer_h,
+                           /*parent_sequence*/ seq_h);
+
+      // Next, perform the write
+      write_seq.start(/*sequencer*/ spi_host_sequencer_h, /*parent_sequence*/ seq_h);
+
+      // Finally, wait for busy to be cleared
+      host_spi_console_wait_on_busy();
+
+    endtask : host_spi_console_write_op
+
+
+    //
+    //
+    //
+    virtual task host_spi_console_write_buf(input bit [7:0] bytes_q[$], input bit[31:0] addr); // HOST -> DEVICE
+      uint bytes_q_size = bytes_q.size();
+
+      spi_host_flash_seq m_spi_host_seq;
+      `spi_console_create_on(m_spi_host_seq);
+
+      m_spi_host_seq.opcode = SpiFlashPageProgram;
+      m_spi_host_seq.address_q = {addr[23:16], addr[15:8], addr[7:0]};
+      for (int i = 0; i < bytes_q_size; i++) begin
+        m_spi_host_seq.payload_q.push_back(bytes_q.pop_front());
+      end
+
+      `uvm_info(`gfn, "host_spi_console_write_buf() - Start.", UVM_HIGH)
+      `uvm_info(`gfn, $sformatf("Sending payload data_bytes(hex) : 0x%0s", byte_q_as_hex(m_spi_host_seq.payload_q)), UVM_HIGH)
+      `uvm_info(`gfn, $sformatf("Sending payload data_bytes(str) : %0s", byte_q_as_str(m_spi_host_seq.payload_q)), UVM_HIGH)
+      host_spi_console_write_op(m_spi_host_seq);
+      `uvm_info(`gfn, "host_spi_console_write_buf() - End.", UVM_HIGH)
+    endtask : host_spi_console_write_buf
+
 
     //
     //
@@ -382,80 +459,30 @@ package spi_console_pkg;
 
     endtask : host_spi_console_write
 
-    //
-    //
-    //
-    virtual task host_spi_console_write_buf(input bit [7:0] bytes_q[$], input bit[31:0] addr); // HOST -> DEVICE
-      uint bytes_q_size = bytes_q.size();
-
-      spi_host_flash_seq m_spi_host_seq;
-      `spi_console_create_on(m_spi_host_seq);
-
-      m_spi_host_seq.opcode = SpiFlashPageProgram;
-      m_spi_host_seq.address_q = {addr[23:16], addr[15:8], addr[7:0]};
-      for (int i = 0; i < bytes_q_size; i++) begin
-        m_spi_host_seq.payload_q.push_back(bytes_q.pop_front());
-      end
-
-      `uvm_info(`gfn, "host_spi_console_write_buf() - Start.", UVM_HIGH)
-      `uvm_info(`gfn, $sformatf("Sending payload data_bytes(hex) : 0x%0s", byte_q_as_hex(m_spi_host_seq.payload_q)), UVM_HIGH)
-      `uvm_info(`gfn, $sformatf("Sending payload data_bytes(str) : %0s", byte_q_as_str(m_spi_host_seq.payload_q)), UVM_HIGH)
-      host_spi_console_issue_write_cmd(m_spi_host_seq);
-      `uvm_info(`gfn, "host_spi_console_write_buf() - End.", UVM_HIGH)
-    endtask : host_spi_console_write_buf
 
     //
     //
     //
-    virtual task host_spi_console_issue_write_cmd(spi_host_flash_seq write_seq);
+    virtual task host_spi_console_write_when_ready(input bit [7:0] bytes[][]); // HOST -> DEVICE
 
-      // First, enable writes.
-      spi_host_flash_seq m_spi_host_seq;
-      `spi_console_create_on(m_spi_host_seq);
-
-      m_spi_host_seq.opcode = SpiFlashWriteEnable;
-      m_spi_host_seq.start(/*sequencer*/ spi_host_sequencer_h,
-                           /*parent_sequence*/ seq_h);
-
-      // Next, perform the write
-      write_seq.start(/*sequencer*/ spi_host_sequencer_h, /*parent_sequence*/ seq_h);
-
-      // Finally, wait for busy to be cleared
-      host_spi_console_wait_on_busy();
-
-    endtask : host_spi_console_issue_write_cmd
-
-    //
-    //
-    //
-    virtual task host_spi_console_wait_on_busy(uint timeout_ns = spinwait_timeout_ns,
-                                               uint min_interval_ns = 1000);
-      spi_host_flash_seq m_spi_host_seq;
-      `spi_console_create_on(m_spi_host_seq);
+      `uvm_info(`gfn, "Will write to the spi_console. Awaiting the DEVICE to set 'rx_ready' (IOA6)", UVM_LOW)
+      await_ioa(rx_ready_idx, 1'b1);
+      `uvm_info(`gfn, "DEVICE set 'rx_ready' now.", UVM_LOW)
 
       `DV_SPINWAIT(
         // WAIT_
-        do begin
-          // Wait before polling.
-          #(min_interval_ns);
-          clk_rst_vif.wait_clks($urandom_range(1, 100));
-
-          `DV_CHECK_RANDOMIZE_WITH_FATAL(m_spi_host_seq,
-            opcode == SpiFlashReadSts1;
-            address_q.size() == 0;
-            payload_q.size() == 1;
-            read_size == 1;
-          )
-          m_spi_host_seq.start(/*sequencer*/ spi_host_sequencer_h, /*parent_sequence*/ seq_h);
-
-          // Check the busy bit (bit[0]), loop while busy (=1)
-        end while (m_spi_host_seq.rsp.payload_q[0][0] === 1);,
+        foreach (bytes[i]) host_spi_console_write(bytes[i]);,
         // MSG_
-        $sformatf("Timed-out (%0d ns) before the SPI Flash reported not-busy after a write operation", timeout_ns),
+        "Timeout waiting for spi_console_write_when_ready() operations to complete.",
         // TIMEOUT_NS_
-        timeout_ns
+        write_timeout_ns
       )
-    endtask : host_spi_console_wait_on_busy
+
+      `uvm_info(`gfn, "Finished writing to the spi_console. Awaiting the DEVICE to clear 'rx_ready' (IOA6)", UVM_LOW)
+      await_ioa(rx_ready_idx, 1'b0);
+      `uvm_info(`gfn, "DEVICE cleared 'rx_ready' now.", UVM_LOW)
+
+    endtask : host_spi_console_write_when_ready
 
     `undef spi_console_create_on
 
