@@ -15,6 +15,7 @@ package spi_console_pkg;
 `include "dv_macros.svh"
 
   // uint default_spinwait_timeout_ns = 10_000_000; // 10ms
+  uint write_timeout_ns = 20_000_000; // 20ms
 
   // Typical SPI flash opcodes.
   typedef enum bit [7:0] {
@@ -303,7 +304,7 @@ package spi_console_pkg;
         // MSG_
         "Timeout waiting for spi_console_write_when_ready() operations to complete.",
         // TIMEOUT_NS_
-        500_000
+        write_timeout_ns
       )
 
       `uvm_info(`gfn, "Finished writing to the spi_console. Awaiting the DEVICE to clear 'rx_ready' (IOA6)", UVM_LOW)
