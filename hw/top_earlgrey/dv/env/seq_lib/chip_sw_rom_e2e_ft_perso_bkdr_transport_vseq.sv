@@ -8,6 +8,7 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
 
   string dumped_otp_transport;
   string dumped_bank0_transport;
+  string dumped_otp_perso_secrets;
 
   string RMA_UNLOCK_TOKEN_HASH_FILE;
   string RMA_UNLOCK_TOKEN_HASH_CRC_FILE;
@@ -22,84 +23,12 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
 
   uint spinwait_timeout_ns = 30_000_000; // 30ms
 
-  function void log_l(string str);
-    `uvm_info(`gfn, str, UVM_LOW)
-  endfunction
-
-  function bit findStrRe(string find, string str);
-    string re_find = $sformatf("*%0s*", find);
-    bit match = !uvm_re_match(re_find, str);
-    // match = 0, nomatch = 1
-    if (match) begin
-      `uvm_info(`gfn,
-                $sformatf("findStrRe() MATCH=%0d, string: \"%s\", regex: \"%s\"",
-                          match, str, re_find),
-                UVM_LOW)
-    end
-    return match;
-  endfunction
-
-  function bit [31:0] reverse_endianess(bit [31:0] inp);
-    return {>>{ {<<8{inp}} }};
-  endfunction
-
-  function void test_re();
-    string wait_for = "Waiting For RMA Unlock Token Hash";
-    string re_wait_for = $sformatf("*%0s*", wait_for);
-    bit [7:0] q[$] = {<<{wait_for}};
-    bit [7:0] q2[$] = {>>{wait_for}};
-
-    // log_l(re_wait_for);
-    // log_l($sformatf("bin = 'b%b", wait_for));
-    // log_l($sformatf("hex = 'h%x", wait_for));
-    // log_l($sformatf("dec = 'd%d", wait_for));
-    // log_l($sformatf("p         = %p", wait_for));
-    // log_l($sformatf("p ( q[$]) = %p", q));
-    // log_l($sformatf("p (q2[$]) = %p", q2));
-
-    // begin
-    //   bit match;
-    //   match = findStrRe(re_wait_for, wait_for); // TRUE
-    //   log_l($sformatf("match = %0d", match));
-    //   match = findStrRe(re_wait_for, "Waiting For RMA Token Hash"); // FALSE
-    //   log_l($sformatf("match = %0d", match));
-    //   match = findStrRe(re_wait_for, "aaaa Waiting For RMA Unlock Token Hash bbbbbb");
-    //   log_l($sformatf("match = %0d", match));
-    // end
-
-    // begin
-    //   bit [7:0] header_q[$] = '{'hef, 'hbe, 'ha5, 'ha5, 'h0, 'h0, 'h0, 'h0, 'h26, 'h0, 'h0, 'h0};
-    //   bit [31:0] magic_num = 32'ha5a5beef;
-
-    //   bit [31:0] header_magic_number = {>>{header_q[ 0: 3]}}; // 32'hefbea5a5
-    //   bit [31:0] header_frame_number = {>>{header_q[ 4: 7]}}; // 32'h00000000
-    //   bit [31:0] header_data_bytes =   {>>{header_q[ 8:11]}}; // 32'h26000000
-
-    //   `uvm_info(`gfn, $sformatf("Got header : %0p", header_q), UVM_LOW)
-    //   `uvm_info(`gfn, $sformatf("Got header : 0x%0s", byte_q_as_hex(header_q)), UVM_LOW)
-    //   `uvm_info(`gfn, $sformatf("Expected Magic Number : 32h%02x", magic_num), UVM_LOW)
-    //   `uvm_info(`gfn,
-    //             $sformatf("Got result      :: Magic Number : 32'h%02x Frame Number : 32'h%02x, Num_Data_Bytes : 32'h%02x",
-    //                       header_magic_number, header_frame_number, header_data_bytes),
-    //             UVM_LOW)
-
-    //   header_magic_number = stream_word(header_magic_number);
-    //   header_frame_number = stream_word(header_frame_number);
-    //   header_data_bytes   = stream_word(header_data_bytes);
-    //   `uvm_info(`gfn,
-    //             $sformatf("Streamed result :: Magic Number : 32'h%02x Frame Number : 32'h%02x, Num_Data_Bytes : 32'h%02x",
-    //                       header_magic_number, header_frame_number, header_data_bytes),
-    //             UVM_LOW)
-    // end
-
-    // `uvm_fatal(`gfn, "Early exit.")
-  endfunction
-
   virtual task pre_start();
     super.pre_start();
 
     void'($value$plusargs("dumped_otp_transport=%0s", dumped_otp_transport));
     void'($value$plusargs("dumped_bank0_transport=%0s", dumped_bank0_transport));
+    void'($value$plusargs("dumped_otp_perso_secrets=%0s", dumped_otp_perso_secrets));
 
     // Get the HOST->DEVICE spi_console inputs
     begin
@@ -143,22 +72,21 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     // Configure and enable the spi-host agent.
     spi_agent_configure_flash_cmds(cfg.m_spi_host_agent_cfg);
     cfg.chip_vif.enable_spi_host = 1;
-
-    // TEST
-    test_re();
   endtask
 
   virtual task body();
 
     // SYNCHRONIZATION STRINGS
 
-    string SYNC_STR_READ_BOOTSTRAP_REQ         = "Bootstrap requested.\n";
-    string SYNC_STR_READ_RMA_TOKEN             = "Waiting For RMA Unlock Token Hash ...\n";
-    string SYNC_STR_READ_PERSO_DICE_CERTS      = "Waiting for certificate inputs ...\n";
-    string SYNC_STR_WRITE_TBS_CERTS            = "Exporting TBS certificates ...\n";
-    string SYNC_STR_READ_ENDORSED_CERTS        = "Importing endorsed certificates ...\n";
-    string SYNC_STR_READ_FINISHED_CERT_IMPORTS = "Finished importing certificates.\n";
-    string SYNC_STR_READ_PERSO_DONE            = "Personalization done.\n";
+    // N.B. these strings are sent with trailing newlines, but are dropped here just for clarity
+    // and since we match via a loose regex, it makes no difference to drop a trailing character.
+    string SYNC_STR_READ_BOOTSTRAP_REQ         = "Bootstrap requested.";
+    string SYNC_STR_READ_RMA_TOKEN             = "Waiting For RMA Unlock Token Hash ...";
+    string SYNC_STR_READ_PERSO_DICE_CERTS      = "Waiting for certificate inputs ...";
+    string SYNC_STR_WRITE_TBS_CERTS            = "Exporting TBS certificates ...";
+    string SYNC_STR_READ_ENDORSED_CERTS        = "Importing endorsed certificates ...";
+    string SYNC_STR_READ_FINISHED_CERT_IMPORTS = "Finished importing certificates.";
+    string SYNC_STR_READ_PERSO_DONE            = "Personalization done.";
 
     // Some other prints for logging are :
     // write_cert_to_dice_page()

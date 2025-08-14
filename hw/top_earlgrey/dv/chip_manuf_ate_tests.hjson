@@ -165,6 +165,7 @@
         "+use_otp_image=OtpNone",
         "+dumped_otp_transport={proj_root}/binaries/ft_personalize_emulation/dump_OTP_transportinit.24.vmem",
         "+dumped_bank0_transport={proj_root}/binaries/ft_personalize_emulation/dump_FlashBank0Data_transport.64.scr.vmem",
+        "+dumped_otp_perso_secrets={proj_root}/binaries/ft_personalize_emulation/dump_OTP_perso_secrets.24.vmem",
         "+skip_flash_bkdr_load=1",        // Do not backdoor-load Flash
         "+use_spi_load_bootstrap=0",      // Do not SPI-Bootstrap
         "+RMA_UNLOCK_TOKEN_HASH_FILE={proj_root}/binaries/ft_personalize_orch_emu_cw340/ujson_RMA_TOKEN_UNLOCK_HASH",

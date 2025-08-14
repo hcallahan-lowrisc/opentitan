@@ -296,7 +296,7 @@ package spi_console_pkg;
     ///////////////////
     // CONSOLE WRITE //
     ///////////////////
-    // host_spi_console_write()
+    // host_spi_console_write_when_ready()
     // host_spi_console_write()
     // host_spi_console_write_buf()
     // host_spi_console_issue_write_cmd()
@@ -310,7 +310,6 @@ package spi_console_pkg;
       `uvm_info(`gfn, "Will write to the spi_console. Awaiting the DEVICE to set 'rx_ready' (IOA6)", UVM_LOW)
       await_ioa(rx_ready_idx, 1'b1);
 
-      `uvm_info(`gfn, "'rx_ready' is set. Writing to the spi_console now.", UVM_LOW)
       `DV_SPINWAIT(
         // WAIT_
         foreach (bytes[i]) host_spi_console_write(bytes[i]);,
@@ -334,7 +333,7 @@ package spi_console_pkg;
       bit [31:0] SPI_TX_LAST_CHUNK_MAGIC_ADDRESS = 9'h100;
       uint written_data_len = 0;
 
-      `uvm_info(`gfn, $sformatf("console_write()(str) :: len = %0d : %0s", $size(bytes),
+      `uvm_info(`gfn, $sformatf("console_write() :: len=%0d : %0s", $size(bytes),
         byte_array_as_str(bytes)), UVM_LOW)
 
       do begin
@@ -358,17 +357,14 @@ package spi_console_pkg;
           write_address = SPI_TX_LAST_CHUNK_MAGIC_ADDRESS;
         end
         `uvm_info(`gfn,
-                  $sformatf("console_write() :: bytes=%0d, chunk_len=%0d, remaining=%0d, addr=32'h%8x",
-                            $size(bytes), chunk_len, remaining_len, write_address),
-                  UVM_LOW)
+                  $sformatf("console_write() :: remaining=%0d, chunk_len=%0d, addr=32'h%8x",
+                            remaining_len, chunk_len, write_address),
+                  UVM_MEDIUM)
         begin
           bit [7:0] bytes_q[$];
           for (int i = 0; i < chunk_len; i++) begin
             bytes_q.push_back(bytes[i + written_data_len]);
           end
-          `uvm_info(`gfn,
-                    $sformatf("bytes_q.size() = %0d", bytes_q.size()),
-                    UVM_LOW)
           host_spi_console_write_buf(bytes_q, write_address);
         end
         written_data_len += chunk_len;
@@ -391,11 +387,11 @@ package spi_console_pkg;
         m_spi_host_seq.payload_q.push_back(bytes_q.pop_front());
       end
 
-      `uvm_info(`gfn, "host_spi_console_write_buf() - Start.", UVM_LOW)
-      `uvm_info(`gfn, $sformatf("Sending payload data_bytes(hex) : 0x%0s", byte_q_as_hex(m_spi_host_seq.payload_q)), UVM_LOW)
-      `uvm_info(`gfn, $sformatf("Sending payload data_bytes(str) : %0s", byte_q_as_str(m_spi_host_seq.payload_q)), UVM_LOW)
+      `uvm_info(`gfn, "host_spi_console_write_buf() - Start.", UVM_HIGH)
+      `uvm_info(`gfn, $sformatf("Sending payload data_bytes(hex) : 0x%0s", byte_q_as_hex(m_spi_host_seq.payload_q)), UVM_HIGH)
+      `uvm_info(`gfn, $sformatf("Sending payload data_bytes(str) : %0s", byte_q_as_str(m_spi_host_seq.payload_q)), UVM_HIGH)
       host_spi_console_issue_write_cmd(m_spi_host_seq);
-      `uvm_info(`gfn, "host_spi_console_write_buf() - End.", UVM_LOW)
+      `uvm_info(`gfn, "host_spi_console_write_buf() - End.", UVM_HIGH)
     endtask : host_spi_console_write_buf
 
     //
