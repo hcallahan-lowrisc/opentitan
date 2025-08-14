@@ -308,15 +308,17 @@ package spi_console_pkg;
     //
     //
     //
-    virtual task host_spi_console_read_payload(ref bit [7:0] chunk_q[$]); // DEVICE -> HOST
+    virtual task host_spi_console_read_payload(ref bit [7:0] outbuf[]); // DEVICE -> HOST
+      bit [7:0] byte_q[$];
 
       `uvm_info(`gfn, "Waiting for the DEVICE to set 'tx_ready' (IOA5)", UVM_LOW)
       await_ioa(tx_ready_idx, 1'b1);
       `uvm_info(`gfn, "DEVICE set 'tx_ready' now.", UVM_LOW)
 
       // Next, get all the data_bytes from the frame until we see the expected message in the buffer.
-      host_spi_console_read_frame(.chunk_q(chunk_q));
-      `uvm_info(`gfn, $sformatf("Got data_bytes : %0s", byte_q_as_str(chunk_q)), UVM_LOW)
+      host_spi_console_read_frame(.chunk_q(byte_q));
+      `uvm_info(`gfn, $sformatf("Got data_bytes : %0s", byte_q_as_str(byte_q)), UVM_LOW)
+      outbuf = {>>{byte_q}};
 
       // (If not already de-asserted) wait for the SPI console TX ready to be cleared by the DEVICE.
       `uvm_info(`gfn, "Waiting for the DEVICE to clear 'tx_ready' (IOA5)", UVM_LOW)

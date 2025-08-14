@@ -15,11 +15,22 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
   string PERSO_CERTGEN_INPUTS_FILE;
   string MANUF_PERSO_DATA_BACK_FILE;
 
-  bit [7:0] RMA_UNLOCK_TOKEN_HASH[52];
+  string TBS_CERTS_FILE = "tbs_certs.bin";
+  string FINAL_HASH_FILE = "final_hash.bin";
+
+  localparam uint kLcTokenHashSerializedMaxSize = 52;
+  localparam uint kManufCertgenInputsSerializedMaxSize = 210;
+  localparam uint kPersoBlobSerializedMaxSize = 20535;
+
+  bit [7:0] RMA_UNLOCK_TOKEN_HASH[kLcTokenHashSerializedMaxSize];
   bit [7:0] RMA_UNLOCK_TOKEN_HASH_CRC[18];
-  bit [7:0] PERSO_CERTGEN_INPUTS[210];
-  bit [7:0] MANUF_PERSO_DATA_BACK[20535];
+  bit [7:0] PERSO_CERTGEN_INPUTS[kManufCertgenInputsSerializedMaxSize];
+  bit [7:0] MANUF_PERSO_DATA_BACK[kPersoBlobSerializedMaxSize];
   int       len1, len2, len3, len4;
+
+  // Data received from the DEVICE
+  bit [7:0] tbs_certs[];
+  bit [7:0] final_hash[];
 
   uint spinwait_timeout_ns = 30_000_000; // 30ms
 
@@ -148,15 +159,20 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     // Wait until the device exports the TBS certificates.
     `uvm_info(`gfn, "Awaiting sync-str to start read of exported certificate payload...", UVM_LOW)
     cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_WRITE_TBS_CERTS); // MAGIC STRING
-
+    //
     ///////////////////////////////////////////////
     // Set test passed.
     override_test_status_and_finish(.passed(1'b1));
     return;
     ///////////////////////////////////////////////
-
     //
-    // #TODO Read the spi console, but for the TBS certificate payload this time.
+    // Read the TBS certificate payload from the console.
+    cfg.spi_console_h.host_spi_console_read_payload(tbs_certs);
+    begin
+      integer fd = $fopen(TBS_CERTS_FILE, "w");
+      $fwrite(fd, "%0s", byte_array_as_str(tbs_certs));
+      $fclose(fd);
+    end
 
     // Process the certificate payload...
     // Nothing to do, we already have the answer in a file.
@@ -171,6 +187,14 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_FINISHED_CERT_IMPORTS); // MAGIC STRING
 
     // The device checks the imported certificate package...
+
+    // Read out the final hash sent from the device
+    cfg.spi_console_h.host_spi_console_read_payload(final_hash);
+    begin
+      integer fd = $fopen(FINAL_HASH_FILE, "w");
+      $fwrite(fd, "%0s", byte_array_as_str(final_hash));
+      $fclose(fd);
+    end
 
     // Wait until the device indicates it has successfully completed perso!
     `uvm_info(`gfn, "Awaiting sync-str for completion of personalization...", UVM_LOW)
