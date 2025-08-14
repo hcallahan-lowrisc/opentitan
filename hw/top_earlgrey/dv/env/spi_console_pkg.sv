@@ -16,6 +16,7 @@ package spi_console_pkg;
 
   uint spinwait_timeout_ns = 30_000_000; // 30ms
   uint write_timeout_ns = 20_000_000; // 20ms
+  uint min_interval_ns = 500;
 
   // Typical SPI flash opcodes.
   typedef enum bit [7:0] {
@@ -248,6 +249,15 @@ package spi_console_pkg;
         `DV_CHECK_EQ(header_magic_number, magic_number, "Incorrect SPI Console Header MAGIC_NUM")
         `DV_CHECK_LT(header_data_bytes, SPI_MAX_DATA_LENGTH, "Cannot handle this many data bytes!")
       end
+
+      // Add an arbitrary delay here to slow things down.
+      // The ottf_console_spi.c code in spi_device_send_frame() relies on manually querying the
+      // value of CSB (via reading the HW status register) and observing it change state 4 times
+      // to know that two full SPI transfers have taken place.
+      // If there is not adequate space between the two transfers, the software will miss its
+      // measurement here of the chip select returning high/inactive.
+      #(min_interval_ns);
+      clk_rst_vif.wait_clks($urandom_range(100, 1000));
 
       // Next, get all the data_bytes from the frame.
       while (header_data_bytes > 0) begin
