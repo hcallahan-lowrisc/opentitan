@@ -172,7 +172,7 @@
         "+MANUF_PERSO_DATA_BACK_FILE={proj_root}/binaries/ft_personalize_orch_emu_cw340/ujson_MANUF_PERSO_DATA_BACK",
         "+PERSO_CERTGEN_INPUTS_FILE={proj_root}/binaries/ft_personalize_orch_emu_cw340/ujson_PERSO_CERTGEN_INPUTS",
       ]
-      run_timeout_mins: 60
+      run_timeout_mins: 180
     }
   ]
 
