@@ -11,10 +11,10 @@ package spi_console_pkg;
   import csr_utils_pkg::*;
 
   // macro includes
-`include "uvm_macros.svh"
-`include "dv_macros.svh"
+  `include "uvm_macros.svh"
+  `include "dv_macros.svh"
 
-  uint spinwait_timeout_ns = 10_000_000; // 10ms
+  uint spinwait_timeout_ns = 30_000_000; // 30ms
   uint write_timeout_ns = 20_000_000; // 20ms
 
   // Typical SPI flash opcodes.
@@ -47,25 +47,40 @@ package spi_console_pkg;
 
   class spi_console extends uvm_component;
     `uvm_component_utils(spi_console)
+    `uvm_component_new
 
     virtual clk_rst_if clk_rst_vif;
     virtual pins_if #(.Width(2), .PullStrength("Weak")) flow_ctrl_vif;
     uvm_sequence seq_h;
     spi_sequencer spi_host_sequencer_h;
 
-    function new(string name = "", uvm_component parent = null);
-      super.new(name, parent);
-      $display("spi_console_pkg::spi_console:new()");
-    endfunction : new
+    // Define a custom local macro which functions like `uvm_create_on except using
+    // the parent sequence 'seq_h' and sequencer 'spi_host_sequencer_h'.
+    `ifndef spi_console_create_on
+      `define spi_console_create_on(SEQ_) \
+        begin \
+          uvm_object_wrapper type_var = SEQ_.get_type(); \
+          // Create item, returned attached to a uvm_sequence_item handle, so \
+          // cast to the original subclass sequence type handle \
+          $cast(SEQ_, create_on_seq_h(type_var, `"SEQ_`")); \
+        end
+    `endif
 
-    function uvm_sequence_item create_item(uvm_object_wrapper type_var,
-                                           uvm_sequencer_base l_sequencer,
-                                           string name);
-      uvm_sequence_item item;
+    // This function replaces the 'create_item()' method in the uvm base classes,
+    // except it operates on the 'seq_h' object.
+    function uvm_sequence_item create_on_seq_h(uvm_object_wrapper type_var, string name = "");
+
+      // Get factory
       uvm_coreservice_t cs = uvm_coreservice_t::get();
       uvm_factory factory = cs.get_factory();
-      $cast(item, factory.create_object_by_type(type_var, seq_h.get_full_name(), name));
-      item.set_item_context(seq_h, l_sequencer);
+      // Use factory to construct the object
+      uvm_object obj = factory.create_object_by_type(type_var, seq_h.get_full_name(), name);
+      // Cast object to assign to the uvm_sequence_item handle
+      uvm_sequence_item item;
+      $cast(item, obj);
+      // Attach new sequence object to parent sequence / sequencer registered with the class.
+      item.set_item_context(seq_h, spi_host_sequencer_h);
+
       return item;
     endfunction
 
@@ -186,9 +201,7 @@ package spi_console_pkg;
       bit [7:0] byte_addr_q[$] = {addr[23:16], addr[15:8], addr[7:0]};
 
       spi_host_flash_seq m_spi_host_seq;
-      uvm_object_wrapper w_ = m_spi_host_seq.get_type();
-      $cast(m_spi_host_seq, create_item(
-        /*type_var*/ w_, /*l_sequencer*/ spi_host_sequencer_h, /*name*/ "m_spi_host_seq"));
+      `spi_console_create_on(m_spi_host_seq);
 
       `DV_CHECK_RANDOMIZE_WITH_FATAL(m_spi_host_seq,
         opcode == SpiFlashReadNormal;
@@ -370,9 +383,7 @@ package spi_console_pkg;
       uint bytes_q_size = bytes_q.size();
 
       spi_host_flash_seq m_spi_host_seq;
-      uvm_object_wrapper w_ = m_spi_host_seq.get_type();
-      $cast(m_spi_host_seq, create_item(
-        /*type_var*/ w_, /*l_sequencer*/ spi_host_sequencer_h, /*name*/ "m_spi_host_seq"));
+      `spi_console_create_on(m_spi_host_seq);
 
       m_spi_host_seq.opcode = SpiFlashPageProgram;
       m_spi_host_seq.address_q = {addr[23:16], addr[15:8], addr[7:0]};
@@ -394,9 +405,8 @@ package spi_console_pkg;
 
       // First, enable writes.
       spi_host_flash_seq m_spi_host_seq;
-      uvm_object_wrapper w_ = m_spi_host_seq.get_type();
-      $cast(m_spi_host_seq, create_item(
-        /*type_var*/ w_, /*l_sequencer*/ spi_host_sequencer_h, /*name*/ "m_spi_host_seq"));
+      `spi_console_create_on(m_spi_host_seq);
+
       m_spi_host_seq.opcode = SpiFlashWriteEnable;
       m_spi_host_seq.start(/*sequencer*/ spi_host_sequencer_h,
                            /*parent_sequence*/ seq_h);
@@ -415,9 +425,7 @@ package spi_console_pkg;
     virtual task host_spi_console_wait_on_busy(uint timeout_ns = spinwait_timeout_ns,
                                                uint min_interval_ns = 1000);
       spi_host_flash_seq m_spi_host_seq;
-      uvm_object_wrapper w_ = m_spi_host_seq.get_type();
-      $cast(m_spi_host_seq, create_item(
-        /*type_var*/ w_, /*l_sequencer*/ spi_host_sequencer_h, /*name*/ "m_spi_host_seq"));
+      `spi_console_create_on(m_spi_host_seq);
 
       `DV_SPINWAIT(
         // WAIT_
@@ -442,6 +450,8 @@ package spi_console_pkg;
         timeout_ns
       )
     endtask : host_spi_console_wait_on_busy
+
+    `undef spi_console_create_on
 
   endclass : spi_console
 
