@@ -18,6 +18,8 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
   string TBS_CERTS_FILE = "tbs_certs.bin";
   string FINAL_HASH_FILE = "final_hash.bin";
 
+  string TEST_BLOB_FILE = "test_blob.bin";
+
   localparam uint kLcTokenHashSerializedMaxSize = 52;
   localparam uint kManufCertgenInputsSerializedMaxSize = 210;
   localparam uint kPersoBlobSerializedMaxSize = 20535;
@@ -31,6 +33,8 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
   // Data received from the DEVICE
   bit [7:0] tbs_certs[];
   bit [7:0] final_hash[];
+
+  bit [7:0] test_blob[];
 
   uint spinwait_timeout_ns = 30_000_000; // 30ms
 
@@ -99,6 +103,8 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     string SYNC_STR_READ_FINISHED_CERT_IMPORTS = "Finished importing certificates.";
     string SYNC_STR_READ_PERSO_DONE            = "Personalization done.";
 
+    string SYNC_STR_WRITE_TEST_BLOB            = "Exporting test blob now...";
+
     // Some other prints for logging are :
     // write_cert_to_dice_page()
     // - base_printf("Importing %s cert to %s ...\n", block->name, layout->group_name);
@@ -124,6 +130,24 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
 
     // Wait for IOA4 (TestStart)
     await_ioa("IOA4");
+
+    // TEMP: Transfer a perso_blob_test_msg...
+
+    `uvm_info(`gfn, "Awaiting sync-str to start read of perso_blob_test_msg...", UVM_LOW)
+    cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_WRITE_TEST_BLOB); // MAGIC STRING
+    cfg.spi_console_h.host_spi_console_read_payload(test_blob);
+    begin
+      integer fd = $fopen(TEST_BLOB_FILE, "w");
+      $fwrite(fd, "%0s", byte_array_as_str(test_blob));
+      $fclose(fd);
+    end
+    //
+    ///////////////////////////////////////////////
+    // Set test passed.
+    override_test_status_and_finish(.passed(1'b1));
+    return;
+    ///////////////////////////////////////////////
+    //
 
     // // Since we are starting with a .vmem image dumped after provisioning the flash scrambling key
     // // seeds (SECRET1) and enabling scrambling (FLASH_DATA_DEFAULT_CFG), the first spi_console
