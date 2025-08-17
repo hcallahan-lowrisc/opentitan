@@ -67,8 +67,18 @@ package spi_console_pkg;
         end
     `endif
 
+    // This local macro behaves like `uvm_send, but again uses the the parent sequence
+    // 'seq_h' and sequencer 'spi_host_sequencer_h'
+    `ifndef spi_console_send
+      `define spi_console_send(SEQ_) \
+        begin \
+          SEQ_.start(/*sequencer*/ spi_host_sequencer_h, /*parent_sequence*/ seq_h); \
+        end
+    `endif
+
     // This function replaces the 'create_item()' method in the uvm base classes,
-    // except it operates on the 'seq_h' object.
+    // except 'seq_h' is always used as the parent_seq, and 'spi_host_sequencer_h' is always
+    // used as the sequencer.
     function uvm_sequence_item create_on_seq_h(uvm_object_wrapper type_var, string name = "");
 
       // Get factory
@@ -88,7 +98,7 @@ package spi_console_pkg;
     function bit findStrRe(string find, string str);
       string re_find = $sformatf("*%0s*", find);
       bit    match = !uvm_re_match(re_find, str);
-      // match = 0, nomatch = 1
+      // After negation, match = 1 / nomatch = 0
       if (match) begin
         `uvm_info(`gfn,
                   $sformatf("findStrRe() MATCH=%0d, string: \"%s\", regex: \"%s\"",
@@ -118,13 +128,6 @@ package spi_console_pkg;
       string str = "";
       foreach (q[i]) $sformat(str, "%s%02x", str, q[i]);
       return str;
-    endfunction
-
-    function void print_byte_q(bit [7:0] q[$]);
-      $display("Printing byte_q now...");
-      foreach(q[idx]) begin
-        $display("q[%0d]: 0x%02x / %0d / %0s", idx, q[idx], q[idx], q[idx]);
-      end
     endfunction
 
     virtual task await_ioa(int idx, bit val = 1'b1);
@@ -213,9 +216,9 @@ package spi_console_pkg;
         read_size == size;
       )
 
-      `uvm_info(`gfn, "host_spi_console_read() - Start.", UVM_LOW)
-      m_spi_host_seq.start(/*sequencer*/ spi_host_sequencer_h, /*parent_sequence*/ seq_h);
-      `uvm_info(`gfn, "host_spi_console_read() - End.", UVM_LOW)
+      `uvm_info(`gfn, "host_spi_console_read() - Start.", UVM_HIGH)
+      `spi_console_send(m_spi_host_seq)
+      `uvm_info(`gfn, "host_spi_console_read() - End.", UVM_HIGH)
 
       // Get data out of the sequence once completed.
       foreach (m_spi_host_seq.rsp.payload_q[i]) chunk_q.push_back(m_spi_host_seq.rsp.payload_q[i]);
@@ -357,7 +360,7 @@ package spi_console_pkg;
             payload_q.size() == 1;
             read_size == 1;
           )
-          m_spi_host_seq.start(/*sequencer*/ spi_host_sequencer_h, /*parent_sequence*/ seq_h);
+          `spi_console_send(m_spi_host_seq)
 
           // Check the busy bit (bit[0]), loop while busy (=1)
         end while (m_spi_host_seq.rsp.payload_q[0][0] === 1);,
@@ -376,13 +379,11 @@ package spi_console_pkg;
       // First, enable writes.
       spi_host_flash_seq m_spi_host_seq;
       `spi_console_create_on(m_spi_host_seq);
-
       m_spi_host_seq.opcode = SpiFlashWriteEnable;
-      m_spi_host_seq.start(/*sequencer*/ spi_host_sequencer_h,
-                           /*parent_sequence*/ seq_h);
+      `spi_console_send(m_spi_host_seq)
 
       // Next, perform the write
-      write_seq.start(/*sequencer*/ spi_host_sequencer_h, /*parent_sequence*/ seq_h);
+      `spi_console_send(write_seq)
 
       // Finally, wait for busy to be cleared
       host_spi_console_wait_on_busy();
@@ -487,6 +488,7 @@ package spi_console_pkg;
     endtask : host_spi_console_write_when_ready
 
     `undef spi_console_create_on
+    `undef spi_console_send
 
   endclass : spi_console
 
