@@ -23,6 +23,7 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
   localparam uint kLcTokenHashSerializedMaxSize = 52;
   localparam uint kManufCertgenInputsSerializedMaxSize = 210;
   localparam uint kPersoBlobSerializedMaxSize = 20535;
+  localparam uint kSerdesSha256HashSerializedMaxSize = 98;
 
   bit [7:0] RMA_UNLOCK_TOKEN_HASH[kLcTokenHashSerializedMaxSize];
   bit [7:0] RMA_UNLOCK_TOKEN_HASH_CRC[18];
@@ -135,7 +136,7 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
 
     `uvm_info(`gfn, "Awaiting sync-str to start read of perso_blob_test_msg...", UVM_LOW)
     cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_WRITE_TEST_BLOB); // MAGIC STRING
-    cfg.spi_console_h.host_spi_console_read_payload(test_blob);
+    cfg.spi_console_h.host_spi_console_read_payload(test_blob, kPersoBlobSerializedMaxSize);
     begin
       integer fd = $fopen(TEST_BLOB_FILE, "w");
       $fwrite(fd, "%0s", byte_array_as_str(test_blob));
@@ -191,7 +192,7 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     ///////////////////////////////////////////////
     //
     // Read the TBS certificate payload from the console.
-    cfg.spi_console_h.host_spi_console_read_payload(tbs_certs);
+    cfg.spi_console_h.host_spi_console_read_payload(tbs_certs, kPersoBlobSerializedMaxSize);
     begin
       integer fd = $fopen(TBS_CERTS_FILE, "w");
       $fwrite(fd, "%0s", byte_array_as_str(tbs_certs));
@@ -213,7 +214,7 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     // The device checks the imported certificate package...
 
     // Read out the final hash sent from the device
-    cfg.spi_console_h.host_spi_console_read_payload(final_hash);
+    cfg.spi_console_h.host_spi_console_read_payload(final_hash, kSerdesSha256HashSerializedMaxSize);
     begin
       integer fd = $fopen(FINAL_HASH_FILE, "w");
       $fwrite(fd, "%0s", byte_array_as_str(final_hash));

@@ -16,7 +16,7 @@ package spi_console_pkg;
 
   uint spinwait_timeout_ns = 30_000_000; // 30ms
   uint write_timeout_ns = 20_000_000; // 20ms
-  uint min_interval_ns = 500;
+  uint min_interval_ns = 50_000;
 
   // Typical SPI flash opcodes.
   typedef enum bit [7:0] {
@@ -133,9 +133,9 @@ package spi_console_pkg;
     virtual task await_ioa(int idx, bit val = 1'b1);
       string timeout_msg = $sformatf("Timed out waiting for idx:%0d to be %0d.", idx, val);
 
-      `uvm_info(`gfn, $sformatf("Waiting for idx:%0d to be %0d now...", idx, val), UVM_LOW)
+      `uvm_info(`gfn, $sformatf("Waiting for idx:%0d to be %0d now...", idx, val), UVM_HIGH)
       `DV_WAIT(flow_ctrl_vif.pins[idx] == val, timeout_msg, spinwait_timeout_ns)
-      `uvm_info(`gfn, $sformatf("Saw idx:%0d as %0d now!", idx, val), UVM_LOW)
+      `uvm_info(`gfn, $sformatf("Saw idx:%0d as %0d now!", idx, val), UVM_HIGH)
     endtask: await_ioa
 
     // spi_console impl
@@ -265,7 +265,7 @@ package spi_console_pkg;
 
       // Next, get all the data_bytes from the frame.
       while (header_data_bytes > 0) begin
-        bit [7:0] data_q[$];
+        bit [7:0] data_q[$] = {};
         host_spi_console_read(.size(header_data_bytes), .addr(SPI_FRAME_HEADER_SIZE), .chunk_q(data_q));
         `uvm_info(`gfn, $sformatf("Got data_bytes in chunk : %0s", byte_q_as_str(data_q)), UVM_HIGH)
         // #TODO Assume we read all bytes in one go, for now. The DV_CHECK_EQ in the header block will
@@ -275,6 +275,11 @@ package spi_console_pkg;
         // Append the bytes from this read transfer to the overall queue.
         chunk_q = {chunk_q, data_q};
       end
+
+      // Again, add the arbitrary delay to allow the DEVICE sw time to ready CSB low to detect the
+      // end of the frame.
+      #(min_interval_ns);
+      clk_rst_vif.wait_clks($urandom_range(100, 1000));
 
     endtask : host_spi_console_read_frame
 
@@ -293,7 +298,7 @@ package spi_console_pkg;
 
       // Next, get all the data_bytes from the frame until we see the expected message in the buffer.
       do begin
-        bit [7:0] data_q[$];
+        bit [7:0] data_q[$] = {};
         host_spi_console_read_frame(.chunk_q(data_q));
         `uvm_info(`gfn, $sformatf("Got data_bytes : %0s", byte_q_as_str(data_q)), UVM_LOW)
         // Append the bytes from this read transfer to the overall queue.
@@ -310,24 +315,40 @@ package spi_console_pkg;
 
     //
     //
+    // For this method, we know the expected payload length. If the 
     //
-    virtual task host_spi_console_read_payload(ref bit [7:0] outbuf[]); // DEVICE -> HOST
-      bit [7:0] byte_q[$];
+    virtual task host_spi_console_read_payload(ref bit [7:0] outbuf[], input int len); // DEVICE -> HOST
+      bit [7:0] payload_byte_q[$] = {};
+      int       len_ctr = 0;
+      `uvm_info(`gfn, $sformatf("Awaiting read_payload of %0d bytes", len), UVM_LOW)
 
       `uvm_info(`gfn, "Waiting for the DEVICE to set 'tx_ready' (IOA5)", UVM_LOW)
       await_ioa(tx_ready_idx, 1'b1);
       `uvm_info(`gfn, "DEVICE set 'tx_ready' now.", UVM_LOW)
 
-      // Next, get all the data_bytes from the frame until we see the expected message in the buffer.
-      host_spi_console_read_frame(.chunk_q(byte_q));
-      `uvm_info(`gfn, $sformatf("Got data_bytes : %0s", byte_q_as_str(byte_q)), UVM_LOW)
-      outbuf = {>>{byte_q}};
+      // Next, get all the data_bytes from the frame until we've got the expected number of bytes.
+      while (len_ctr < len) begin
+        bit [7:0] frame_byte_q[$] = {};
+        host_spi_console_read_frame(.chunk_q(frame_byte_q));
+        `uvm_info(`gfn, $sformatf("Got %0d data bytes in frame : %0s", frame_byte_q.size(), byte_q_as_str(frame_byte_q)), UVM_LOW)
+        payload_byte_q = {payload_byte_q, frame_byte_q};
+        len_ctr += frame_byte_q.size();
+        `uvm_info(`gfn, $sformatf("Got %0d / %0d data bytes in expected payload.", len_ctr, len), UVM_LOW)
+
+        // If the payload isn't complete, wait for the device to indicate the next frame is ready...
+        if (len_ctr < len) begin
+          await_ioa(tx_ready_idx, 1'b0);
+          await_ioa(tx_ready_idx, 1'b1);
+        end
+
+      end
 
       // (If not already de-asserted) wait for the SPI console TX ready to be cleared by the DEVICE.
       `uvm_info(`gfn, "Waiting for the DEVICE to clear 'tx_ready' (IOA5)", UVM_LOW)
       await_ioa(tx_ready_idx, 1'b0);
       `uvm_info(`gfn, "DEVICE cleared 'tx_ready' now.", UVM_LOW)
 
+      outbuf = {>>{payload_byte_q}};
     endtask : host_spi_console_read_payload
 
     ///////////////////
