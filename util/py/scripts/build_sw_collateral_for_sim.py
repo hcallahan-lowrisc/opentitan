@@ -81,7 +81,7 @@ from typing import Union
 import logging
 logger = logging.getLogger(__name__)
 
-BAZEL_COMMON_QUERY_FLAGS = ["--ui_event_filters=-info",
+BAZEL_COMMON_CQUERY_FLAGS = ["--ui_event_filters=-info",
                             "--noshow_progress"]
 
 BAZEL_STARLARK_EXPR_DATA_RUNFILES_FILES_QUERY = \
@@ -141,6 +141,51 @@ class sw_type_e(Enum):
     SwTypeOtp       = 4 # Customized OTP image
     SwTypeDebug     = 5 # Debug SW - injected into SRAM.
 
+
+class BazelRunner:
+    """A collection of functions useful for running Bazel operations."""
+
+    def __init__(self):
+        self.cmd = ""
+        self.airgapped_opts = []
+        self.build_opts = []
+        self.cquery_opts_common = BAZEL_COMMON_CQUERY_FLAGS
+
+
+    def build(self, labels: list[str], opts: list[str] = []) -> None:
+        build_cmd = (
+            self.cmd,
+            "build",
+            *self.airgapped_opts,
+            *self.build_opts,
+            *labels,
+            *opts,
+        )
+        logger.info(f'build_cmd = {" ".join(build_cmd)}')
+        _run_cmd(build_cmd)
+
+    def query(self, label: str, opts: list[str]) -> str:
+        query_cmd = (
+            self.cmd,
+            "query",
+            *self.airgapped_opts,
+            label,
+            *opts,
+        )
+        logger.info(f'query_cmd = {" ".join(query_cmd)}')
+        return _run_cmd(query_cmd)
+
+    def cquery(self, label: str, opts: list[str]) -> None:
+        cquery_cmd = (
+            self.cmd,
+            "cquery",
+            *self.airgapped_opts,
+            label,
+            *self.cquery_opts_common,
+            *opts,
+        )
+        logger.info(f'cquery_cmd = {" ".join(cquery_cmd)}')
+        return _run_cmd(cquery_cmd)
 
 @dataclass
 class imageFlags:
@@ -212,6 +257,76 @@ def _copy_files_to_run_dir(files: list[str], run_dir: Path) -> None:
         if f.suffix == 'bin' and maybe_elf.exists():
             shutil.copy(maybe_elf, run_dir)
 
+def _get_image_runfiles(iq: imageQuery, bazel_runner: BazelRunner) -> list[str]:
+    """Run the target/kind-specific Bazel queries to get the runfiles list for this image."""
+
+    if logger.level <= logging.INFO:
+        location_query = bazel_runner.query(iq.label, ["--output=location"])
+        location = location_query[0].split(' ')[0]
+        logger.info(f"bazel target location: {location}")
+
+    # Query to determine what 'kind' the target is
+    kind_query = bazel_runner.cquery(iq.label, ["--output=label_kind"])
+    kind = kind_query[0].split(' ')[0]
+    logger.info(f'kind = {kind}')
+
+    # Depending on the target 'kind', we may need to query differently to get the
+    # path inside the bazel build heirarchy to the build results, and also to filter
+    # the query only for targets / files which are strictly necessary for simulation.
+    # _Note_
+    # We may also want to extract collateral to assist debug and development, such as
+    # disassembly files for given binaries.
+    runfiles: list[str] = []
+    match kind:
+        case "opentitan_test" | "opentitan_binary" | "alias":
+            # For targets of this kind, we can query directly for the set of runfiles.
+            # The query may have a slightly different starlark expression to extract the
+            # files from the target depending on the kind.
+
+            runfiles = bazel_runner.cquery(
+                iq.label,
+                [
+                    "--output=starlark",
+                    f"--starlark:file={BAZEL_STARLARK_QUERY_RULE_KIND[kind]}",
+                    # f"--starlark:expr='{BAZEL_STARLARK_QUERY_RULE_KIND[kind]}'",
+                ]
+            )
+
+        case _:
+
+            deps = bazel_runner.cquery(
+                label=f'{iq.cquery}',
+                opts=[
+                    "--output=starlark",
+                ]
+            )
+
+            # Bazel 6 cquery outputs repository targets in canonical format (@//blabla) whereas bazel 5 does not,
+            # so strip leading @ if present.
+            deps = [dep.lstrip('@') for dep in deps]
+            logger.info(f'deps = {deps}')
+
+            for label in deps:
+                if (# - OTP preload images are copied
+                    label.startswith('//hw/ip/otp_ctrl/data')
+                    or
+                    # - Any deps from the following directories/packages are _not_ copied:
+                    #   - hw/
+                    #   - util/
+                    #   - sw/host/
+                    (not any(label.startswith(s) for s in ("//hw", "//util", "//sw/host")))):
+
+                    runfiles += bazel_runner.cquery(
+                        label,
+                        [
+                            "--output=starlark",
+                            f"--starlark:file={BAZEL_STARLARK_FILE_FILES_QUERY}",
+                            # f"--starlark:expr='{BAZEL_STARLARK_EXPR_FILES_QUERY}'",
+                        ]
+                    )
+
+    return runfiles
+
 
 def _deploy_software_collateral(args) -> None:
     """Build, then deploy the software collateral"""
@@ -225,41 +340,46 @@ def _deploy_software_collateral(args) -> None:
         f"{args.run_dir}\n"
     )
 
-    bazel_cmd = "./bazelisk.sh"
-    bazel_airgapped_opts = []
-    bazel_opts = args.sw_build_opts + [
-        "--define", "DISABLE_VERILATOR_BUILD=true",
-        # The simulation run-time seed is passed to seed the generation of all OTP
-        # partition item values that are set to '<random>' in the final image config.
-        f'--//hw/ip/otp_ctrl/data:img_seed={args.seed}',
-    ]
+    bazel_runner = BazelRunner()
+
+    bazel_runner.cmd = "./bazelisk.sh"
+    bazel_runner.build_opts = \
+        args.sw_build_opts + \
+        [
+            "--define", "DISABLE_VERILATOR_BUILD=true",
+            # The simulation run-time seed is passed to seed the generation of all OTP
+            # partition item values that are set to '<random>' in the final image config.
+            f'--//hw/ip/otp_ctrl/data:img_seed={args.seed}',
+        ]
 
     # In the Air-gapped environment, the following Environment Variable will exist.
     if ENV.get("BAZEL_PYTHON_WHEELS_REPO"):
         # We need to change our bazel invocation as follows when running air-gapped.
-        bazel_cmd = "bazel"
-        bazel_airgapped_opts = [
+        bazel_runner.cmd = "bazel"
+        bazel_runner.airgapped_opts = [
             "--define", "SPECIFY_BINDGEN_LIBSTDCXX=true",
             f'--distdir={ENV.get("BAZEL_DISTDIR")}',
             f'--repository_cache={ENV.get("BAZEL_CACHE")}',
         ]
+
     # Export this environment variable to build with a non-default OTP permuation
     if ENV.get("BAZEL_OTP_DATA_PERM_FLAG"):
-        bazel_opts += [
+        bazel_runner.build_opts += [
             f'--//hw/ip/otp_ctrl/data:data_perm={ENV.get("BAZEL_OTP_DATA_PERM_FLAG")}',
         ]
+
     # If build_seed is provided, feed this value into bazel when building the OTP pre-load images.
     # This overrides the default seed value and is needed for reproducibility to match the
     # synthesized hardware from the 'build' stage. (sw build happens in the 'run' stage)
     if (args.build_seed != 'None'):
-        bazel_opts += [
+        bazel_runner.build_opts += [
             f"--//hw/ip/otp_ctrl/data:lc_seed={args.build_seed}",
             f"--//hw/ip/otp_ctrl/data:otp_seed={args.build_seed}",
         ]
 
-    logger.debug(f"bazel_cmd={bazel_cmd}")
-    logger.debug(f"bazel_opts={bazel_opts}")
-    logger.debug(f"bazel_airgapped_opts={bazel_airgapped_opts}")
+    logger.debug(f"bazel_cmd={bazel_runner.cmd}")
+    logger.debug(f"bazel_opts={bazel_runner.build_opts}")
+    logger.debug(f"bazel_airgapped_opts={bazel_runner.airgapped_opts}")
 
     # First, determine the final label and cquery expression to build and
     # get the artifacts for each image
@@ -299,118 +419,15 @@ def _deploy_software_collateral(args) -> None:
 
     # Build all the software artifacts
     bazel_labels = (v.label for v in image_set.values())
-    build_cmd = (
-        bazel_cmd,
-        "build",
-        *bazel_airgapped_opts,
-        *bazel_opts,
-        *bazel_labels,
-    )
-    logger.info(f'build_cmd = {" ".join(build_cmd)}')
-    _run_cmd(build_cmd)
+    bazel_runner.build(bazel_labels)
     logger.info('All labels built.\n')
 
     # Now the build is complete, deploy the files for each target
     for image in args.sw_images:
         logger.info(f'image={image}')
 
-        bazel_label = image_set[image].label
-        bazel_cquery = image_set[image].cquery
-        logger.debug(f"bazel_label={bazel_label}")
-        logger.debug(f"bazel_cquery={bazel_cquery}")
-
-        if logger.level <= logging.INFO:
-            location_query_cmd = (
-                bazel_cmd,
-                "query",
-                *bazel_airgapped_opts,
-                bazel_label,
-                "--output=location"
-            )
-            location = _run_cmd(location_query_cmd)[0].split(' ')[0]
-            logger.info(f"bazel target location: {location}")
-
-        # Query to determine what 'kind' the target is
-        kind_cmd = (
-            bazel_cmd,
-            "cquery",
-            *bazel_airgapped_opts,
-            bazel_label,
-            *BAZEL_COMMON_QUERY_FLAGS,
-            "--output=label_kind",
-        )
-        logger.info(f'kind_cmd = {" ".join(kind_cmd)}')
-        kind_stdout = _run_cmd(kind_cmd)
-        kind = kind_stdout[0].split(' ')[0]
-        logger.info(f'kind = {kind}')
-
-        # Depending on the target 'kind', we may need to query differently to get the
-        # path inside the bazel build heirarchy to the build results, and also to filter
-        # the query only for targets / files which are strictly necessary for simulation.
-        # _Note_
-        # We may also want to extract collateral to assist debug and development, such as
-        # disassembly files for given binaries.
-        runfiles: list[str] = []
-        match kind:
-            case "opentitan_test" | "opentitan_binary" | "alias":
-                # For targets of this kind, we can query directly for the set of runfiles.
-                # The query may have a slightly different starlark expression to extract the
-                # files from the target depending on the kind.
-
-                cquery_cmd = (
-                    bazel_cmd,
-                    "cquery",
-                    *bazel_airgapped_opts,
-                    bazel_label,
-                    *BAZEL_COMMON_QUERY_FLAGS,
-                    "--output=starlark",
-                    f"--starlark:file={BAZEL_STARLARK_QUERY_RULE_KIND[kind]}",
-                    # f"--starlark:expr='{BAZEL_STARLARK_QUERY_RULE_KIND[kind]}'",
-                )
-                logger.info(f'cquery_cmd = {" ".join(cquery_cmd)}')
-                runfiles = _run_cmd(cquery_cmd)
-
-            case _:
-
-                cquery_cmd = (
-                    bazel_cmd,
-                    "cquery",
-                    *bazel_airgapped_opts,
-                    f'{bazel_cquery}',
-                    *BAZEL_COMMON_QUERY_FLAGS,
-                    "--output=starlark",
-                )
-                logger.info(f'cquery_cmd = {" ".join(cquery_cmd)}')
-                deps = _run_cmd(cquery_cmd)
-
-                # Bazel 6 cquery outputs repository targets in canonical format (@//blabla) whereas bazel 5 does not,
-                # so strip leading @ if present.
-                deps = [dep.lstrip('@') for dep in deps]
-                logger.info(f'deps = {deps}')
-
-                runfiles = []
-                for label in deps:
-                    if (# - OTP preload images are copied
-                        label.startswith('//hw/ip/otp_ctrl/data')
-                        or
-                        # - Any deps from the following directories/packages are _not_ copied:
-                        #   - hw/
-                        #   - util/
-                        #   - sw/host/
-                        (not any(label.startswith(s) for s in ("//hw", "//util", "//sw/host")))):
-
-                        cquery_cmd = (
-                            bazel_cmd,
-                            "cquery",
-                            *bazel_airgapped_opts,
-                            label,
-                            *BAZEL_COMMON_QUERY_FLAGS,
-                            "--output=starlark",
-                            f"--starlark:file={BAZEL_STARLARK_FILE_FILES_QUERY}",
-                            # f"--starlark:expr='{BAZEL_STARLARK_EXPR_FILES_QUERY}'",
-                        )
-                        logger.info(f'cquery_cmd = {" ".join(cquery_cmd)}')
-                        runfiles += _run_cmd(cquery_cmd)
+        # First, run the query to get the maximal set of runfiles for the image
+        runfiles = _get_image_runfiles(iq=image_set[image], bazel_runner=bazel_runner)
 
         # Some rules may return runfiles for many different software devices, but
         # we only require the files for a specific device (passed by --sw-build-device)
