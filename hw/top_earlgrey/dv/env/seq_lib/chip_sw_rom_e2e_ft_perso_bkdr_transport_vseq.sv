@@ -7,8 +7,9 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
   `uvm_object_new
 
   string dumped_otp_transport;
-  string dumped_bank0_transport;
   string dumped_otp_perso_secrets;
+  string dumped_bank0_transport;
+  string bank0_gen;
 
   string RMA_UNLOCK_TOKEN_HASH_FILE;
   string RMA_UNLOCK_TOKEN_HASH_CRC_FILE;
@@ -43,8 +44,10 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     super.pre_start();
 
     void'($value$plusargs("dumped_otp_transport=%0s", dumped_otp_transport));
-    void'($value$plusargs("dumped_bank0_transport=%0s", dumped_bank0_transport));
     void'($value$plusargs("dumped_otp_perso_secrets=%0s", dumped_otp_perso_secrets));
+
+    void'($value$plusargs("dumped_bank0_transport=%0s", dumped_bank0_transport));
+    void'($value$plusargs("bank0_gen=%0s", bank0_gen));
 
     // Get the HOST->DEVICE spi_console inputs
     begin
@@ -115,13 +118,15 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     super.body();
     `uvm_info(`gfn, "chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq::body()", UVM_LOW)
 
-    `uvm_info(`gfn, "Backdoor-loading 'transport' OTP image now.", UVM_LOW)
-    cfg.mem_bkdr_util_h[Otp].load_mem_from_file(dumped_otp_transport);
-    `uvm_info(`gfn, "Backdoor-loading 'transport' Flash0 test image now.", UVM_LOW)
-    cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(dumped_bank0_transport);
+    // `uvm_info(`gfn, "Backdoor-loading 'transport' OTP image now.", UVM_LOW)
+    // cfg.mem_bkdr_util_h[Otp].load_mem_from_file(dumped_otp_transport);
+    // `uvm_info(`gfn, "Backdoor-loading 'transport' Flash0 test image now.", UVM_LOW)
+    // cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(dumped_bank0_transport);
 
     `uvm_info(`gfn, "Backdoor-loading 'perso_secrets' OTP image now.", UVM_LOW)
     cfg.mem_bkdr_util_h[Otp].load_mem_from_file(dumped_otp_perso_secrets);
+    `uvm_info(`gfn, "Backdoor-loading 'gen' Flash0 test image now.", UVM_LOW)
+    cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(bank0_gen);
 
     // Wait until we reach the start of the Test ROM
     `DV_WAIT(
