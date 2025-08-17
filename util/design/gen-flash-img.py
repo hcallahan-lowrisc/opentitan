@@ -258,7 +258,8 @@ def _get_flash_scrambling_configs(otp_vmem_file: str,
         otp_vmem = Path(otp_vmem_file).read_text()
     except IOError:
         raise Exception(f"Unable to open {otp_vmem_file}")
-    otp_vmem_lines = re.findall(r"^@.*$", otp_vmem, flags=re.MULTILINE)
+    # Skip all non-comment lines. Trailing comments are okay.
+    otp_vmem_lines = re.findall(r"^(?!//).*$", otp_vmem, flags=re.MULTILINE)
 
     # Retrieve OTP data from the following partitions:
     # - CREATOR_SW_CFG: contains the flash scrambling enablement flag.
@@ -270,17 +271,29 @@ def _get_flash_scrambling_configs(otp_vmem_file: str,
     otp_data_block = 0
     idx = 0
 
+    # log.info("Here! :)")
+
     def _extract_words_from_line(line: str):
+        if '//' in line:
+            line = line.split('//')[0]
+        line_items = line.split()
+        assert len(line_items) in list(range(1, 3))
+
         # Convert OTP .vmem word from string to int.
-        otp_data_word_w_ecc = int(line.split()[1], 16)
+        # N.B. This assumes the data word is the final element on the line.
+        otp_data_word_w_ecc = int(line_items[-1], 16)
+
         # Un-permute bits if necessary.
         if otp_data_perm:
             bin_fmt_str = "0" + str(OTP_WORD_SIZE_WECC) + "b"
             otp_data_word_as_str = format(otp_data_word_w_ecc, bin_fmt_str)
             otp_data_word_w_ecc = \
                 int(inverse_permute_bits(otp_data_word_as_str, otp_data_perm), 2)
+
         # Drop ECC bits.
         otp_data_word = otp_data_word_w_ecc & (2**OTP_WORD_SIZE - 1)
+
+        # Return the data block
         nonlocal otp_data_block
         nonlocal idx
         otp_data_block |= otp_data_word << (idx * OTP_WORD_SIZE)
@@ -290,7 +303,10 @@ def _get_flash_scrambling_configs(otp_vmem_file: str,
         is_flash_data_default_cfg_line = OTP_FLASH_DATA_DEFAULT_CFG_RE.search(line)
         is_secret1_line = OTP_SECRET1_RE.search(line)
 
+        # log.info(f"line: {line}")
+
         if is_flash_data_default_cfg_line:
+            # log.info(f"Got FLASH_DATA_DEFAULT_CFG line: {line}")
             _extract_words_from_line(line)
             if idx == (OTP_FLASH_DATA_DEFAULT_CFG_BLOCK_SIZE //
                        OTP_WORD_SIZE):
@@ -304,6 +320,7 @@ def _get_flash_scrambling_configs(otp_vmem_file: str,
                 otp_data_block = 0
                 idx = 0
         if is_secret1_line:
+            # log.info(f"Got SECRET1 line: {line}")
             _extract_words_from_line(line)
             if idx == (OTP_SECRET1_BLOCK_SIZE // OTP_WORD_SIZE):
                 secret1_data_blocks.append(otp_data_block)
@@ -383,10 +400,10 @@ def _reformat_flash_vmem(
 
     # Add integrity/reliability ECC, and potentially scramble, each flash word.
     reformatted_vmem_lines = []
+    address = 0
     for line in flash_vmem_lines:
         line_items = line.split()
         reformatted_line = ""
-        address = None
         address_offset = 0
         data = None
         for item in line_items:
@@ -418,6 +435,9 @@ def _reformat_flash_vmem(
                 reformatted_line += str.format(VMEM_FORMAT_STR,
                                                data_w_full_ecc)
                 address_offset += 1
+
+        # Increment the address (needed if the next line does not start with an address)
+        address += address_offset
 
         # Append reformatted line to what will be the new output .vmem file.
         reformatted_vmem_lines.append(reformatted_line)
@@ -467,7 +487,7 @@ def main(argv: List[str]):
                         """)
     args = parser.parse_args(argv)
 
-    log_level = log.DEBUG
+    log_level = log.INFO
     log_format = '%(levelname)s: [%(filename)s:%(lineno)d] %(message)s'
     log.basicConfig(level=log_level,
                     format=log_format,
