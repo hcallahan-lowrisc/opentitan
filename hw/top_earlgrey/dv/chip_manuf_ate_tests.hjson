@@ -133,7 +133,7 @@
         // Add the 'silicon_creator' flag because the default 'sw_build_device' of sim_dv does
         // not enable the OTTF, and hence we cannot interact with the perso binary over the
         // spi_console. (sim_dv assumes use of the sw_logger_if instead of the OTTF)
-        "//sw/device/silicon_creator/manuf/base:ft_personalize_emulation:1:silicon_creator",
+        "//sw/device/silicon_creator/manuf/base:ft_personalize_emulation:1:silicon_creator:dont_filter",
         "//hw/ip/otp_ctrl/data/earlgrey_skus/emulation:otp_img_dev_manuf_individualized:4"
         "//sw/device/lib/testing/test_rom:test_rom:0"
       ]
@@ -156,7 +156,7 @@
       sw_images: [
         "//sw/device/lib/testing/test_rom:test_rom:0",
         // Add the test binary here, just so we get the disassembly in the run-dir for debugging purposes.
-        "//sw/device/silicon_creator/manuf/base:ft_personalize_emulation:1:silicon_creator",
+        "//sw/device/silicon_creator/manuf/base:ft_personalize_emulation:1:silicon_creator:dont_filter",
       ]
       en_run_modes: ["sw_test_mode_base"]
       run_opts: [

@@ -1,7 +1,8 @@
+#!/usr/bin/env python3
 # Copyright lowRISC contributors (OpenTitan project).
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
-"""Script that invokes Bazel to build software collateral for a simulation.
+"""Script that invokes Bazel to build and deploy software collateral for a simulation.
 
 MOTIVE
 ------
@@ -9,7 +10,7 @@ Bazel is used to build device software for OpenTitan.
 Many different software binaries may be run on or loaded into an OpenTitan
 system in simulation, which Bazel Targets are used to define and build.
 
-Bazel targets can output multiple files, and the software collateral that
+Bazel rules can output multiple files, and the software collateral that
 is actually needed by the simulator may be different depending on configuration,
 such as if the binary is scrambled/unscrambled, .vmem or .bin format, etc.
 Our rules are designed to build many possible pieces of collateral at once, all
@@ -17,11 +18,11 @@ with the same common root filename, but with different suffixes and file extensi
 that differentiate their formats and uses.
 To 'connect' a particular piece of software collateral with the correct
 mechanism to load it into the sim, we append some extra metadata to the Bazel
-Label. We refer to this extra data as 'flags'. For example, the flag "signed"
-is used to set the SW image extension correctly. The flag "test_in_rom" is used
-to indicate a test runs directly out of ROM instead of flash. The first flag is
-always the index-flag, which is an integer which identifies which device memory
-system the image should be loaded for (e.g. ROM, OTP, Flash, etc)
+Label. We refer to this extra data as 'flags'. The first flag is always the
+integer 'index', which identifies which device memory system the image should be
+loaded into (e.g. ROM, OTP, Flash, etc). The flag "signed" is used to set the SW
+image extension correctly. The flag "test_in_rom" is used to indicate a test runs
+directly out of ROM instead of flash.
 
 A string for each sw image (root filename + index + flags) is also passed through
 to the tesbench, which re-parses it (in chip_env_cfg.sv) to extract the index and
@@ -77,6 +78,7 @@ import shlex
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Union
+import textwrap
 
 import logging
 logger = logging.getLogger(__name__)
@@ -84,12 +86,15 @@ logger = logging.getLogger(__name__)
 BAZEL_COMMON_CQUERY_FLAGS = ["--ui_event_filters=-info",
                             "--noshow_progress"]
 
+# Inline query expressions (passed via --starlark:expr)
 BAZEL_STARLARK_EXPR_DATA_RUNFILES_FILES_QUERY = \
     r'"\\n".join([f.path for f in target.data_runfiles.files.to_list()])'
-BAZEL_STARLARK_FILE_DATA_RUNFILES_FILES_QUERY = \
-    (Path(__file__).parent / 'queries' / 'DATA_RUNFILES_FILES_QUERY.cquery').absolute()
 BAZEL_STARLARK_EXPR_FILES_QUERY = \
     r'"\\n".join([f.path for f in target.files.to_list()])'
+
+# Query files (passed via --starlark:file)
+BAZEL_STARLARK_FILE_DATA_RUNFILES_FILES_QUERY = \
+    (Path(__file__).parent / 'queries' / 'DATA_RUNFILES_FILES_QUERY.cquery').absolute()
 BAZEL_STARLARK_FILE_FILES_QUERY = \
     (Path(__file__).parent / 'queries' / 'FILES_QUERY.cquery').absolute()
 
@@ -130,6 +135,8 @@ KNOWN_FLAGS = [
     "fake_rsa_dev_key_0",
     "fake_rsa_prod_key_0",
     "fake_rsa_test_key_0",
+    # Don't filter out runfiles for other sw_build_devices if this flag is present
+    "dont_filter"
 ]
 
 
@@ -151,6 +158,15 @@ class BazelRunner:
         self.build_opts = []
         self.cquery_opts_common = BAZEL_COMMON_CQUERY_FLAGS
 
+    def __str__(self):
+        s = textwrap.dedent(f"""
+        BazelRunner:
+          cmd={self.cmd}
+          airgapped_opts={self.airgapped_opts}
+          build_opts={self.build_opts}
+          cquery_common_opts={self.cquery_opts_common}
+        """)
+        return s
 
     def build(self, labels: list[str], opts: list[str] = []) -> None:
         build_cmd = (
@@ -188,7 +204,7 @@ class BazelRunner:
         return _run_cmd(cquery_cmd)
 
 @dataclass
-class imageFlags:
+class imageString:
     """Parse the custom format used to add metadata to bazel targets for sim_dv consumption."""
 
     raw: str
@@ -215,8 +231,10 @@ class imageFlags:
 @dataclass
 class imageQuery:
     """The metadata for each image required to locate all artifacts after building."""
+    image_string: imageString
     label: str
     cquery: str
+    kind: str
 
 
 def _run_cmd(cmd : list[str]) -> list[str]:
@@ -257,6 +275,7 @@ def _copy_files_to_run_dir(files: list[str], run_dir: Path) -> None:
         if f.suffix == 'bin' and maybe_elf.exists():
             shutil.copy(maybe_elf, run_dir)
 
+
 def _get_image_runfiles(iq: imageQuery, bazel_runner: BazelRunner) -> list[str]:
     """Run the target/kind-specific Bazel queries to get the runfiles list for this image."""
 
@@ -265,11 +284,6 @@ def _get_image_runfiles(iq: imageQuery, bazel_runner: BazelRunner) -> list[str]:
         location = location_query[0].split(' ')[0]
         logger.info(f"bazel target location: {location}")
 
-    # Query to determine what 'kind' the target is
-    kind_query = bazel_runner.cquery(iq.label, ["--output=label_kind"])
-    kind = kind_query[0].split(' ')[0]
-    logger.info(f'kind = {kind}')
-
     # Depending on the target 'kind', we may need to query differently to get the
     # path inside the bazel build heirarchy to the build results, and also to filter
     # the query only for targets / files which are strictly necessary for simulation.
@@ -277,7 +291,8 @@ def _get_image_runfiles(iq: imageQuery, bazel_runner: BazelRunner) -> list[str]:
     # We may also want to extract collateral to assist debug and development, such as
     # disassembly files for given binaries.
     runfiles: list[str] = []
-    match kind:
+    logger.info(f'kind = {iq.kind}')
+    match iq.kind:
         case "opentitan_test" | "opentitan_binary" | "alias":
             # For targets of this kind, we can query directly for the set of runfiles.
             # The query may have a slightly different starlark expression to extract the
@@ -287,8 +302,8 @@ def _get_image_runfiles(iq: imageQuery, bazel_runner: BazelRunner) -> list[str]:
                 iq.label,
                 [
                     "--output=starlark",
-                    f"--starlark:file={BAZEL_STARLARK_QUERY_RULE_KIND[kind]}",
-                    # f"--starlark:expr='{BAZEL_STARLARK_QUERY_RULE_KIND[kind]}'",
+                    f"--starlark:file={BAZEL_STARLARK_QUERY_RULE_KIND[iq.kind]}",
+                    # f"--starlark:expr='{BAZEL_STARLARK_QUERY_RULE_KIND[iq.kind]}'",
                 ]
             )
 
@@ -377,25 +392,23 @@ def _deploy_software_collateral(args) -> None:
             f"--//hw/ip/otp_ctrl/data:otp_seed={args.build_seed}",
         ]
 
-    logger.debug(f"bazel_cmd={bazel_runner.cmd}")
-    logger.debug(f"bazel_opts={bazel_runner.build_opts}")
-    logger.debug(f"bazel_airgapped_opts={bazel_runner.airgapped_opts}")
+    # Print a summary of the accumulated bazel_runner configuration that we will use to
+    # assemble all further bazel operations.
+    logger.info(bazel_runner)
 
-    # First, determine the final label and cquery expression to build and
-    # get the artifacts for each image
-    image_set = {}
+    # Determine the final label and cquery expression to build and get the
+    # artifacts for each image.
+    image_query_set = {}
     for image in args.sw_images:
 
-        flags = imageFlags(image)
-        label = flags.label
-        cquery = flags.label
+        image_string = imageString(image)
 
-        if sw_type_e(flags.index) in (sw_type_e.SwTypeRom,
-                                      sw_type_e.SwTypeTestSlotA,
-                                      sw_type_e.SwTypeTestSlotB,
-                                      sw_type_e.SwTypeOtbn):
+        if sw_type_e(image_string.index) in (sw_type_e.SwTypeRom,
+                                             sw_type_e.SwTypeTestSlotA,
+                                             sw_type_e.SwTypeTestSlotB,
+                                             sw_type_e.SwTypeOtbn):
 
-            if "silicon_creator" in flags.flags:
+            if "silicon_creator" in image_string.flags:
                 # Add the flag `silicon_creator` when using a flash image built
                 # for the `silicon_creator` device.
                 # This is used for GLS tests that integrate the ROM macro, which
@@ -403,31 +416,48 @@ def _deploy_software_collateral(args) -> None:
                 #
                 # Currently, the '_silicon_creator' suffix is added manually when
                 # instantiating rules.
-                label = f"{flags.label}_silicon_creator"
+                label = f"{image_string.label}_silicon_creator"
             else:
                 # If test type is `opentitan_test` and the flash image was generated
                 # by the `opentitan_test` Bazel macro itself, or it was generated
                 # by the `opentitan_flash_binary` or `opentitan_binary` Bazel macros,
                 # then we need to append the device suffix.
-                label = f"{flags.label}_{args.sw_build_device}"
+                label = f"{image_string.label}_{args.sw_build_device}"
 
             # For this type of image, relevant files may be present in both the 'data'
             # and 'srcs' attributes of the target. Query for both.
             cquery = f"labels(data, {label}) union labels(srcs, {label})"
 
-        image_set[image] = imageQuery(label, cquery)
+        else:
+
+            # For all other values of sw_type_e, the label/query is just the label
+            # passed as input (minus all trailing flags).
+            label = image_string.label
+            cquery = image_string.label
+
+        # Query to determine what 'kind' the target is
+        kind_query = bazel_runner.cquery(label, ["--output=label_kind"])
+        kind = kind_query[0].split(' ')[0]
+
+        # Add a query object to the set for this image
+        image_query_set[image] = imageQuery(image_string, label, cquery, kind)
+
+    logger.info('Image query parameters determined.\n')
 
     # Build all the software artifacts
-    bazel_labels = (v.label for v in image_set.values())
+    bazel_labels = (v.label for v in image_query_set.values())
+    logger.info('Building all labels...')
     bazel_runner.build(bazel_labels)
     logger.info('All labels built.\n')
 
     # Now the build is complete, deploy the files for each target
     for image in args.sw_images:
-        logger.info(f'image={image}')
+        logger.info(f'Querying runfiles for image : {image}')
+
+        iq = image_query_set[image]
 
         # First, run the query to get the maximal set of runfiles for the image
-        runfiles = _get_image_runfiles(iq=image_set[image], bazel_runner=bazel_runner)
+        runfiles = _get_image_runfiles(iq, bazel_runner)
 
         # Some rules may return runfiles for many different software devices, but
         # we only require the files for a specific device (passed by --sw-build-device)
@@ -440,14 +470,14 @@ def _deploy_software_collateral(args) -> None:
             f_stem = str(f).split('.')[0]
             return f_stem.endswith(dev)
         is_device_specific = any([_f_endswith_dev(Path(f)) for f in runfiles])
-        if is_device_specific:
+        if is_device_specific and ('dont_filter' not in iq.image_string.flags):
             logger.info(
-                f"This query returned device_specific '{dev}' files, filtering...")
-            # runfiles = list(filter(lambda f: _f_endswith_dev(Path(f)), runfiles))
+                f"This query returned device_specific '{dev}' files, filtering "
+                "out runfiles for other devices...")
+            runfiles = list(filter(lambda f: _f_endswith_dev(Path(f)), runfiles))
 
-        # We have built and queried to determine all the needed software collateral for the simulation
-        # The final step is to copy it to the test's working directory so it can be accessed easily
-        # via relative path.
+        # Now copy any runfiles for this image to the test's working directory so they
+        # can be accessed easily via relative path.
         _copy_files_to_run_dir(runfiles, args.run_dir)
         runfiles_str = '\n'.join(runfiles)
         logger.info(
@@ -462,7 +492,7 @@ def _deploy_software_collateral(args) -> None:
 def _main() -> None:
 
     def _space_sep_str(value):
-        return value.split(' ')
+        return list(filter(None, value.split(' ')))
 
     def _int_or_str(value):
         try:
@@ -470,12 +500,19 @@ def _main() -> None:
         except:
             return value
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        # Use the module description to generate CLI --help docs
+        description=(sys.modules[__name__].__doc__.split('\n')[0]),
+        epilog=(80*'-' + "\n\n" + sys.modules[__name__].__doc__),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--sw-images",
         type=_space_sep_str,
+        default=[],
         help="Bazel label + additional metadata to describe the needed sw collateral")
     parser.add_argument("--sw-build-opts",
         type=_space_sep_str,
+        default=[],
         help="Additional opts to be passed while building software")
     parser.add_argument("--sw-build-device",
         type=str,
