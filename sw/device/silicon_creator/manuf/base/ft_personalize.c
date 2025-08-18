@@ -556,6 +556,7 @@ static status_t personalize_gen_dice_certificates(ujson_t *uj) {
   sc_keymgr_advance_state();
   TRY(sc_keymgr_state_check(kScKeymgrStateInit));
   sc_keymgr_advance_state();
+  TRY(sc_keymgr_state_check(kScKeymgrStateCreatorRootKey));
 
   // Measure OTP partitions.
   //

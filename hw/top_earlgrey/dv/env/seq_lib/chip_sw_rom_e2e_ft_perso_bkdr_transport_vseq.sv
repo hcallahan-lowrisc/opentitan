@@ -91,6 +91,29 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
 
   virtual task body();
 
+    super.body();
+    `uvm_info(`gfn, "chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq::body()", UVM_LOW)
+
+    fork begin: iso_fork
+      fork
+        begin
+          do_ft_personalize();
+          override_test_status_and_finish(.passed(1'b1));
+        end
+        begin : detect_error_gpio
+          // If we see the error gpio, immediate end the test with a failure
+          await_ioa("IOA0");
+          override_test_status_and_finish(.passed(1'b0));
+        end
+      join_any
+      disable fork;
+    end : iso_fork join
+
+  endtask : body
+
+
+  task do_ft_personalize();
+
     // SYNCHRONIZATION STRINGS
 
     // N.B. these strings are sent with trailing newlines, but are dropped here just for clarity
@@ -108,9 +131,6 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     // - base_printf("Importing %s cert to %s ...\n", block->name, layout->group_name);
     // write_digest_to_dice_page()
     // - base_printf("Digesting %s page ...\n", layout->group_name);
-
-    super.body();
-    `uvm_info(`gfn, "chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq::body()", UVM_LOW)
 
     // `uvm_info(`gfn, "Backdoor-loading 'transport' OTP image now.", UVM_LOW)
     // cfg.mem_bkdr_util_h[Otp].load_mem_from_file(dumped_otp_transport);
@@ -200,10 +220,8 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     `uvm_info(`gfn, "Awaiting sync-str for completion of personalization...", UVM_LOW)
     cfg.ottf_spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_PERSO_DONE); // MAGIC STRING
 
-    // Set test passed.
-    override_test_status_and_finish(.passed(1'b1));
+  endtask : do_ft_personalize
 
-  endtask : body
 
   function string byte_array_as_str(bit [7:0] q[]);
     string str = "";
