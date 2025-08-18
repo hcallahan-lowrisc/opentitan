@@ -147,6 +147,14 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
       $fwrite(fd, "%0s", byte_array_as_str(test_blob));
       $fclose(fd);
     end
+
+    // The test ends at this point, and returns the endings string.
+    `uvm_info(`gfn, "Awaiting sync-str for completion of personalization...", UVM_LOW)
+    cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_PERSO_DONE); // MAGIC STRING
+
+    // The test also should have raised the error line...
+    await_ioa("IOA0", 1);
+
     //
     ///////////////////////////////////////////////
     // Set test passed.
