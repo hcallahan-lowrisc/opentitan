@@ -147,7 +147,6 @@ static ecdsa_p256_public_key_t curr_pubkey = {.x = {0}, .y = {0}};
 static ecdsa_p256_public_key_t uds_pubkey = {.x = {0}, .y = {0}};
 static perso_blob_t perso_blob_to_host;    // Perso data device => host.
 static perso_blob_t perso_blob_from_host;  // Perso data host => device.
-static perso_blob_t perso_blob_test_msg;
 
 /**
  * Certificates flash info page layout.
@@ -1127,20 +1126,6 @@ static status_t provision(ujson_t *uj) {
   // Provision OTP, flash secrets, certs, and install the first owner.
   TRY(lc_ctrl_testutils_operational_state_check(&lc_ctrl));
   TRY(personalize_otp_and_flash_secrets(uj));
-
-  // Set all fields in each UJSON payload to value with width less than max.
-  perso_blob_test_msg.num_objs = 0x5;
-  perso_blob_test_msg.next_free = 0x5;
-  for (size_t i = 0; i < 100; ++i) {
-    perso_blob_test_msg.body[i] = 0x5;
-  }
-  base_printf("Exporting test blob now...\n");
-  RESP_OK_PADDED_NO_CRC(ujson_serialize_with_padding_perso_blob_t, uj,
-                        &perso_blob_test_msg, kPersoBlobSerializedMaxSize);
-
-  CHECK_DIF_OK(dif_gpio_write(&gpio, kGpioPinTestError, true));
-
-  return INTERNAL();
 
   TRY(personalize_gen_dice_certificates(uj));
   owner_config_t owner_config;

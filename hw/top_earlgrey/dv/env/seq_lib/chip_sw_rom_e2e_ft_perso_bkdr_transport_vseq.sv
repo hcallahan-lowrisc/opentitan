@@ -19,8 +19,6 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
   string TBS_CERTS_FILE = "tbs_certs.bin";
   string FINAL_HASH_FILE = "final_hash.bin";
 
-  string TEST_BLOB_FILE = "test_blob.bin";
-
   localparam uint kLcTokenHashSerializedMaxSize = 52;
   localparam uint kManufCertgenInputsSerializedMaxSize = 210;
   localparam uint kPersoBlobSerializedMaxSize = 20535;
@@ -35,8 +33,6 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
   // Data received from the DEVICE
   bit [7:0] tbs_certs[];
   bit [7:0] final_hash[];
-
-  bit [7:0] test_blob[];
 
   uint spinwait_timeout_ns = 30_000_000; // 30ms
 
@@ -107,8 +103,6 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     string SYNC_STR_READ_FINISHED_CERT_IMPORTS = "Finished importing certificates.";
     string SYNC_STR_READ_PERSO_DONE            = "Personalization done.";
 
-    string SYNC_STR_WRITE_TEST_BLOB            = "Exporting test blob now...";
-
     // Some other prints for logging are :
     // write_cert_to_dice_page()
     // - base_printf("Importing %s cert to %s ...\n", block->name, layout->group_name);
@@ -137,57 +131,31 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     // Wait for IOA4 (TestStart)
     await_ioa("IOA4");
 
-    // TEMP: Transfer a perso_blob_test_msg...
+    // Since we are starting with a .vmem image dumped after provisioning the flash scrambling key
+    // seeds (SECRET1) and enabling scrambling (FLASH_DATA_DEFAULT_CFG), the first spi_console
+    // activity will be waiting for the DEVICE to request the RMA Unlock Token
+    // (in personalize_otp_and_flash_secrets()).
+    cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_RMA_TOKEN); // MAGIC STRING
+    // The device has now requested the Unlock Token. Write it over the spi console.
+    cfg.spi_console_h.host_spi_console_write_when_ready('{RMA_UNLOCK_TOKEN_HASH,
+                                                          RMA_UNLOCK_TOKEN_HASH_CRC});
 
-    `uvm_info(`gfn, "Awaiting sync-str to start read of perso_blob_test_msg...", UVM_LOW)
-    cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_WRITE_TEST_BLOB); // MAGIC STRING
-    cfg.spi_console_h.host_spi_console_read_payload(test_blob, kPersoBlobSerializedMaxSize);
-    begin
-      integer fd = $fopen(TEST_BLOB_FILE, "w");
-      $fwrite(fd, "%0s", byte_array_as_str(test_blob));
-      $fclose(fd);
-    end
+    // After the OTP SECRET2 partition is programmed, the chip performs a SW reset.
+    // (so we need to reset the SPI console frame counter).
+    `uvm_info(`gfn, "Waiting for sw_reset() after personalize_device_secrets completion...", UVM_LOW)
+    `DV_SPINWAIT(
+      /*WAIT_*/ cfg.chip_vif.cpu_clk_rst_if.wait_for_reset();,
+      /*MSG_*/ "Timeout waiting for sw_reset() to occur and complete.",
+      /*TIMEOUT_NS_*/ spinwait_timeout_ns)
 
-    // The test ends at this point, and returns the endings string.
-    `uvm_info(`gfn, "Awaiting sync-str for completion of personalization...", UVM_LOW)
-    cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_PERSO_DONE); // MAGIC STRING
+    // Wait for IOA4 (TestStart) the next time we boot the test binary after reset
+    `uvm_info(`gfn, "Device out of reset, awaiting re-boot and the assertion of TestStart.", UVM_LOW)
+    await_ioa("IOA4");
 
-    // The test also should have raised the error line...
-    await_ioa("IOA0", 1);
-
-    //
-    ///////////////////////////////////////////////
-    // Set test passed.
-    override_test_status_and_finish(.passed(1'b1));
-    return;
-    ///////////////////////////////////////////////
-    //
-
-    // // Since we are starting with a .vmem image dumped after provisioning the flash scrambling key
-    // // seeds (SECRET1) and enabling scrambling (FLASH_DATA_DEFAULT_CFG), the first spi_console
-    // // activity will be waiting for the DEVICE to request the RMA Unlock Token
-    // // (in personalize_otp_and_flash_secrets()).
-    // cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_RMA_TOKEN); // MAGIC STRING
-    // // The device has now requested the Unlock Token. Write it over the spi console.
-    // cfg.spi_console_h.host_spi_console_write_when_ready('{RMA_UNLOCK_TOKEN_HASH,
-    //                                                       RMA_UNLOCK_TOKEN_HASH_CRC});
-
-    // // After the OTP SECRET2 partition is programmed, the chip performs a SW reset.
-    // // (so we need to reset the SPI console frame counter).
-    // `uvm_info(`gfn, "Waiting for sw_reset() after personalize_device_secrets completion...", UVM_LOW)
-    // `DV_SPINWAIT(
-    //   /*WAIT_*/ cfg.chip_vif.cpu_clk_rst_if.wait_for_reset();,
-    //   /*MSG_*/ "Timeout waiting for sw_reset() to occur and complete.",
-    //   /*TIMEOUT_NS_*/ spinwait_timeout_ns)
-
-    // // Wait for IOA4 (TestStart) the next time we boot the test binary after reset
-    // `uvm_info(`gfn, "Device out of reset, awaiting re-boot and the assertion of TestStart.", UVM_LOW)
-    // await_ioa("IOA4");
-
-    // // At this point, personalize_otp_and_flash_secrets() has completed. Dump the state of the OTP
-    // // so we can re-load from this point in the future.
-    // `uvm_info(`gfn, "Dumping OTP (personalized_secrets) to disk.", UVM_LOW)
-    // cfg.mem_bkdr_util_h[Otp].write_mem_to_file("dump_OTP_perso_secrets.24.vmem");
+    // At this point, personalize_otp_and_flash_secrets() has completed. Dump the state of the OTP
+    // so we can re-load from this point in the future.
+    `uvm_info(`gfn, "Dumping OTP (personalized_secrets) to disk.", UVM_LOW)
+    cfg.mem_bkdr_util_h[Otp].write_mem_to_file("dump_OTP_perso_secrets.24.vmem");
 
     // Next, we provision all device certificates.
     `uvm_info(`gfn, "Awaiting sync-str to start write of certificate provisioning data...", UVM_LOW)
@@ -197,13 +165,7 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     // Wait until the device exports the TBS certificates.
     `uvm_info(`gfn, "Awaiting sync-str to start read of exported certificate payload...", UVM_LOW)
     cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_WRITE_TBS_CERTS); // MAGIC STRING
-    //
-    ///////////////////////////////////////////////
-    // Set test passed.
-    override_test_status_and_finish(.passed(1'b1));
-    return;
-    ///////////////////////////////////////////////
-    //
+
     // Read the TBS certificate payload from the console.
     cfg.spi_console_h.host_spi_console_read_payload(tbs_certs, kPersoBlobSerializedMaxSize);
     begin
