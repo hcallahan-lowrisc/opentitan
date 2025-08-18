@@ -187,6 +187,21 @@ package spi_console_pkg;
     //     - After DEVICE reads the final chunk, it de-asserts the RX-indicator (RxReady)
     //
 
+    // reads
+    uint SPI_FLASH_READ_BUFFER_SIZE = 2048; // Don't overwrite our PAYLOAD BUFFER
+    uint SPI_MAX_DATA_LENGTH = 2036;
+    uint SPI_FRAME_HEADER_SIZE = 12;
+    bit [31:0] SPI_FRAME_MAGIC_NUMBER = 32'ha5a5beef;
+    // Derived constants from ottf_console_internal.h
+    uint kSpiDeviceBufferPreservedSizeBytes = SPI_FRAME_HEADER_SIZE;
+    uint kSpiDeviceMaxFramePayloadSizeBytes = SPI_FLASH_READ_BUFFER_SIZE -
+                                              SPI_FRAME_HEADER_SIZE -
+                                              kSpiDeviceBufferPreservedSizeBytes - 4;
+    // writes
+    uint SPI_FLASH_PAYLOAD_BUFFER_SIZE = 256; // Don't overwrite the PAYLOAD BUFFER
+    bit [31:0] SPI_TX_ADDRESS = '0;
+    bit [31:0] SPI_TX_LAST_CHUNK_MAGIC_ADDRESS = 9'h100;
+
 
     //////////////////
     // CONSOLE READ //
@@ -229,14 +244,10 @@ package spi_console_pkg;
     //
     //
     virtual task host_spi_console_read_frame(ref bit [7:0] chunk_q[$]); // DEVICE -> HOST
-      uint SPI_FLASH_READ_BUFFER_SIZE = 2048; // Don't overwrite our PAYLOAD BUFFER
-      uint SPI_MAX_DATA_LENGTH = 2036;
-      uint SPI_FRAME_HEADER_SIZE = 12;
       bit [31:0] header_data_bytes = 0;
 
       // First, get the header of the current frame.
       begin : get_header
-        bit [31:0] magic_number = 32'ha5a5beef;
         bit [31:0] header_magic_number;
         bit [31:0] header_frame_number;
         bit [7:0]  header_q[$];
@@ -250,7 +261,7 @@ package spi_console_pkg;
                   $sformatf("Magic Number : 0x%02x Frame Number : 0x%02x, Num_Data_Bytes : 0x%02x",
                             header_magic_number, header_frame_number, header_data_bytes),
                   UVM_LOW)
-        `DV_CHECK_EQ(header_magic_number, magic_number, "Incorrect SPI Console Header MAGIC_NUM")
+        `DV_CHECK_EQ(header_magic_number, SPI_FRAME_MAGIC_NUMBER, "Incorrect SPI Console Header MAGIC_NUM")
         `DV_CHECK_LT(header_data_bytes, SPI_MAX_DATA_LENGTH, "Cannot handle this many data bytes!")
       end
 
@@ -315,28 +326,35 @@ package spi_console_pkg;
 
     //
     //
-    // For this method, we know the expected payload length. If the 
+    // For this method, we know the maximum expected payload length. Keep awaiting new frames until
+    // either the maximum total payload length is reached/exceeded, or we see a frame which is less
+    // than the max length for a single frame.
     //
-    virtual task host_spi_console_read_payload(ref bit [7:0] outbuf[], input int len); // DEVICE -> HOST
+    virtual task host_spi_console_read_payload(ref bit [7:0] outbuf[], input int max_len);
       bit [7:0] payload_byte_q[$] = {};
       int       len_ctr = 0;
-      `uvm_info(`gfn, $sformatf("Awaiting read_payload of %0d bytes", len), UVM_LOW)
+      `uvm_info(`gfn, $sformatf("Awaiting read_payload. (max %0d bytes)", max_len), UVM_LOW)
 
       `uvm_info(`gfn, "Waiting for the DEVICE to set 'tx_ready' (IOA5)", UVM_LOW)
       await_ioa(tx_ready_idx, 1'b1);
       `uvm_info(`gfn, "DEVICE set 'tx_ready' now.", UVM_LOW)
 
-      // Next, get all the data_bytes from the frame until we've got the expected number of bytes.
-      while (len_ctr < len) begin
+      // Keep getting spi console frames until we determine the payload has completed.
+      while (len_ctr < max_len) begin
+
         bit [7:0] frame_byte_q[$] = {};
         host_spi_console_read_frame(.chunk_q(frame_byte_q));
         `uvm_info(`gfn, $sformatf("Got %0d data bytes in frame : %0s", frame_byte_q.size(), byte_q_as_str(frame_byte_q)), UVM_LOW)
         payload_byte_q = {payload_byte_q, frame_byte_q};
         len_ctr += frame_byte_q.size();
-        `uvm_info(`gfn, $sformatf("Got %0d / %0d data bytes in expected payload.", len_ctr, len), UVM_LOW)
+        `uvm_info(`gfn, $sformatf("Got %0d / %0d(max) data bytes in expected payload.", len_ctr, max_len), UVM_LOW)
+
+        // If the frame is any less than the maximum size, assume this is the end of the
+        // payload. I'm not going to implement a message parser / deserializer here.
+        if (frame_byte_q.size() < kSpiDeviceMaxFramePayloadSizeBytes) break;
 
         // If the payload isn't complete, wait for the device to indicate the next frame is ready...
-        if (len_ctr < len) begin
+        if (len_ctr < max_len) begin
           await_ioa(tx_ready_idx, 1'b0);
           await_ioa(tx_ready_idx, 1'b1);
         end
@@ -439,9 +457,6 @@ package spi_console_pkg;
     //
     //
     virtual task host_spi_console_write(input bit [7:0] bytes[]); // HOST -> DEVICE
-      uint SPI_FLASH_PAYLOAD_BUFFER_SIZE = 256; // Don't overwrite the PAYLOAD BUFFER
-      bit [31:0] SPI_TX_ADDRESS = '0;
-      bit [31:0] SPI_TX_LAST_CHUNK_MAGIC_ADDRESS = 9'h100;
       uint written_data_len = 0;
 
       `uvm_info(`gfn, $sformatf("console_write() :: len=%0d : %0s", $size(bytes),
