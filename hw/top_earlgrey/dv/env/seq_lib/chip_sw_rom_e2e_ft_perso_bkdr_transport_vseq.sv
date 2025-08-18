@@ -135,9 +135,9 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     // seeds (SECRET1) and enabling scrambling (FLASH_DATA_DEFAULT_CFG), the first spi_console
     // activity will be waiting for the DEVICE to request the RMA Unlock Token
     // (in personalize_otp_and_flash_secrets()).
-    cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_RMA_TOKEN); // MAGIC STRING
+    cfg.ottf_spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_RMA_TOKEN); // MAGIC STRING
     // The device has now requested the Unlock Token. Write it over the spi console.
-    cfg.spi_console_h.host_spi_console_write_when_ready('{RMA_UNLOCK_TOKEN_HASH,
+    cfg.ottf_spi_console_h.host_spi_console_write_when_ready('{RMA_UNLOCK_TOKEN_HASH,
                                                           RMA_UNLOCK_TOKEN_HASH_CRC});
 
     // After the OTP SECRET2 partition is programmed, the chip performs a SW reset.
@@ -159,15 +159,15 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
 
     // Next, we provision all device certificates.
     `uvm_info(`gfn, "Awaiting sync-str to start write of certificate provisioning data...", UVM_LOW)
-    cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_PERSO_DICE_CERTS); // MAGIC STRING
-    cfg.spi_console_h.host_spi_console_write_when_ready('{PERSO_CERTGEN_INPUTS});
+    cfg.ottf_spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_PERSO_DICE_CERTS); // MAGIC STRING
+    cfg.ottf_spi_console_h.host_spi_console_write_when_ready('{PERSO_CERTGEN_INPUTS});
 
     // Wait until the device exports the TBS certificates.
     `uvm_info(`gfn, "Awaiting sync-str to start read of exported certificate payload...", UVM_LOW)
-    cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_WRITE_TBS_CERTS); // MAGIC STRING
+    cfg.ottf_spi_console_h.host_spi_console_read_wait_for(SYNC_STR_WRITE_TBS_CERTS); // MAGIC STRING
 
     // Read the TBS certificate payload from the console.
-    cfg.spi_console_h.host_spi_console_read_payload(tbs_certs, kPersoBlobSerializedMaxSize);
+    cfg.ottf_spi_console_h.host_spi_console_read_payload(tbs_certs, kPersoBlobSerializedMaxSize);
     begin
       integer fd = $fopen(TBS_CERTS_FILE, "w");
       $fwrite(fd, "%0s", byte_array_as_str(tbs_certs));
@@ -179,17 +179,17 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
 
     // Wait until the device indicates it can import the endorsed certificate files.
     `uvm_info(`gfn, "Awaiting sync-str to start write of endorsed certificates...", UVM_LOW)
-    cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_ENDORSED_CERTS); // MAGIC STRING
-    cfg.spi_console_h.host_spi_console_write_when_ready('{MANUF_PERSO_DATA_BACK});
+    cfg.ottf_spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_ENDORSED_CERTS); // MAGIC STRING
+    cfg.ottf_spi_console_h.host_spi_console_write_when_ready('{MANUF_PERSO_DATA_BACK});
 
     // Wait until the device indicates it has successfully imported the endorsed certificate files.
     `uvm_info(`gfn, "Awaiting sync-str for completion of endorsed certificate import...", UVM_LOW)
-    cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_FINISHED_CERT_IMPORTS); // MAGIC STRING
+    cfg.ottf_spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_FINISHED_CERT_IMPORTS); // MAGIC STRING
 
     // The device checks the imported certificate package...
 
     // Read out the final hash sent from the device
-    cfg.spi_console_h.host_spi_console_read_payload(final_hash, kSerdesSha256HashSerializedMaxSize);
+    cfg.ottf_spi_console_h.host_spi_console_read_payload(final_hash, kSerdesSha256HashSerializedMaxSize);
     begin
       integer fd = $fopen(FINAL_HASH_FILE, "w");
       $fwrite(fd, "%0s", byte_array_as_str(final_hash));
@@ -198,7 +198,7 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
 
     // Wait until the device indicates it has successfully completed perso!
     `uvm_info(`gfn, "Awaiting sync-str for completion of personalization...", UVM_LOW)
-    cfg.spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_PERSO_DONE); // MAGIC STRING
+    cfg.ottf_spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_PERSO_DONE); // MAGIC STRING
 
     // Set test passed.
     override_test_status_and_finish(.passed(1'b1));

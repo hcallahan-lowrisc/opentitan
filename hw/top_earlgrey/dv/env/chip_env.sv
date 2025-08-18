@@ -136,10 +136,10 @@ class chip_env extends cip_base_env #(
     end
 
     // Initialize the spi_console object.
-    cfg.spi_console_h = spi_console::type_id::create("m_spi_console", this);
+    cfg.ottf_spi_console_h = ottf_spi_console::type_id::create("m_ottf_spi_console", this);
     // Connect the spi_console object to the VIFs.
-    cfg.spi_console_h.clk_rst_vif = cfg.clk_rst_vif;
-    cfg.spi_console_h.flow_ctrl_vif = cfg.chip_vif.spi_host_console_flow_ctrl_if;
+    cfg.ottf_spi_console_h.clk_rst_vif = cfg.clk_rst_vif;
+    cfg.ottf_spi_console_h.flow_ctrl_vif = cfg.chip_vif.spi_host_console_flow_ctrl_if;
   endfunction
 
   function void connect_phase(uvm_phase phase);

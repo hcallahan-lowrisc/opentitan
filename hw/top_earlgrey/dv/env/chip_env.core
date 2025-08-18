@@ -24,6 +24,7 @@ filesets:
       - lowrisc:dv:ralgen
       - lowrisc:dv:spi_agent
       - lowrisc:dv:spi_host_sva
+      - lowrisc:dv:ottf_spi_console
       - lowrisc:dv:str_utils
       - lowrisc:dv:sw_test_status
       - lowrisc:dv:sw_logger_if
@@ -37,7 +38,6 @@ filesets:
       - "!fileset_partner ? (lowrisc:systems:ast_pkg)"
       - "fileset_partner ? (partner:systems:ast_pkg)"
     files:
-      - spi_console_pkg.sv
       - chip_common_pkg.sv
       - chip_if.sv
       - chip_env_pkg.sv
