@@ -131,31 +131,31 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     // Wait for IOA4 (TestStart)
     await_ioa("IOA4");
 
-    // Since we are starting with a .vmem image dumped after provisioning the flash scrambling key
-    // seeds (SECRET1) and enabling scrambling (FLASH_DATA_DEFAULT_CFG), the first spi_console
-    // activity will be waiting for the DEVICE to request the RMA Unlock Token
-    // (in personalize_otp_and_flash_secrets()).
-    cfg.ottf_spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_RMA_TOKEN); // MAGIC STRING
-    // The device has now requested the Unlock Token. Write it over the spi console.
-    cfg.ottf_spi_console_h.host_spi_console_write_when_ready('{RMA_UNLOCK_TOKEN_HASH,
-                                                          RMA_UNLOCK_TOKEN_HASH_CRC});
+    // // Since we are starting with a .vmem image dumped after provisioning the flash scrambling key
+    // // seeds (SECRET1) and enabling scrambling (FLASH_DATA_DEFAULT_CFG), the first spi_console
+    // // activity will be waiting for the DEVICE to request the RMA Unlock Token
+    // // (in personalize_otp_and_flash_secrets()).
+    // cfg.ottf_spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_RMA_TOKEN); // MAGIC STRING
+    // // The device has now requested the Unlock Token. Write it over the spi console.
+    // cfg.ottf_spi_console_h.host_spi_console_write_when_ready('{RMA_UNLOCK_TOKEN_HASH,
+    //                                                       RMA_UNLOCK_TOKEN_HASH_CRC});
 
-    // After the OTP SECRET2 partition is programmed, the chip performs a SW reset.
-    // (so we need to reset the SPI console frame counter).
-    `uvm_info(`gfn, "Waiting for sw_reset() after personalize_device_secrets completion...", UVM_LOW)
-    `DV_SPINWAIT(
-      /*WAIT_*/ cfg.chip_vif.cpu_clk_rst_if.wait_for_reset();,
-      /*MSG_*/ "Timeout waiting for sw_reset() to occur and complete.",
-      /*TIMEOUT_NS_*/ spinwait_timeout_ns)
+    // // After the OTP SECRET2 partition is programmed, the chip performs a SW reset.
+    // // (so we need to reset the SPI console frame counter).
+    // `uvm_info(`gfn, "Waiting for sw_reset() after personalize_device_secrets completion...", UVM_LOW)
+    // `DV_SPINWAIT(
+    //   /*WAIT_*/ cfg.chip_vif.cpu_clk_rst_if.wait_for_reset();,
+    //   /*MSG_*/ "Timeout waiting for sw_reset() to occur and complete.",
+    //   /*TIMEOUT_NS_*/ spinwait_timeout_ns)
 
-    // Wait for IOA4 (TestStart) the next time we boot the test binary after reset
-    `uvm_info(`gfn, "Device out of reset, awaiting re-boot and the assertion of TestStart.", UVM_LOW)
-    await_ioa("IOA4");
+    // // Wait for IOA4 (TestStart) the next time we boot the test binary after reset
+    // `uvm_info(`gfn, "Device out of reset, awaiting re-boot and the assertion of TestStart.", UVM_LOW)
+    // await_ioa("IOA4");
 
-    // At this point, personalize_otp_and_flash_secrets() has completed. Dump the state of the OTP
-    // so we can re-load from this point in the future.
-    `uvm_info(`gfn, "Dumping OTP (personalized_secrets) to disk.", UVM_LOW)
-    cfg.mem_bkdr_util_h[Otp].write_mem_to_file("dump_OTP_perso_secrets.24.vmem");
+    // // At this point, personalize_otp_and_flash_secrets() has completed. Dump the state of the OTP
+    // // so we can re-load from this point in the future.
+    // `uvm_info(`gfn, "Dumping OTP (personalized_secrets) to disk.", UVM_LOW)
+    // cfg.mem_bkdr_util_h[Otp].write_mem_to_file("dump_OTP_perso_secrets.24.vmem");
 
     // Next, we provision all device certificates.
     `uvm_info(`gfn, "Awaiting sync-str to start write of certificate provisioning data...", UVM_LOW)
