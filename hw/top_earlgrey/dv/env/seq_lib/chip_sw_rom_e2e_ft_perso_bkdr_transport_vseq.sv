@@ -211,23 +211,4 @@ class chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq extends chip_sw_rom_e2e_base_
     return str;
   endfunction
 
-  function string byte_q_as_str(bit [7:0] q[$]);
-    string str = "";
-    foreach (q[i]) $sformat(str, "%s%0s", str, q[i]);
-    return str;
-  endfunction
-
-  function string byte_q_as_hex(bit [7:0] q[$]);
-    string str = "";
-    foreach (q[i]) $sformat(str, "%s%02x", str, q[i]);
-    return str;
-  endfunction
-
-  function void print_byte_q(bit [7:0] q[$]);
-    $display("Printing byte_q now...");
-    foreach(q[idx]) begin
-      $display("q[%0d]: 0x%02x / %0d / %0s", idx, q[idx], q[idx], q[idx]);
-    end
-  endfunction
-
 endclass : chip_sw_rom_e2e_ft_perso_bkdr_transport_vseq
