@@ -294,7 +294,6 @@ package ottf_spi_console_pkg;
       header_frame_number = reverse_endianess({>>{header_q[4:7]}});
       header_data_bytes =   reverse_endianess({>>{header_q[8:11]}});
       `uvm_info(`gfn, $sformatf("Got header : 0x%0s", byte_q_as_hex(header_q)), UVM_LOW)
-      `uvm_info(`gfn, $sformatf("Got header : %0p", header_q), UVM_LOW)
       `uvm_info(`gfn,
                 $sformatf("Magic Number : 0x%02x Frame Number : 0x%02x, Num_Data_Bytes : 0x%02x",
                           header_magic_number, header_frame_number, header_data_bytes),
@@ -432,6 +431,8 @@ package ottf_spi_console_pkg;
     `DV_SPINWAIT(
       // WAIT_
       do begin
+        `uvm_info(`gfn, "host_spi_console_wait_on_busy() - Polling DEVICE busy bit...", UVM_HIGH)
+
         // Wait before polling.
         #(min_interval_ns);
         clk_rst_vif.wait_clks($urandom_range(1, 100));
@@ -451,6 +452,8 @@ package ottf_spi_console_pkg;
       // TIMEOUT_NS_
       timeout_ns
     )
+
+    `uvm_info(`gfn, "host_spi_console_wait_on_busy() - DEVICE reported not-busy. Continuing...", UVM_HIGH)
   endtask : host_spi_console_wait_on_busy
 
   //
