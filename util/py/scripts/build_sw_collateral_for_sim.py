@@ -500,10 +500,11 @@ def _main() -> None:
         except:
             return value
 
+    mod_doc = sys.modules[__name__].__doc__
     parser = argparse.ArgumentParser(
         # Use the module description to generate CLI --help docs
-        description=(sys.modules[__name__].__doc__.split('\n')[0]),
-        epilog=(80*'-' + "\n\n" + sys.modules[__name__].__doc__),
+        description=(mod_doc.split('\n')[0]),
+        epilog=(80*'-' + f"\n\n{mod_doc}"),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--sw-images",
