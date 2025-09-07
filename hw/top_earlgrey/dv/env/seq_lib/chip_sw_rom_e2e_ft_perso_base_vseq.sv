@@ -2,21 +2,61 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-// Base-sequence for functionality related to the 'personalization'-step of
-// the manufacturing provisioning stage.
+// Base-sequence for functionality related to simulation the 'personalization'-step of
+// the manufacturing provisioning flow.
+//
+// This test is lengthy to simulate, as it involves 2 full ROM SPI-bootstrap procedures, lots of
+// cryptograpy and key derivation, and software serdes of the uJSON control messages between the
+// DUT and the test harness controller.
+// Usefully, the software personalization component is written to be idempotent, and
+// partial-progress through the program such that the OTP state has been updated can be taken as a
+// checkpoint from which the software will skip over already completed operations. If we dump the
+// memory states (OTP / Flash) at useful times during the test, we can start new simulations with
+// those memory values backdoor-loaded into the memory models, and progress quickly to later stages
+// of the test.
+//
+// A major complication to the above is that one of the early phases of the personalization program
+// will write new flash scrambing seeds into OTP, generated on-device using the entropy complex.
+// This means we cannot know these seeds ahead of time, and therefore cannot pre-scramble our test
+// binaries for backdoor loading once the new seeds have been burned into OTP.
+// The test program handles this by re-bootstrapping the test program at this point, and hence it
+// is re-scrambled with the new keys by the flash controller frontdoor write mechanism. However,
+// this bootstrap process is very slow to simulate.
+// There are likely DV tricks we could play to make the new scrambling seeds deterministic in a
+// simulation environment, but for the moment we can work around this problem as follows:
+// - Run the simulation with no backdoor loading to completion (or at least to the point where the
+//   two bootstrap operations have completed), while dumping memories at the important points.
+//   1) Re-use the dumped memory images and the idempotent program properties to re-start the test
+//      from an intermediate program location.
+//   2) Modify the test software, and then use the gen-otp-img.py tooling to extract the generated
+//      scrambling seeds from the dumped OTP image / OTP mmap, and then scramble any newly built
+//      software binaries with these seeds.
+//      No. 2 is quite a manual process, but can still usefully accelerate simulations.
 //
 // The appropriate places to dump/load memories are as follows:
-// - Before the chip boots for the first time (normally managed by chip_env_cfg)
-// - phase1_init        This is after the initial bootstrap. The test binary is now scrambled
+// - dut_init()         Before the chip boots for the first time (normally managed by chip_env_cfg)
+// - phase0             This is after the initial bootstrap. The test binary is now scrambled
 //                      according to any default scrambling keys / configuration.
-// - phase1_seeds       After the new scrambling seeds / configuration has been deployed to OTP.
-// - phase2_init        After the second bootstrap, and the binary has been reloaded/rescrambled
+// - phase1             After the new scrambling seeds / configuration has been deployed to OTP.
+// - phase2             After the second bootstrap, and the binary has been reloaded/rescrambled
 //                      with the new seeds.
-// - phase3_init        After sw_reset following provisioning of SECRET2 and flash info pages 1, 2,
+// - phase3             After sw_reset following provisioning of SECRET2 and flash info pages 1, 2,
 //                      and 4 (keymgr / DICE keygen seeds).
+// - phase4             After personalization has completed.
+//
+// After the simulation has been run with no backdoor loading and dumping images (using +dump_mems),
+// we can re-start the program from the intermediate state with intermediate images by passing the
+// +perso_start_phase plusarg.
+// For example, if we pass +perso_start_phase=2 (which corresponds to 'Phase1_seeds'), the memory
+// images that were dumped from this phase previously are loaded into the DUT at the start of
+// stimulation-time, and any testbench stimulus related to the program execution before this phase
+// is skipped.
 //
 // N.B.
 //
+// - As this test communicates over the OTTF SPI console, the test binary cannot be built for the
+//   'sim_dv' execution environment, as the console is only initialized when
+//   kDeviceType != kDeviceSimDV (see _ottf_main())
 // - This sequence requires the DUT to be using the test_rom, as the sw_test_status_vif is used for
 //   synchronization purposes, however this could be refactored out in the future.
 //
@@ -28,6 +68,21 @@ class chip_sw_rom_e2e_ft_perso_base_vseq extends chip_sw_rom_e2e_base_vseq;
 
   bit dump_mems = 0; // Should memories be dumped mid-simulation?
   bit load_mems = 0; // Should memories be loaded with dumps?
+
+  typedef enum int {  /* -- DUT MEMORY CONTENTS AFTER PHASE COMPLETION -- */
+    // dut_int()      // Base OTP image + no flash image
+    Phase0       = 0, // Base OTP image + base flash image scrambled w. base seeds
+    Phase1       = 1, // OTP image w. new seeds + base flash image scrambled w. base seeds
+    Phase2       = 2, // OTP image w. new seeds + base flash image scrambled w. new seeds
+    Phase3       = 3, // OTP image w. new seeds w. SECRET2 w. flash info 1,2,4 +
+                      // base flash image scrambled w. new seeds
+    Phase4       = 4  // OTP image w. full personalization +
+                      // base flash image scrambled w. new seeds
+  } perso_phase_e;
+
+  // Set the first perso phase to be executed in the simulation
+  // (Dumped memory state corresponding to the end of the previous phase is automatically loaded)
+  perso_phase_e perso_start_phase = Phase0;
 
   // SYNCHRONIZATION STRINGS
   //
@@ -74,15 +129,19 @@ class chip_sw_rom_e2e_ft_perso_base_vseq extends chip_sw_rom_e2e_base_vseq;
   extern virtual task get_plusarg_file_contents();
   extern virtual task pre_start();
   extern virtual task body();
-  extern task load_dut_memories(string perso_phase);
-  extern task dump_dut_memories(string perso_phase);
+  extern task load_dut_memories(perso_phase_e perso_phase);
+  extern task dump_dut_memories(perso_phase_e perso_phase);
   extern task rom_spi_bootstrap();
   extern task await_test_start();
   extern task await_test_start_after_reset();
+  // This task sequences the three sub-phases of the personalization flow. (See the header comment
+  // for more context about the breakdown.)
+  extern task do_ft_personalize();
+  extern task do_ft_personalize_phase_0();
   extern task do_ft_personalize_phase_1();
   extern task do_ft_personalize_phase_2();
   extern task do_ft_personalize_phase_3();
-  extern task do_ft_personalize();
+  extern task do_ft_personalize_phase_4();
   extern function string byte_array_as_str(bit [7:0] q[]);
   extern function void dump_byte_array_to_file(bit [7:0] array[], string filename);
 
@@ -126,6 +185,9 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::pre_start();
   // Get the HOST->DEVICE spi_console inputs
   get_plusarg_file_contents();
 
+  void'($value$plusargs("perso_start_phase=%0d", perso_start_phase));
+  `uvm_info(`gfn, $sformatf("perso_start_phase = %0d", perso_start_phase), UVM_LOW)
+
   // Enable the 'chip_reg_block' tl_agent to end the simulation if the 'ok_to_end' watchdog
   // resets too many times. This ends the simulation swiftly if something has gone wrong.
   cfg.m_tl_agent_cfg.watchdog_restart_count_limit_enabled = 1'b1;
@@ -163,14 +225,14 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::body();
 
 endtask
 
-task chip_sw_rom_e2e_ft_perso_base_vseq::load_dut_memories(string perso_phase);
+task chip_sw_rom_e2e_ft_perso_base_vseq::load_dut_memories(perso_phase_e perso_phase);
   // Flash
-  string FB0D_s = $sformatf("dump_FlashBank0Data_%0s.64.scr.vmem", perso_phase);
-  string FB1D_s = $sformatf("dump_FlashBank1Data_%0s.64.scr.vmem", perso_phase);
-  string FB0I_s = $sformatf("dump_FlashBank0Info_%0s.64.scr.vmem", perso_phase);
-  string FB1I_s = $sformatf("dump_FlashBank1Info_%0s.64.scr.vmem", perso_phase);
+  string FB0D_s = $sformatf("dump_FlashBank0Data_%0s.64.scr.vmem", perso_phase.name);
+  string FB1D_s = $sformatf("dump_FlashBank1Data_%0s.64.scr.vmem", perso_phase.name);
+  string FB0I_s = $sformatf("dump_FlashBank0Info_%0s.64.scr.vmem", perso_phase.name);
+  string FB1I_s = $sformatf("dump_FlashBank1Info_%0s.64.scr.vmem", perso_phase.name);
   // OTP
-  string OTP_s = $sformatf("dump_OTP_%0s.24.vmem", perso_phase);
+  string OTP_s = $sformatf("dump_OTP_%0s.24.vmem", perso_phase.name);
 
   // Flash
   cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(FB0D_s);
@@ -181,14 +243,16 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::load_dut_memories(string perso_phase);
   cfg.mem_bkdr_util_h[Otp].load_mem_from_file(OTP_s);
 endtask
 
-task chip_sw_rom_e2e_ft_perso_base_vseq::dump_dut_memories(string perso_phase);
+task chip_sw_rom_e2e_ft_perso_base_vseq::dump_dut_memories(perso_phase_e perso_phase);
   // Flash
-  string FB0D_s = $sformatf("dump_FlashBank0Data_%0s.64.scr.vmem", perso_phase);
-  string FB1D_s = $sformatf("dump_FlashBank1Data_%0s.64.scr.vmem", perso_phase);
-  string FB0I_s = $sformatf("dump_FlashBank0Info_%0s.64.scr.vmem", perso_phase);
-  string FB1I_s = $sformatf("dump_FlashBank1Info_%0s.64.scr.vmem", perso_phase);
+  string FB0D_s = $sformatf("dump_FlashBank0Data_%0s.64.scr.vmem", perso_phase.name);
+  string FB1D_s = $sformatf("dump_FlashBank1Data_%0s.64.scr.vmem", perso_phase.name);
+  string FB0I_s = $sformatf("dump_FlashBank0Info_%0s.64.scr.vmem", perso_phase.name);
+  string FB1I_s = $sformatf("dump_FlashBank1Info_%0s.64.scr.vmem", perso_phase.name);
   // OTP
-  string OTP_s = $sformatf("dump_OTP_%0s.24.vmem", perso_phase);
+  string OTP_s = $sformatf("dump_OTP_%0s.24.vmem", perso_phase.name);
+
+  if (!dump_mems) return;
 
   // Flash
   cfg.mem_bkdr_util_h[FlashBank0Data].write_mem_to_file(FB0D_s);
@@ -198,7 +262,7 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::dump_dut_memories(string perso_phase);
   // OTP
   cfg.mem_bkdr_util_h[Otp].write_mem_to_file(OTP_s);
 
-  `uvm_info(`gfn, $sformatf("Dumped DUT memories in phase '%0s' now.", perso_phase), UVM_LOW)
+  `uvm_info(`gfn, $sformatf("Dumped DUT memories in phase '%0s' now.", perso_phase.name), UVM_LOW)
 endtask
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::await_test_start();
@@ -224,7 +288,89 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::await_test_start_after_reset();
   await_test_start();
 endtask
 
-task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_1();
+task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize();
+  /////////////
+  // PHASE 0 //
+  /////////////
+
+  if (perso_start_phase > Phase0) begin
+    // We're starting at a phase after 0. Don't load this phase, or drive any stimulus.
+    `uvm_info(`gfn, "Skipping Phase0 loading and stimulus.", UVM_LOW)
+  end else begin
+    // We started at Phase0. There is no memory loading needed (the base_vseq handled OTP loading).
+    do_ft_personalize_phase_0();
+  end
+
+  dump_dut_memories(Phase0); // (optionally) dump memories...
+  /////////////
+  // PHASE 1 //
+  /////////////
+
+  if (perso_start_phase > Phase1) begin
+    // We're starting at a phase after 1. Don't load this phase, or drive any stimulus.
+    `uvm_info(`gfn, "Skipping Phase1 loading and stimulus.", UVM_LOW)
+  end else if (perso_start_phase == Phase1) begin
+    // If starting at this phase, load the memory state and then drive the stimulus.
+    load_dut_memories(Phase0);
+    do_ft_personalize_phase_1();
+  end else begin
+    // We started at an earlier phase. Stimulus only.
+    do_ft_personalize_phase_1();
+  end
+
+  dump_dut_memories(Phase1); // (optionally) dump memories...
+  /////////////
+  // PHASE 2 //
+  /////////////
+
+  if (perso_start_phase > Phase2) begin
+    // We're starting at a phase after 2. Don't load this phase, or drive any stimulus.
+    `uvm_info(`gfn, "Skipping Phase2 loading and stimulus.", UVM_LOW)
+  end else if (perso_start_phase == Phase2) begin
+    // If starting at this phase, load the memory state and then drive the stimulus.
+    load_dut_memories(Phase1);
+    do_ft_personalize_phase_2();
+  end else begin
+    // We started at an earlier phase. Stimulus only.
+    do_ft_personalize_phase_2();
+  end
+
+  dump_dut_memories(Phase2); // (optionally) dump memories...
+  /////////////
+  // PHASE 3 //
+  /////////////
+
+  if (perso_start_phase > Phase3) begin
+    // We're starting at a phase after 3. Don't load this phase, or drive any stimulus.
+    `uvm_info(`gfn, "Skipping Phase3 loading and stimulus.", UVM_LOW)
+  end else if (perso_start_phase == Phase3) begin
+    // If starting at this phase, load the memory state and then drive the stimulus.
+    load_dut_memories(Phase2);
+    do_ft_personalize_phase_3();
+  end else begin
+    // We started at an earlier phase. Stimulus only.
+    do_ft_personalize_phase_3();
+  end
+
+  dump_dut_memories(Phase3); // (optionally) dump memories...
+  /////////////
+  // PHASE 4 //
+  /////////////
+
+  // We never skip the stimulus for the final phase.
+  if (perso_start_phase == Phase4) begin
+    // If starting at this phase, load the memory state and then drive the stimulus.
+    load_dut_memories(Phase3);
+    do_ft_personalize_phase_4();
+  end else begin
+    // We started at an earlier phase. Stimulus only.
+    do_ft_personalize_phase_4();
+  end
+
+  dump_dut_memories(Phase4); // (optionally) dump memories...
+endtask : do_ft_personalize
+
+task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_0();
   // Perform the first ROM Bootstrap
   fork
     spi_device_load_bootstrap({cfg.sw_images[SwTypeTestSlotA], ".64.vmem"});
@@ -234,19 +380,15 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_1();
     // Wait for the chip to restart, and the ROM to complete loading the bootstrapped Flash image.
     await_test_start_after_reset();
   join
+endtask
 
-  // (optionally) dump memories...
-  if (dump_mems) dump_dut_memories("phase1_init");
-
+task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_1();
   // Wait for new scrambling seeds to be written to the CREATOR_SW_CFG_FLASH_DATA_DEFAULT_CFG region.
   // Hence, we need to reset the chip and re-bootstrap the test binary that is loaded into flash
   // and re-scrambled with the new scrambling key (aka. the final transport image)
   //
   // The test requests this second bootstrap over the console.
   cfg.ottf_spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_BOOTSTRAP_REQ);
-
-  // (optionally) dump memories...
-  if (dump_mems) dump_dut_memories("phase1_seeds");
 
   `uvm_info(`gfn, "Resetting chip for second bootstrap now.", UVM_LOW)
   assert_por_reset();
@@ -262,10 +404,9 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_2();
     // Wait for the chip to restart, and the ROM to complete loading the bootstrapped Flash image.
     await_test_start_after_reset();
   join
+endtask
 
-  // (optionally) dump memories...
-  if (dump_mems) dump_dut_memories("phase2_init");
-
+task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_3();
   // After the second bootstrap, the test checks the previous steps have been completed successfully
   // by checking for non-default OTP values in the fields we expected to provision.
   // Assuming everying is in-order, the next point of host-interaction over the console is the
@@ -282,7 +423,7 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_2();
   await_test_start_after_reset();
 endtask
 
-task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_3();
+task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_4();
   // After the previous reset at the completion of provisioning of SECRET2, the test again checks
   // the previous steps have completed successfully, and if so, advances to the next phase of the
   // personalization flow.
@@ -302,7 +443,7 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_3();
   dump_byte_array_to_file(tbs_certs, TBS_CERTS_FILE);
 
   // Process the certificate payload...
-  // Nothing to do, we already have the answer in a file.
+  // > Nothing to do, we cheat and already have the response in a file.
 
   // Wait until the device indicates it can import the endorsed certificate files.
   `uvm_info(`gfn, "Awaiting sync-str to start write of endorsed certificates...", UVM_LOW)
@@ -322,40 +463,6 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_3();
   // Wait until the device indicates it has successfully completed perso!
   `uvm_info(`gfn, "Awaiting sync-str for completion of personalization...", UVM_LOW)
   cfg.ottf_spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_PERSO_DONE);
-endtask
-
-task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize();
-
-  /////////////
-  // PHASE 1 //
-  /////////////
-
-  if (load_mems) load_dut_memories("phase1_init");
-  else begin
-    // If not backdoor-loading the memory for a later phase, do the first phase now.
-    do_ft_personalize_phase_1();
-  end
-
-  /////////////
-  // PHASE 2 //
-  /////////////
-
-  if (load_mems) load_dut_memories("phase2_init");
-  else begin
-    // If not backdoor-loading the memory for a later phase, do the second phase now.
-    do_ft_personalize_phase_2();
-  end
-
-  /////////////
-  // PHASE 3 //
-  /////////////
-
-  // (optionally) dump memories...
-  if (dump_mems) dump_dut_memories("phase3_init");
-
-  // Always do the third and final phase.
-  do_ft_personalize_phase_3();
-
 endtask
 
 function string chip_sw_rom_e2e_ft_perso_base_vseq::byte_array_as_str(bit [7:0] q[]);
