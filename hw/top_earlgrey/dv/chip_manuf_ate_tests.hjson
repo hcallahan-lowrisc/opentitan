@@ -61,6 +61,30 @@
       run_timeout_mins: 800
     }
     {
+      name: rom_e2e_ft_perso_base
+      uvm_test_seq: chip_sw_rom_e2e_ft_perso_base_vseq
+      sw_images: [
+        // Add the 'silicon_creator' flag because the default 'sw_build_device' of sim_dv does
+        // not enable the OTTF, and hence we cannot interact with the perso binary over the
+        // spi_console. (sim_dv assumes use of the sw_logger_if instead of the OTTF)
+        "//sw/device/silicon_creator/manuf/base:ft_personalize_emulation:1:silicon_creator:dont_filter",
+        "//hw/ip/otp_ctrl/data/earlgrey_skus/emulation:otp_img_dev_manuf_individualized:4"
+        "//sw/device/lib/testing/test_rom:test_rom:0"
+      ]
+      en_run_modes: ["sw_test_mode_base"]
+      run_opts: [
+        "+disable_assert_final_checks",
+        "+sw_test_timeout_ns=1000000000",
+        "+use_otp_image=OtpTypeCustom",
+        "+skip_flash_bkdr_load=1",      // Do not pre-load flash in dut_init() at the start of simulation
+                                        // Flash-loading is handled entirely in the leaf vseq
+        "+use_spi_load_bootstrap=1", /* This variable SHOULD BE is irrelevant if +skip_flash_bkdr_load=1 */
+        "+dump_mems=1",
+        "+load_mems=0",
+      ]
+      run_timeout_mins: 1000
+    }
+    {
       // This test runs the full FT-Personalize provisioning step
       name: rom_e2e_ft_personalize_sival
       uvm_test_seq: chip_sw_rom_e2e_ft_perso_vseq

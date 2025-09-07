@@ -7,16 +7,20 @@
 //
 // The appropriate places to dump/load memories are as follows:
 // - Before the chip boots for the first time (normally managed by chip_env_cfg)
-// - phase1_init
-//   - This is after the initial bootstrap. The test binary is now scrambled according to any default
-//     scrambling keys / configuration.
-// - phase1_seeds
-//   - After the new scrambling seeds / configuration has been deployed to OTP.
-// - phase2_init
-//   - After the second bootstrap, and binary has been reloaded/rescrambled with the new seeds.
-// - phase3_init
-//   - After sw_reset following provisioning of SECRET2 and flash info pages 1, 2, and 4
-//    (keymgr / DICE keygen seeds).
+// - phase1_init        This is after the initial bootstrap. The test binary is now scrambled
+//                      according to any default scrambling keys / configuration.
+// - phase1_seeds       After the new scrambling seeds / configuration has been deployed to OTP.
+// - phase2_init        After the second bootstrap, and the binary has been reloaded/rescrambled
+//                      with the new seeds.
+// - phase3_init        After sw_reset following provisioning of SECRET2 and flash info pages 1, 2,
+//                      and 4 (keymgr / DICE keygen seeds).
+//
+// N.B.
+//
+// - This sequence requires the DUT to be using the test_rom, as the sw_test_status_vif is used for
+//   synchronization purposes, however this could be refactored out in the future.
+//
+//
 
 class chip_sw_rom_e2e_ft_perso_base_vseq extends chip_sw_rom_e2e_base_vseq;
   `uvm_object_utils(chip_sw_rom_e2e_ft_perso_base_vseq)
@@ -25,21 +29,8 @@ class chip_sw_rom_e2e_ft_perso_base_vseq extends chip_sw_rom_e2e_base_vseq;
   bit dump_mems = 0; // Should memories be dumped mid-simulation?
   bit load_mems = 0; // Should memories be loaded with dumps?
 
-  string dumped_otp_transport;
-  string dumped_otp_perso_secrets;
-  string dumped_bank0_transport;
-  string bank0_gen;
-
-  string RMA_UNLOCK_TOKEN_HASH_FILE;
-  string RMA_UNLOCK_TOKEN_HASH_CRC_FILE;
-  string PERSO_CERTGEN_INPUTS_FILE;
-  string MANUF_PERSO_DATA_BACK_FILE;
-
-  string TBS_CERTS_FILE = "tbs_certs.bin";
-  string FINAL_HASH_FILE = "final_hash.bin";
-
   // SYNCHRONIZATION STRINGS
-
+  //
   // N.B. these strings are sent with trailing newlines, but are dropped here just for clarity
   // and since we match via a loose regex, it makes no difference to drop a trailing character.
   string SYNC_STR_READ_BOOTSTRAP_REQ         = "Bootstrap requested.";
@@ -50,18 +41,31 @@ class chip_sw_rom_e2e_ft_perso_base_vseq extends chip_sw_rom_e2e_base_vseq;
   string SYNC_STR_READ_FINISHED_CERT_IMPORTS = "Finished importing certificates.";
   string SYNC_STR_READ_PERSO_DONE            = "Personalization done.";
 
+
+  // Files containing personalization spi_console message payloads.
+  //
+  // WRITES
+  // (These files are passed as inputs to the simulation, via )
+  string RMA_UNLOCK_TOKEN_HASH_FILE;
+  string RMA_UNLOCK_TOKEN_HASH_CRC_FILE;
+  string PERSO_CERTGEN_INPUTS_FILE;
+  string MANUF_PERSO_DATA_BACK_FILE;
+  // READS
+  string TBS_CERTS_FILE = "tbs_certs.bin";
+  string FINAL_HASH_FILE = "final_hash.bin";
+
+  // Buffers for handling spi_console message payloads.
+  //
   localparam uint kLcTokenHashSerializedMaxSize = 52;
   localparam uint kManufCertgenInputsSerializedMaxSize = 210;
   localparam uint kPersoBlobSerializedMaxSize = 20535;
   localparam uint kSerdesSha256HashSerializedMaxSize = 98;
-
+  // WRITES
   bit [7:0] RMA_UNLOCK_TOKEN_HASH[kLcTokenHashSerializedMaxSize];
   bit [7:0] RMA_UNLOCK_TOKEN_HASH_CRC[18];
   bit [7:0] PERSO_CERTGEN_INPUTS[kManufCertgenInputsSerializedMaxSize];
   bit [7:0] MANUF_PERSO_DATA_BACK[kPersoBlobSerializedMaxSize];
-  int       len1, len2, len3, len4;
-
-  // Data received from the DEVICE
+  // READS
   bit [7:0] tbs_certs[];
   bit [7:0] final_hash[];
 
@@ -85,34 +89,31 @@ class chip_sw_rom_e2e_ft_perso_base_vseq extends chip_sw_rom_e2e_base_vseq;
 endclass : chip_sw_rom_e2e_ft_perso_base_vseq
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::get_plusarg_file_contents();
-  int fd;
+  int fd, len;
 
   void'($value$plusargs("RMA_UNLOCK_TOKEN_HASH_FILE=%0s", RMA_UNLOCK_TOKEN_HASH_FILE));
-  void'($value$plusargs("RMA_UNLOCK_TOKEN_HASH_CRC_FILE=%0s", RMA_UNLOCK_TOKEN_HASH_CRC_FILE));
-  void'($value$plusargs("PERSO_CERTGEN_INPUTS_FILE=%0s", PERSO_CERTGEN_INPUTS_FILE));
-  void'($value$plusargs("MANUF_PERSO_DATA_BACK_FILE=%0s", MANUF_PERSO_DATA_BACK_FILE));
-
   fd = $fopen(RMA_UNLOCK_TOKEN_HASH_FILE, "rb");
-  len1 = $fread(RMA_UNLOCK_TOKEN_HASH, fd);
+  len = $fread(RMA_UNLOCK_TOKEN_HASH, fd);
   $fclose(fd);
+  `uvm_info(`gfn, $sformatf("RMA_UNLOCK_TOKEN_HASH_FILE     :: len=%0d", len), UVM_LOW)
 
+  void'($value$plusargs("RMA_UNLOCK_TOKEN_HASH_CRC_FILE=%0s", RMA_UNLOCK_TOKEN_HASH_CRC_FILE));
   fd = $fopen(RMA_UNLOCK_TOKEN_HASH_CRC_FILE, "rb");
-  len2 = $fread(RMA_UNLOCK_TOKEN_HASH_CRC, fd);
+  len = $fread(RMA_UNLOCK_TOKEN_HASH_CRC, fd);
   $fclose(fd);
+  `uvm_info(`gfn, $sformatf("RMA_UNLOCK_TOKEN_HASH_CRC_FILE :: len=%0d", len), UVM_LOW)
 
+  void'($value$plusargs("PERSO_CERTGEN_INPUTS_FILE=%0s", PERSO_CERTGEN_INPUTS_FILE));
   fd = $fopen(PERSO_CERTGEN_INPUTS_FILE, "rb");
-  len3 = $fread(PERSO_CERTGEN_INPUTS, fd);
+  len = $fread(PERSO_CERTGEN_INPUTS, fd);
   $fclose(fd);
+  `uvm_info(`gfn, $sformatf("PERSO_CERTGEN_INPUTS_FILE      :: len=%0d", len), UVM_LOW)
 
+  void'($value$plusargs("MANUF_PERSO_DATA_BACK_FILE=%0s", MANUF_PERSO_DATA_BACK_FILE));
   fd = $fopen(MANUF_PERSO_DATA_BACK_FILE, "rb");
-  len4 = $fread(MANUF_PERSO_DATA_BACK, fd);
+  len = $fread(MANUF_PERSO_DATA_BACK, fd);
   $fclose(fd);
-
-  `uvm_info(`gfn, $sformatf("RMA_UNLOCK_TOKEN_HASH_FILE     :: len=%0d", len1), UVM_LOW)
-  `uvm_info(`gfn, $sformatf("RMA_UNLOCK_TOKEN_HASH_CRC_FILE :: len=%0d", len2), UVM_LOW)
-  `uvm_info(`gfn, $sformatf("PERSO_CERTGEN_INPUTS_FILE      :: len=%0d", len3), UVM_LOW)
-  `uvm_info(`gfn, $sformatf("MANUF_PERSO_DATA_BACK_FILE     :: len=%0d", len4), UVM_LOW)
-
+  `uvm_info(`gfn, $sformatf("MANUF_PERSO_DATA_BACK_FILE     :: len=%0d", len), UVM_LOW)
 endtask : get_plusarg_file_contents
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::pre_start();
@@ -121,11 +122,6 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::pre_start();
 
   void'($value$plusargs("dump_mems=%0b", dump_mems));
   void'($value$plusargs("load_mems=%0b", load_mems));
-
-  void'($value$plusargs("dumped_otp_transport=%0s", dumped_otp_transport));
-  void'($value$plusargs("dumped_otp_perso_secrets=%0s", dumped_otp_perso_secrets));
-  void'($value$plusargs("dumped_bank0_transport=%0s", dumped_bank0_transport));
-  void'($value$plusargs("bank0_gen=%0s", bank0_gen));
 
   // Get the HOST->DEVICE spi_console inputs
   get_plusarg_file_contents();
@@ -145,7 +141,6 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::pre_start();
 
 endtask
 
-
 task chip_sw_rom_e2e_ft_perso_base_vseq::body();
 
   super.body();
@@ -153,7 +148,7 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::body();
 
   fork begin: iso_fork
     fork
-      begin
+      begin : apply_stimulus
         do_ft_personalize();
         override_test_status_and_finish(.passed(1'b1));
       end
@@ -177,12 +172,13 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::load_dut_memories(string perso_phase);
   // OTP
   string OTP_s = $sformatf("dump_OTP_%0s.24.vmem", perso_phase);
 
-  cfg.mem_bkdr_util_h[FlashBank0Data].write_mem_to_file(FB0D_s);
-  cfg.mem_bkdr_util_h[FlashBank1Data].write_mem_to_file(FB1D_s);
-  cfg.mem_bkdr_util_h[FlashBank0Info].write_mem_to_file(FB0I_s);
-  cfg.mem_bkdr_util_h[FlashBank1Info].write_mem_to_file(FB1I_s);
-
-  cfg.mem_bkdr_util_h[Otp].write_mem_to_file(OTP_s);
+  // Flash
+  cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(FB0D_s);
+  cfg.mem_bkdr_util_h[FlashBank1Data].load_mem_from_file(FB1D_s);
+  cfg.mem_bkdr_util_h[FlashBank0Info].load_mem_from_file(FB0I_s);
+  cfg.mem_bkdr_util_h[FlashBank1Info].load_mem_from_file(FB1I_s);
+  // OTP
+  cfg.mem_bkdr_util_h[Otp].load_mem_from_file(OTP_s);
 endtask
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::dump_dut_memories(string perso_phase);
@@ -194,12 +190,15 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::dump_dut_memories(string perso_phase);
   // OTP
   string OTP_s = $sformatf("dump_OTP_%0s.24.vmem", perso_phase);
 
+  // Flash
   cfg.mem_bkdr_util_h[FlashBank0Data].write_mem_to_file(FB0D_s);
   cfg.mem_bkdr_util_h[FlashBank1Data].write_mem_to_file(FB1D_s);
   cfg.mem_bkdr_util_h[FlashBank0Info].write_mem_to_file(FB0I_s);
   cfg.mem_bkdr_util_h[FlashBank1Info].write_mem_to_file(FB1I_s);
-
+  // OTP
   cfg.mem_bkdr_util_h[Otp].write_mem_to_file(OTP_s);
+
+  `uvm_info(`gfn, $sformatf("Dumped DUT memories in phase '%0s' now.", perso_phase), UVM_LOW)
 endtask
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::await_test_start();
@@ -365,9 +364,9 @@ function string chip_sw_rom_e2e_ft_perso_base_vseq::byte_array_as_str(bit [7:0] 
   return str;
 endfunction
 
-function void chip_sw_rom_e2e_ft_perso_base_vseq::dump_byte_array_to_file(bit [7:0] array[], string filename);
+function void chip_sw_rom_e2e_ft_perso_base_vseq::dump_byte_array_to_file(bit [7:0] array[],
+                                                                          string    filename);
   integer fd = $fopen(filename, "w");
   $fwrite(fd, "%0s", byte_array_as_str(array));
   $fclose(fd);
 endfunction
-
