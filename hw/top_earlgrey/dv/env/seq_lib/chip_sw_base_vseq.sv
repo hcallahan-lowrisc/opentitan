@@ -585,6 +585,9 @@ class chip_sw_base_vseq extends chip_base_vseq;
     spi_host_drive_bootstrap(sw_byte_q);
     cfg.chip_vif.sw_straps_if.drive(3'h0);
 
+    // Disable dut_init() bootstrap control for subsequent reboots.
+    cfg.use_spi_load_bootstrap = 1'b0;
+
     `uvm_info(`gfn, "ROM bootstrap complete, resetting chip and clearing SW straps.", UVM_LOW)
     assert_por_reset();
   endtask
