@@ -45,35 +45,35 @@ module tb;
   // The passive clk_rst_if used for full chip testing, and is driven separately with a
   // sensible frequency, just for calls to wait for cycles to be sensible.
   wire passive_clk, passive_rst_n;
+  // Reset driver for pad tests.
+  assign passive_rst_n = dut.chip_if.dios[top_earlgrey_pkg::DioPadPorN];
   clk_rst_if passive_clk_rst_if(
     .clk(passive_clk),
     .rst_n(passive_rst_n)
   );
-  // Reset driver for pad tests.
-  assign passive_rst_n = dut.chip_if.dios[top_earlgrey_pkg::DioPadPorN];
+  initial passive_clk_rst_if.set_active(.drive_clk_val(/* bogus clk */ 1), .drive_rst_n_val(0));
 
-  // The interface only drives the clock.
-  initial passive_clk_rst_if.set_active(.drive_clk_val(1), .drive_rst_n_val(0));
-
-  // The xbar clk_rst_if is active, but only rst_n is hooked up. It is used in the xbar testbench,
-  // so leave it as is.
-  wire xbar_clk, rst_n;
+  // The xbar clk_rst_if is active, but only rst_n is hooked up. It is used in the xbar testbench.
+  wire xbar_clk, xbar_rst_n;
   clk_rst_if xbar_clk_rst_if(
     .clk(xbar_clk),
-    .rst_n(rst_n)
+    .rst_n(xbar_rst_n)
   );
-  initial xbar_clk_rst_if.set_active(.drive_clk_val(1), .drive_rst_n_val(1));
+  initial xbar_clk_rst_if.set_active(.drive_clk_val(/* bogus clk */ 1), .drive_rst_n_val(1));
 
+  // Select the clk_rst_if to be used for this simulation using the 'xbar_mode' plusarg.
+  // - +xbar_mode=1 : use the dedicated clk_rst_if for xbar test mode
+  // - +xbar_mode=0 : use the default passive clk_rst_if
   logic xbar_mode;
-  initial begin
+  initial begin : initial_select_clk_rst_if
     if (!$value$plusargs("xbar_mode=%0b", xbar_mode)) xbar_mode = 0;
     if (xbar_mode)
       uvm_config_db#(virtual clk_rst_if)::set(null, "*.env*", "clk_rst_vif", xbar_clk_rst_if);
     else
       uvm_config_db#(virtual clk_rst_if)::set(null, "*.env*", "clk_rst_vif", passive_clk_rst_if);
-  end
-
-  assign dut.POR_N = xbar_mode ? rst_n : 1'bz;
+  end : initial_select_clk_rst_if
+  // In xbar_mode, the xbar_clk_rst_if drives the POR_N port.
+  assign dut.POR_N = xbar_mode ? xbar_rst_n : 1'bz;
 
   // TODO: Absorb this functionality into chip_if.
   bind dut ast_supply_if ast_supply_if (
@@ -99,17 +99,15 @@ module tb;
 
   bind chip_earlgrey_asic chip_if chip_if();
 
-`ifdef DISABLE_ROM_INTEGRITY_CHECK
   chip_earlgrey_asic #(
+`ifdef DISABLE_ROM_INTEGRITY_CHECK
     // This is to be used carefully, and should never be on for synthesis.
     // It causes many rom features to be disabled, including the very slow
     // integrity check, so full chip simulation runs don't do it for each
     // reset.
     .SecRomCtrlDisableScrambling(1'b1)
-) dut (
-`else
-  chip_earlgrey_asic dut (
 `endif
+  ) dut (
     // Dedicated Pads
     .POR_N(dut.chip_if.dios[top_earlgrey_pkg::DioPadPorN]),
     .USB_P(dut.chip_if.dios[top_earlgrey_pkg::DioPadUsbP]),
@@ -191,14 +189,15 @@ module tb;
   );
 
   // Knob to skip ROM backdoor logging (for sims that use ROM macro). Set below.
-  logic skip_rom_bkdr_load;
+  logic skip_rom_bkdr_load = 1'b0;
 
-  // Knob to skip flash backdoor loading. Set below.
-  logic skip_flash_bkdr_load;
+  // Knob to skip flash-loading at the start of simulation.
+  // TODO: Rename this plusarg (e.g. +use_dut_init_flash_loader ?)
+  // If disabled, this enables flash-loading via one of two methods:
+  // - frontdoor   : If +use_spi_load_bootstrap=1, the ROM SPI-bootstrap routine will be used
+  // - backdoor    : If +use_spi_load_bootstrap=0, the mem_bkdr_util will be used
+  logic skip_flash_bkdr_load = 1'b0;
 
-  // Instantiate & connect the simulation SRAM inside the CPU (rv_core_ibex) using forces.
-  bit en_sim_sram = 1'b1;
-  wire sel_sim_sram = !dut.chip_if.stub_cpu & en_sim_sram;
 `ifdef GATE_LEVEL
   localparam int gsim_TlH2DWidth = $bits(tlul_pkg::tl_h2d_t);
   localparam int gsim_TlD2HWidth = $bits(tlul_pkg::tl_d2h_t);
@@ -219,6 +218,7 @@ module tb;
     .out_o(gsim_tl_win_d2h_int)
   );
 `endif
+
   // Interface presently just permits the DPI model to be easily connected and
   // disconnected as required, since SENSE pin is a MIO with other uses.
   usb20_if u_usb20_if (
@@ -367,11 +367,20 @@ module tb;
   assign dut.IOC3 = u_tb_dpi_if.enable_uartdpi ? uartdpi_tx : 1'bz;
   assign uartdpi_rx = u_tb_dpi_if.enable_uartdpi ? dut.IOC4 : 1'b0;
 
+  // Instantiate & connect the simulation SRAM inside the CPU (rv_core_ibex) using forces.
+  // The plusarg +en_sim_sram controls if the instantiated model's inputs and outputs are connected
+  // into the DUT.
+  bit en_sim_sram = 1'b1;
+  wire connect_sim_sram = en_sim_sram & !dut.chip_if.stub_cpu;
+
+  // Instantiate the simulation SRAM. Its clk is disconnected if +en_sim_sram=0.
   sim_sram u_sim_sram (
 `ifdef GATE_LEVEL
-    .clk_i (sel_sim_sram ?`CPU_HIER.u_core.u_ibex_core.load_store_unit_i.ls_fsm_cs_reg_0_.CK:1'b0),
+    .clk_i    (connect_sim_sram ? `CPU_HIER.u_core.u_ibex_core.load_store_unit_i.ls_fsm_cs_reg_0_.CK :
+                                  1'b0),
 `else
-    .clk_i    (sel_sim_sram ? `CPU_HIER.clk_i : 1'b0),
+    .clk_i    (connect_sim_sram ? `CPU_HIER.clk_i :
+                                  1'b0),
 `endif
     .rst_ni   (`CPU_HIER.rst_ni),
 `ifdef GATE_LEVEL
@@ -386,19 +395,19 @@ module tb;
 
   `define SIM_SRAM_IF u_sim_sram.u_sim_sram_if
 
-  initial begin
+  initial begin : initial_connect_sim_sram
     void'($value$plusargs("en_sim_sram=%0b", en_sim_sram));
-    if (!dut.chip_if.stub_cpu && en_sim_sram) begin
+    if (connect_sim_sram) begin
       `SIM_SRAM_IF.start_addr = SW_DV_START_ADDR;
 `ifndef PATTERN
   `ifdef GATE_LEVEL
-    force `CPU_HIER.u_tlul_rsp_buf.out_o = gsim_tl_win_d2h_int;
+      force `CPU_HIER.u_tlul_rsp_buf.out_o = gsim_tl_win_d2h_int;
   `else
-    force `CPU_HIER.u_tlul_rsp_buf.in_i = u_sim_sram.tl_in_o;
+      force `CPU_HIER.u_tlul_rsp_buf.in_i = u_sim_sram.tl_in_o;
   `endif
 `endif
     end
-  end
+  end : initial_connect_sim_sram
 
   // Bind the SW test status interface directly to the sim SRAM interface.
   bind `SIM_SRAM_IF sw_test_status_if u_sw_test_status_if (
@@ -415,7 +424,8 @@ module tb;
     .*
   );
 
-  initial begin
+  initial begin : initial_set_config_db_vifs
+
     // IO Interfaces
     uvm_config_db#(virtual chip_if)::set(null, "*.env", "chip_vif", dut.chip_if);
 
@@ -441,80 +451,91 @@ module tb;
     uvm_config_db#(virtual tb_dpi_if)::set(
         null, "*.env", "tb_dpi_vif", u_tb_dpi_if);
 
-    // Format time in microseconds losing no precision. The added "." makes it easier to determine
-    // the order of magnitude without counting digits, as is needed if it was formatted as ps or ns.
-    $timeformat(-6, 6, " us", 13);
-    run_test();
-  end
+  end : initial_set_config_db_vifs
 
   `undef SIM_SRAM_IF
 
-  for (genvar i = 0; i < NUM_ALERTS; i++) begin : gen_alert_vif
+  for (genvar i = 0; i < NUM_ALERTS; i++) begin : gen_initial_set_config_db_alert_vif
     initial begin
       uvm_config_db#(virtual alert_esc_if)::set(null, $sformatf("*.env.m_alert_agent_%0s",
           LIST_OF_ALERTS[i]), "vif", alert_if[i]);
     end
   end
 
-  // Instantitate the memory backdoor util instances.
+  // Instantitate and connect memory backdoor util instances for all DUT memories we may wish to
+  // interact with through a convenient backdoor interface.
+  // Once created, these objects are pushed to the config_db.
   if (`PRIM_DEFAULT_IMPL == prim_pkg::ImplGeneric) begin : gen_generic
-    initial begin
-      chip_mem_e    mem;
+
+    initial begin : initial_instantiate_mem_bkdrs
       mem_bkdr_util m_mem_bkdr_util[chip_mem_e];
 
-      `uvm_info("tb.sv", "Creating mem_bkdr_util instance for flash 0 data", UVM_MEDIUM)
-      m_mem_bkdr_util[FlashBank0Data] = new(
+      begin : instantiate_flash_bkdr_utils
+        uint bank_size;
+        uint bank_0_base_addr;
+        uint bank_1_base_addr;
+
+        // Sanity check
+        if (flash_ctrl_pkg::NumBanks != 2) begin
+          $error("Invalid value for NumBanks, only 2 is supported.");
+        end
+
+        // Calculate base address offsets for flash banks
+        bank_size = top_earlgrey_pkg::TOP_EARLGREY_EFLASH_SIZE_BYTES / flash_ctrl_pkg::NumBanks;
+        bank_0_base_addr = top_earlgrey_pkg::TOP_EARLGREY_EFLASH_BASE_ADDR;
+        bank_1_base_addr = top_earlgrey_pkg::TOP_EARLGREY_EFLASH_BASE_ADDR + (bank_size * 1);
+
+        // Create mem_bkdr_util instances for data and info partitions within each bank
+
+        `uvm_info("tb.sv", "Creating mem_bkdr_util instance for flash 0 data", UVM_MEDIUM)
+        m_mem_bkdr_util[FlashBank0Data] = new(
           .name  ("mem_bkdr_util[FlashBank0Data]"),
           .path  (`DV_STRINGIFY(`FLASH0_DATA_MEM_HIER)),
           .depth ($size(`FLASH0_DATA_MEM_HIER)),
           .n_bits($bits(`FLASH0_DATA_MEM_HIER)),
           .err_detection_scheme(mem_bkdr_util_pkg::EccHamming_76_68),
-          .system_base_addr    (top_earlgrey_pkg::TOP_EARLGREY_EFLASH_BASE_ADDR));
-      `MEM_BKDR_UTIL_FILE_OP(m_mem_bkdr_util[FlashBank0Data], `FLASH0_DATA_MEM_HIER)
+          .system_base_addr    (bank_0_base_addr));
 
-      `uvm_info("tb.sv", "Creating mem_bkdr_util instance for flash 0 info", UVM_MEDIUM)
-      m_mem_bkdr_util[FlashBank0Info] = new(
+        `uvm_info("tb.sv", "Creating mem_bkdr_util instance for flash 0 info", UVM_MEDIUM)
+        m_mem_bkdr_util[FlashBank0Info] = new(
           .name  ("mem_bkdr_util[FlashBank0Info]"),
           .path  (`DV_STRINGIFY(`FLASH0_INFO_MEM_HIER)),
           .depth ($size(`FLASH0_INFO_MEM_HIER)),
           .n_bits($bits(`FLASH0_INFO_MEM_HIER)),
           .err_detection_scheme(mem_bkdr_util_pkg::EccHamming_76_68),
-          .system_base_addr    (top_earlgrey_pkg::TOP_EARLGREY_EFLASH_BASE_ADDR));
-      // Knob to skip flash backdoor loading (for ATE sims).
-      if (!$value$plusargs("skip_flash_bkdr_load=%0b", skip_flash_bkdr_load)) begin
-        skip_flash_bkdr_load = 0;
-      end
-      if (!skip_flash_bkdr_load) begin
-        `MEM_BKDR_UTIL_FILE_OP(m_mem_bkdr_util[FlashBank0Info], `FLASH0_INFO_MEM_HIER)
-      end
+          .system_base_addr    (bank_0_base_addr));
 
-      `uvm_info("tb.sv", "Creating mem_bkdr_util instance for flash 1 data", UVM_MEDIUM)
-      m_mem_bkdr_util[FlashBank1Data] = new(
+        `uvm_info("tb.sv", "Creating mem_bkdr_util instance for flash 1 data", UVM_MEDIUM)
+        m_mem_bkdr_util[FlashBank1Data] = new(
           .name  ("mem_bkdr_util[FlashBank1Data]"),
           .path  (`DV_STRINGIFY(`FLASH1_DATA_MEM_HIER)),
           .depth ($size(`FLASH1_DATA_MEM_HIER)),
           .n_bits($bits(`FLASH1_DATA_MEM_HIER)),
           .err_detection_scheme(mem_bkdr_util_pkg::EccHamming_76_68),
-          .system_base_addr    (top_earlgrey_pkg::TOP_EARLGREY_EFLASH_BASE_ADDR +
-              top_earlgrey_pkg::TOP_EARLGREY_EFLASH_SIZE_BYTES / flash_ctrl_pkg::NumBanks));
-      // Knob to skip flash backdoor loading (for ATE sims).
-      if (!$value$plusargs("skip_flash_bkdr_load=%0b", skip_flash_bkdr_load)) begin
-        skip_flash_bkdr_load = 0;
-      end
-      if (!skip_flash_bkdr_load) begin
-        `MEM_BKDR_UTIL_FILE_OP(m_mem_bkdr_util[FlashBank1Data], `FLASH1_DATA_MEM_HIER)
-      end
+          .system_base_addr    (bank_1_base_addr));
 
-      `uvm_info("tb.sv", "Creating mem_bkdr_util instance for flash 1 info", UVM_MEDIUM)
-      m_mem_bkdr_util[FlashBank1Info] = new(
+        `uvm_info("tb.sv", "Creating mem_bkdr_util instance for flash 1 info", UVM_MEDIUM)
+        m_mem_bkdr_util[FlashBank1Info] = new(
           .name  ("mem_bkdr_util[FlashBank1Info]"),
           .path  (`DV_STRINGIFY(`FLASH1_INFO_MEM_HIER)),
           .depth ($size(`FLASH1_INFO_MEM_HIER)),
           .n_bits($bits(`FLASH1_INFO_MEM_HIER)),
           .err_detection_scheme(mem_bkdr_util_pkg::EccHamming_76_68),
-          .system_base_addr    (top_earlgrey_pkg::TOP_EARLGREY_EFLASH_BASE_ADDR +
-              top_earlgrey_pkg::TOP_EARLGREY_EFLASH_SIZE_BYTES / flash_ctrl_pkg::NumBanks));
-      `MEM_BKDR_UTIL_FILE_OP(m_mem_bkdr_util[FlashBank1Info], `FLASH1_INFO_MEM_HIER)
+          .system_base_addr    (bank_1_base_addr));
+
+        // Enable file operations on the flash memory partitions via their backdoor objects.
+        // - If +skip_flash_bkdr_load=1 is passed, the backdoor loading file operations are disabled
+        //   for some partitions. (This is used for ATE sims).
+
+        $value$plusargs("skip_flash_bkdr_load=%0b", skip_flash_bkdr_load);
+        if (!skip_flash_bkdr_load) begin
+          `MEM_BKDR_UTIL_ENABLE_FILE_OPS(m_mem_bkdr_util[FlashBank0Info], `FLASH0_INFO_MEM_HIER)
+          `MEM_BKDR_UTIL_ENABLE_FILE_OPS(m_mem_bkdr_util[FlashBank1Data], `FLASH1_DATA_MEM_HIER)
+        end
+        `MEM_BKDR_UTIL_ENABLE_FILE_OPS(m_mem_bkdr_util[FlashBank0Data], `FLASH0_DATA_MEM_HIER)
+        `MEM_BKDR_UTIL_ENABLE_FILE_OPS(m_mem_bkdr_util[FlashBank1Info], `FLASH1_INFO_MEM_HIER)
+
+      end : instantiate_flash_bkdr_utils
 
       `uvm_info("tb.sv", "Creating mem_bkdr_util instance for I cache way 0 tag", UVM_MEDIUM)
       m_mem_bkdr_util[ICacheWay0Tag] = new(
@@ -523,7 +544,7 @@ module tb;
           .depth ($size(`ICACHE0_TAG_MEM_HIER)),
           .n_bits($bits(`ICACHE0_TAG_MEM_HIER)),
           .err_detection_scheme(mem_bkdr_util_pkg::EccInv_28_22));
-      `MEM_BKDR_UTIL_FILE_OP(m_mem_bkdr_util[ICacheWay0Tag], `ICACHE0_TAG_MEM_HIER)
+      `MEM_BKDR_UTIL_ENABLE_FILE_OPS(m_mem_bkdr_util[ICacheWay0Tag], `ICACHE0_TAG_MEM_HIER)
 
       `uvm_info("tb.sv", "Creating mem_bkdr_util instance for I cache way 1 tag", UVM_MEDIUM)
       m_mem_bkdr_util[ICacheWay1Tag] = new(
@@ -532,7 +553,7 @@ module tb;
           .depth ($size(`ICACHE1_TAG_MEM_HIER)),
           .n_bits($bits(`ICACHE1_TAG_MEM_HIER)),
           .err_detection_scheme(mem_bkdr_util_pkg::EccInv_28_22));
-      `MEM_BKDR_UTIL_FILE_OP(m_mem_bkdr_util[ICacheWay1Tag], `ICACHE1_TAG_MEM_HIER)
+      `MEM_BKDR_UTIL_ENABLE_FILE_OPS(m_mem_bkdr_util[ICacheWay1Tag], `ICACHE1_TAG_MEM_HIER)
 
       `uvm_info("tb.sv", "Creating mem_bkdr_util instance for I cache way 0 data", UVM_MEDIUM)
       m_mem_bkdr_util[ICacheWay0Data] = new(
@@ -542,7 +563,7 @@ module tb;
           .n_bits($bits(`ICACHE0_DATA_MEM_HIER)),
           // The line size is 2x 32 bits and ECC is applied separately at the 32-bit word level.
           .err_detection_scheme(mem_bkdr_util_pkg::EccInv_39_32));
-      `MEM_BKDR_UTIL_FILE_OP(m_mem_bkdr_util[ICacheWay0Data], `ICACHE0_DATA_MEM_HIER)
+      `MEM_BKDR_UTIL_ENABLE_FILE_OPS(m_mem_bkdr_util[ICacheWay0Data], `ICACHE0_DATA_MEM_HIER)
 
       `uvm_info("tb.sv", "Creating mem_bkdr_util instance for I cache way 1 data", UVM_MEDIUM)
       m_mem_bkdr_util[ICacheWay1Data] = new(
@@ -552,7 +573,7 @@ module tb;
           .n_bits($bits(`ICACHE1_DATA_MEM_HIER)),
           // The line size is 2x 32 bits and ECC is applied separately at the 32-bit word level.
           .err_detection_scheme(mem_bkdr_util_pkg::EccInv_39_32));
-      `MEM_BKDR_UTIL_FILE_OP(m_mem_bkdr_util[ICacheWay1Data], `ICACHE1_DATA_MEM_HIER)
+      `MEM_BKDR_UTIL_ENABLE_FILE_OPS(m_mem_bkdr_util[ICacheWay1Data], `ICACHE1_DATA_MEM_HIER)
 
       `uvm_info("tb.sv", "Creating mem_bkdr_util instance for OTP", UVM_MEDIUM)
       m_mem_bkdr_util[Otp] = new(
@@ -561,7 +582,7 @@ module tb;
           .depth ($size(`OTP_MEM_HIER)),
           .n_bits($bits(`OTP_MEM_HIER)),
           .err_detection_scheme(mem_bkdr_util_pkg::EccHamming_22_16));
-      `MEM_BKDR_UTIL_FILE_OP(m_mem_bkdr_util[Otp], `OTP_MEM_HIER)
+      `MEM_BKDR_UTIL_ENABLE_FILE_OPS(m_mem_bkdr_util[Otp], `OTP_MEM_HIER)
 
       `uvm_info("tb.sv", "Creating mem_bkdr_util instance for RAM", UVM_MEDIUM)
       m_mem_bkdr_util[RamMain0] = new(
@@ -572,7 +593,7 @@ module tb;
           .err_detection_scheme(mem_bkdr_util_pkg::EccInv_39_32),
           .num_prince_rounds_half(2),
           .system_base_addr    (top_earlgrey_pkg::TOP_EARLGREY_RAM_MAIN_BASE_ADDR));
-      `MEM_BKDR_UTIL_FILE_OP(m_mem_bkdr_util[RamMain0], `RAM_MAIN_MEM_HIER)
+      `MEM_BKDR_UTIL_ENABLE_FILE_OPS(m_mem_bkdr_util[RamMain0], `RAM_MAIN_MEM_HIER)
 
       `uvm_info("tb.sv", "Creating mem_bkdr_util instance for RAM RET", UVM_MEDIUM)
       m_mem_bkdr_util[RamRet0] = new(
@@ -582,26 +603,35 @@ module tb;
           .n_bits($bits(`RAM_RET_MEM_HIER)),
           .err_detection_scheme(mem_bkdr_util_pkg::EccInv_39_32),
           .system_base_addr    (top_earlgrey_pkg::TOP_EARLGREY_RAM_RET_AON_BASE_ADDR));
-      `MEM_BKDR_UTIL_FILE_OP(m_mem_bkdr_util[RamRet0], `RAM_RET_MEM_HIER)
+      `MEM_BKDR_UTIL_ENABLE_FILE_OPS(m_mem_bkdr_util[RamRet0], `RAM_RET_MEM_HIER)
 
-      `uvm_info("tb.sv", "Creating mem_bkdr_util instance for ROM", UVM_MEDIUM)
-      m_mem_bkdr_util[Rom] = new(
-          .name  ("mem_bkdr_util[Rom]"),
-          .path  (`DV_STRINGIFY(`ROM_MEM_HIER)),
-          .depth ($size(`ROM_MEM_HIER)),
-          .n_bits($bits(`ROM_MEM_HIER)),
+      begin : instantiate_rom_bkdr_util
+
+        // First create the mem_bkdr_util instance
+
+        `uvm_info("tb.sv", "Creating mem_bkdr_util instance for ROM", UVM_MEDIUM)
+        m_mem_bkdr_util[Rom] = new(
+            .name  ("mem_bkdr_util[Rom]"),
+            .path  (`DV_STRINGIFY(`ROM_MEM_HIER)),
+            .depth ($size(`ROM_MEM_HIER)),
+            .n_bits($bits(`ROM_MEM_HIER)),
 `ifdef DISABLE_ROM_INTEGRITY_CHECK
-          .err_detection_scheme(mem_bkdr_util_pkg::ErrDetectionNone),
+            .err_detection_scheme(mem_bkdr_util_pkg::ErrDetectionNone),
 `else
-          .err_detection_scheme(mem_bkdr_util_pkg::EccInv_39_32),
+            .err_detection_scheme(mem_bkdr_util_pkg::EccInv_39_32),
 `endif
-          .system_base_addr    (top_earlgrey_pkg::TOP_EARLGREY_ROM_BASE_ADDR));
+            .system_base_addr    (top_earlgrey_pkg::TOP_EARLGREY_ROM_BASE_ADDR));
 
-      // Knob to skip ROM backdoor logging (for sims that use ROM macro).
-      if (!$value$plusargs("skip_rom_bkdr_load=%0b", skip_rom_bkdr_load)) skip_rom_bkdr_load = 0;
-      if (!skip_rom_bkdr_load) begin
-        `MEM_BKDR_UTIL_FILE_OP(m_mem_bkdr_util[Rom], `ROM_MEM_HIER)
-      end
+        // Enable file operations on the ROM via the bkdr_util.
+        // - The knob +skip_rom_bkdr_load will leave file operations disabled
+        //   (Useful for sims that use an implementation-specific ROM macro).
+
+        $value$plusargs("skip_rom_bkdr_load=%0b", skip_rom_bkdr_load);
+        if (!skip_rom_bkdr_load) begin
+          `MEM_BKDR_UTIL_ENABLE_FILE_OPS(m_mem_bkdr_util[Rom], `ROM_MEM_HIER)
+        end
+
+      end : instantiate_rom_bkdr_util
 
       `uvm_info("tb.sv", "Creating mem_bkdr_util instance for OTBN IMEM", UVM_MEDIUM)
       m_mem_bkdr_util[OtbnImem] = new(.name  ("mem_bkdr_util[OtbnImem]"),
@@ -609,7 +639,7 @@ module tb;
                                       .depth ($size(`OTBN_IMEM_HIER)),
                                       .n_bits($bits(`OTBN_IMEM_HIER)),
                                       .err_detection_scheme(mem_bkdr_util_pkg::EccInv_39_32));
-      `MEM_BKDR_UTIL_FILE_OP(m_mem_bkdr_util[OtbnImem], `OTBN_IMEM_HIER)
+      `MEM_BKDR_UTIL_ENABLE_FILE_OPS(m_mem_bkdr_util[OtbnImem], `OTBN_IMEM_HIER)
 
       `uvm_info("tb.sv", "Creating mem_bkdr_util instance for OTBN DMEM", UVM_MEDIUM)
       m_mem_bkdr_util[OtbnDmem0] = new(.name  ("mem_bkdr_util[OtbnDmem0]"),
@@ -617,7 +647,7 @@ module tb;
                                        .depth ($size(`OTBN_DMEM_HIER)),
                                        .n_bits($bits(`OTBN_DMEM_HIER)),
                                        .err_detection_scheme(mem_bkdr_util_pkg::EccInv_39_32));
-      `MEM_BKDR_UTIL_FILE_OP(m_mem_bkdr_util[OtbnDmem0], `OTBN_DMEM_HIER)
+      `MEM_BKDR_UTIL_ENABLE_FILE_OPS(m_mem_bkdr_util[OtbnDmem0], `OTBN_DMEM_HIER)
 
       `uvm_info("tb.sv", "Creating mem_bkdr_util instance for USBDEV BUFFER", UVM_MEDIUM)
       m_mem_bkdr_util[UsbdevBuf] = new(.name  ("mem_bkdr_util[UsbdevBuf]"),
@@ -626,19 +656,27 @@ module tb;
                                        .n_bits($bits(`USBDEV_BUF_HIER)),
                                        .err_detection_scheme(mem_bkdr_util_pkg::ErrDetectionNone));
 
-      mem = mem.first();
-      do begin
-        if (mem inside {[RamMain1:RamMain15]} ||
-            mem inside {[RamRet1:RamRet15]} ||
-            mem inside {[OtbnDmem1:OtbnDmem15]}) begin
+      begin : set_mem_bkdr_util_config_db
+        chip_mem_e mem;
+        mem = mem.first();
+        do begin
+          // Skip memory instances which have multiple tiles
+          if (mem inside {[RamMain1:RamMain15]} ||
+              mem inside {[RamRet1:RamRet15]} ||
+              mem inside {[OtbnDmem1:OtbnDmem15]}) begin
+            mem = mem.next();
+            continue;
+          end
+          // Add the corresponding bkdr_util object to the config db
+          uvm_config_db#(mem_bkdr_util)::set(
+              null, "*.env", m_mem_bkdr_util[mem].get_name(), m_mem_bkdr_util[mem]);
+          // Increment to the next memory instance, ending when we loop around to the list start
           mem = mem.next();
-          continue;
-        end
-        uvm_config_db#(mem_bkdr_util)::set(
-            null, "*.env", m_mem_bkdr_util[mem].get_name(), m_mem_bkdr_util[mem]);
-        mem = mem.next();
-      end while (mem != mem.first());
-    end
+        end while (mem != mem.first());
+      end
+
+    end : initial_instantiate_mem_bkdrs
+
   end : gen_generic
 
   // Kill "strong" assertion properties in these scopes at the end of simulation.
@@ -729,5 +767,16 @@ module tb;
     $asserton();
   end
 `endif
+
+  initial begin : initial_set_timeformat
+    // Format time in microseconds losing no precision. The added "." makes it easier to determine
+    // the order of magnitude without counting digits, as is needed if it was formatted as ps or ns.
+    $timeformat(-6, 6, " us", 13);
+  end
+
+  initial begin : initial_run_test
+    // Start the UVM test specified by +UVM_TESTNAME
+    run_test();
+  end
 
 endmodule

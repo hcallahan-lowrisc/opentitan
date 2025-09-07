@@ -607,7 +607,7 @@ endclass
 //
 // inst is the mem_bkdr_util instance created in the tesbench module.
 // path is the raw path to the memory element in the design.
-`define MEM_BKDR_UTIL_FILE_OP(inst, path) \
+`define MEM_BKDR_UTIL_ENABLE_FILE_OPS(inst, path) \
   fork \
     forever begin \
       string file; \
