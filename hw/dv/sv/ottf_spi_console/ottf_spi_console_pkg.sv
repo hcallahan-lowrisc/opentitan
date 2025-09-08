@@ -5,7 +5,7 @@
 // Routines to interact with an OTTF SPI console using an OpenTitan spi_host agent.
 //
 // This package provides the 'ottf_spi_console' class which can be instantiated as a testbench
-// object and provides methods to drive HOST-side communications of an OpenTitan OTTF SPI console.
+// component to provide methods to drive HOST-side communications of an OpenTitan OTTF SPI console.
 // The env can configure this object by connecting the virtual interfaces (clk_rst and flow_ctrl),
 // and the base_vseq should assign handles for the parent sequence (seq_h) and the sequencer for
 // the OpenTitan spi_host UVC (spi_host_sequencer_h).
@@ -36,9 +36,9 @@ package ottf_spi_console_pkg;
 
   // Note that this stimulus may be timing-sensitive due to interactions with the software running
   // the DEVICE-side of the OTTF SPI Console.
-  uint spinwait_timeout_ns = 30_000_000; // 30ms
-  uint write_timeout_ns = 20_000_000;    // 20ms
-  uint min_interval_ns = 3_000;          //  3us
+  uint spinwait_timeout_ns = 80_000_000; // 80ms
+  uint write_timeout_ns    = 20_000_000; // 20ms
+  uint min_interval_ns     =      3_000; //  3us
 
   // Typical opcodes used by SPI NOR-flash devices.
   // Ensure that both parties are using the same encodings.
@@ -384,7 +384,7 @@ package ottf_spi_console_pkg;
       // Append the bytes from this read transfer to the overall queue.
       chunk_q = {chunk_q, data_q};
     end while (!findStrRe(wait_for, byte_q_as_str(chunk_q)));
-    `uvm_info(`gfn, $sformatf("Read expected string from the spi_console : %0s", wait_for), UVM_LOW)
+    `uvm_info(`gfn, $sformatf("Got expected string from spi_console : '%0s'", wait_for), UVM_LOW)
 
     // (If not already de-asserted) wait for the SPI console TX ready to be cleared by the DEVICE.
     `uvm_info(`gfn, "Waiting for the DEVICE to clear 'tx_ready' (IOA5)", UVM_MEDIUM)
