@@ -227,12 +227,12 @@ endtask
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::load_dut_memories(perso_phase_e perso_phase);
   // Flash
-  string FB0D_s = $sformatf("dump_FlashBank0Data_%0s.64.scr.vmem", perso_phase.name);
-  string FB1D_s = $sformatf("dump_FlashBank1Data_%0s.64.scr.vmem", perso_phase.name);
-  string FB0I_s = $sformatf("dump_FlashBank0Info_%0s.64.scr.vmem", perso_phase.name);
-  string FB1I_s = $sformatf("dump_FlashBank1Info_%0s.64.scr.vmem", perso_phase.name);
+  string FB0D_s = $sformatf("%0s_dump_FlashBank0Data.64.scr.vmem", perso_phase.name);
+  string FB1D_s = $sformatf("%0s_dump_FlashBank1Data.64.scr.vmem", perso_phase.name);
+  string FB0I_s = $sformatf("%0s_dump_FlashBank0Info.64.scr.vmem", perso_phase.name);
+  string FB1I_s = $sformatf("%0s_dump_FlashBank1Info.64.scr.vmem", perso_phase.name);
   // OTP
-  string OTP_s = $sformatf("dump_OTP_%0s.24.vmem", perso_phase.name);
+  string OTP_s = $sformatf("%0s_dump_OTP.24.vmem", perso_phase.name);
 
   // Flash
   cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(FB0D_s);
@@ -241,16 +241,18 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::load_dut_memories(perso_phase_e perso_p
   cfg.mem_bkdr_util_h[FlashBank1Info].load_mem_from_file(FB1I_s);
   // OTP
   cfg.mem_bkdr_util_h[Otp].load_mem_from_file(OTP_s);
+
+  `uvm_info(`gfn, $sformatf("Loaded DUT mems with '%0s' images now.", perso_phase.name), UVM_LOW)
 endtask
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::dump_dut_memories(perso_phase_e perso_phase);
   // Flash
-  string FB0D_s = $sformatf("dump_FlashBank0Data_%0s.64.scr.vmem", perso_phase.name);
-  string FB1D_s = $sformatf("dump_FlashBank1Data_%0s.64.scr.vmem", perso_phase.name);
-  string FB0I_s = $sformatf("dump_FlashBank0Info_%0s.64.scr.vmem", perso_phase.name);
-  string FB1I_s = $sformatf("dump_FlashBank1Info_%0s.64.scr.vmem", perso_phase.name);
+  string FB0D_s = $sformatf("%0s_dump_FlashBank0Data.64.scr.vmem", perso_phase.name);
+  string FB1D_s = $sformatf("%0s_dump_FlashBank1Data.64.scr.vmem", perso_phase.name);
+  string FB0I_s = $sformatf("%0s_dump_FlashBank0Info.64.scr.vmem", perso_phase.name);
+  string FB1I_s = $sformatf("%0s_dump_FlashBank1Info.64.scr.vmem", perso_phase.name);
   // OTP
-  string OTP_s = $sformatf("dump_OTP_%0s.24.vmem", perso_phase.name);
+  string OTP_s = $sformatf("%0s_dump_OTP.24.vmem", perso_phase.name);
 
   if (!dump_mems) return;
 
@@ -298,6 +300,7 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize();
     `uvm_info(`gfn, "Skipping Phase0 loading and stimulus.", UVM_LOW)
   end else begin
     // We started at Phase0. There is no memory loading needed (the base_vseq handled OTP loading).
+    `uvm_info(`gfn, "Starting Phase0 stimulus now.", UVM_LOW)
     do_ft_personalize_phase_0();
   end
 
@@ -311,10 +314,12 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize();
     `uvm_info(`gfn, "Skipping Phase1 loading and stimulus.", UVM_LOW)
   end else if (perso_start_phase == Phase1) begin
     // If starting at this phase, load the memory state and then drive the stimulus.
+    `uvm_info(`gfn, "Loading Phase0 mems, starting Phase1 stimulus now.", UVM_LOW)
     load_dut_memories(Phase0);
     do_ft_personalize_phase_1();
   end else begin
     // We started at an earlier phase. Stimulus only.
+    `uvm_info(`gfn, "Starting Phase1 stimulus now.", UVM_LOW)
     do_ft_personalize_phase_1();
   end
 
@@ -328,10 +333,12 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize();
     `uvm_info(`gfn, "Skipping Phase2 loading and stimulus.", UVM_LOW)
   end else if (perso_start_phase == Phase2) begin
     // If starting at this phase, load the memory state and then drive the stimulus.
+    `uvm_info(`gfn, "Loading Phase1 mems, starting Phase2 stimulus now.", UVM_LOW)
     load_dut_memories(Phase1);
     do_ft_personalize_phase_2();
   end else begin
     // We started at an earlier phase. Stimulus only.
+    `uvm_info(`gfn, "Starting Phase2 stimulus now.", UVM_LOW)
     do_ft_personalize_phase_2();
   end
 
@@ -345,10 +352,12 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize();
     `uvm_info(`gfn, "Skipping Phase3 loading and stimulus.", UVM_LOW)
   end else if (perso_start_phase == Phase3) begin
     // If starting at this phase, load the memory state and then drive the stimulus.
+    `uvm_info(`gfn, "Loading Phase2 mems, starting Phase3 stimulus now.", UVM_LOW)
     load_dut_memories(Phase2);
     do_ft_personalize_phase_3();
   end else begin
     // We started at an earlier phase. Stimulus only.
+    `uvm_info(`gfn, "Starting Phase2 stimulus now.", UVM_LOW)
     do_ft_personalize_phase_3();
   end
 
@@ -360,10 +369,12 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize();
   // We never skip the stimulus for the final phase.
   if (perso_start_phase == Phase4) begin
     // If starting at this phase, load the memory state and then drive the stimulus.
+    `uvm_info(`gfn, "Loading Phase3 mems, starting Phase4 stimulus now.", UVM_LOW)
     load_dut_memories(Phase3);
     do_ft_personalize_phase_4();
   end else begin
     // We started at an earlier phase. Stimulus only.
+    `uvm_info(`gfn, "Starting Phase2 stimulus now.", UVM_LOW)
     do_ft_personalize_phase_4();
   end
 
