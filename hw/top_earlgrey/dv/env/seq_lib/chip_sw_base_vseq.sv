@@ -34,6 +34,7 @@ class chip_sw_base_vseq extends chip_base_vseq;
   // - (optionally) disconnect the straps entirely when entering the ROM_EXT test.
   virtual task set_and_release_sw_strap_nonblocking();
     sw_test_status_e prev_status = SwTestStatusUnderReset;
+    cfg.chip_vif.sw_straps_if.drive(3'h0);
     forever begin
       wait (cfg.sw_test_status_vif.sw_test_status != prev_status);
       case (cfg.sw_test_status_vif.sw_test_status)

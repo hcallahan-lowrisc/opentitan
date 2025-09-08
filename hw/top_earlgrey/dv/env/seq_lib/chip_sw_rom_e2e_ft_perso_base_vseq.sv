@@ -68,6 +68,7 @@ class chip_sw_rom_e2e_ft_perso_base_vseq extends chip_sw_rom_e2e_base_vseq;
 
   bit dump_mems = 0; // Should memories be dumped mid-simulation?
   bit load_mems = 0; // Should memories be loaded with dumps?
+  string dump_path = ""; // Assumes working directory, but can be overridden by plusarg.
 
   typedef enum int {  /* -- DUT MEMORY CONTENTS AFTER PHASE COMPLETION -- */
     // dut_int()      // Base OTP image + no flash image
@@ -180,6 +181,7 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::pre_start();
   super.pre_start();
 
   void'($value$plusargs("dump_mems=%0b", dump_mems));
+  void'($value$plusargs("dump_path=%0s", dump_path));
   void'($value$plusargs("load_mems=%0b", load_mems));
 
   // Get the HOST->DEVICE spi_console inputs
@@ -227,13 +229,14 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::body();
 endtask
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::load_dut_memories(perso_phase_e perso_phase);
+
   // Flash
-  string FB0D_s = $sformatf("%0s_dump_FlashBank0Data.64.scr.vmem", perso_phase.name);
-  string FB1D_s = $sformatf("%0s_dump_FlashBank1Data.64.scr.vmem", perso_phase.name);
-  string FB0I_s = $sformatf("%0s_dump_FlashBank0Info.64.scr.vmem", perso_phase.name);
-  string FB1I_s = $sformatf("%0s_dump_FlashBank1Info.64.scr.vmem", perso_phase.name);
+  string FB0D_s = $sformatf("%0s%0s_dump_FlashBank0Data.64.scr.vmem", dump_path, perso_phase.name);
+  string FB1D_s = $sformatf("%0s%0s_dump_FlashBank1Data.64.scr.vmem", dump_path, perso_phase.name);
+  string FB0I_s = $sformatf("%0s%0s_dump_FlashBank0Info.64.scr.vmem", dump_path, perso_phase.name);
+  string FB1I_s = $sformatf("%0s%0s_dump_FlashBank1Info.64.scr.vmem", dump_path, perso_phase.name);
   // OTP
-  string OTP_s = $sformatf("%0s_dump_OTP.24.vmem", perso_phase.name);
+  string OTP_s = $sformatf("%0s%0s_dump_OTP.24.vmem", dump_path, perso_phase.name);
 
   // Flash
   cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(FB0D_s);
@@ -375,7 +378,7 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize();
     do_ft_personalize_phase_4();
   end else begin
     // We started at an earlier phase. Stimulus only.
-    `uvm_info(`gfn, "Starting Phase2 stimulus now.", UVM_LOW)
+    `uvm_info(`gfn, "Starting Phase4 stimulus now.", UVM_LOW)
     do_ft_personalize_phase_4();
   end
 
