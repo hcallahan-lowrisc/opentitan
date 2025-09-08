@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-// Base-sequence for functionality related to simulation the 'personalization'-step of
+// Base-sequence for functionality related to simulation of the 'personalization' step of
 // the manufacturing provisioning flow.
 //
 // This test is lengthy to simulate, as it involves 2 full ROM SPI-bootstrap procedures, lots of
@@ -35,14 +35,14 @@
 //
 // The appropriate places to dump/load memories are as follows:
 // - dut_init()         Before the chip boots for the first time (normally managed by chip_env_cfg)
-// - phase0             This is after the initial bootstrap. The test binary is now scrambled
+// - Phase0             This is after the initial bootstrap. The test binary is now scrambled
 //                      according to any default scrambling keys / configuration.
-// - phase1             After the new scrambling seeds / configuration has been deployed to OTP.
-// - phase2             After the second bootstrap, and the binary has been reloaded/rescrambled
+// - Phase1             After the new scrambling seeds / configuration has been deployed to OTP.
+// - Phase2             After the second bootstrap, and the binary has been reloaded/rescrambled
 //                      with the new seeds.
-// - phase3             After sw_reset following provisioning of SECRET2 and flash info pages 1, 2,
+// - Phase3             After sw_reset following provisioning of SECRET2 and flash info pages 1, 2,
 //                      and 4 (keymgr / DICE keygen seeds).
-// - phase4             After personalization has completed.
+// - Phase4             After personalization has completed.
 //
 // After the simulation has been run with no backdoor loading and dumping images (using +dump_mems),
 // we can re-start the program from the intermediate state with intermediate images by passing the
@@ -186,7 +186,8 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::pre_start();
   get_plusarg_file_contents();
 
   void'($value$plusargs("perso_start_phase=%0d", perso_start_phase));
-  `uvm_info(`gfn, $sformatf("perso_start_phase = %0d", perso_start_phase), UVM_LOW)
+  `uvm_info(`gfn, $sformatf("perso_start_phase = %0d (%0s)", perso_start_phase,
+    perso_start_phase.name), UVM_LOW)
 
   // Enable the 'chip_reg_block' tl_agent to end the simulation if the 'ok_to_end' watchdog
   // resets too many times. This ends the simulation swiftly if something has gone wrong.
