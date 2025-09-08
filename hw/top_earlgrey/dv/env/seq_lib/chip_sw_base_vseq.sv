@@ -38,7 +38,10 @@ class chip_sw_base_vseq extends chip_base_vseq;
       wait (cfg.sw_test_status_vif.sw_test_status != prev_status);
       case (cfg.sw_test_status_vif.sw_test_status)
         SwTestStatusInBootRom: begin
-          cfg.chip_vif.sw_straps_if.drive({3{cfg.use_spi_load_bootstrap}});
+          if (cfg.use_spi_load_bootstrap) begin
+            `uvm_info(`gfn, "chip_sw_base_vseq : Driving sw_straps for ROM bootstrap now.", UVM_LOW)
+            cfg.chip_vif.sw_straps_if.drive(3'h7);
+          end
         end
         SwTestStatusInTest: begin
           if (disconnect_sw_straps_if) cfg.chip_vif.sw_straps_if.disconnect();
@@ -122,7 +125,6 @@ class chip_sw_base_vseq extends chip_base_vseq;
         // TODO: support bootstrapping entire flash address space, not just slot A.
         `uvm_info(`gfn, "SPI-Bootstrapping FLASH SlotA...", UVM_MEDIUM)
         spi_device_load_bootstrap({cfg.sw_images[SwTypeTestSlotA], ".64.vmem"});
-        cfg.use_spi_load_bootstrap = 1'b0;
         `uvm_info(`gfn, "SPI-Bootstrapping FLASH SlotA complete.", UVM_MEDIUM)
       end else begin
         // bkdr-load both slots if images are provided to the simulation.
@@ -571,7 +573,8 @@ class chip_sw_base_vseq extends chip_base_vseq;
   virtual task spi_device_load_bootstrap(string sw_image);
     byte sw_byte_q[$];
 
-    `uvm_info(`gfn, "Reading SW image frames ...", UVM_LOW)
+    `uvm_info(`gfn, "Starting spi_device_load_bootstrap() procedure now.", UVM_LOW)
+
     read_sw_frames(sw_image, sw_byte_q);
 
     // If this task is called early, before the ROM reads the SW straps to determine if
@@ -588,7 +591,7 @@ class chip_sw_base_vseq extends chip_base_vseq;
     // Disable dut_init() bootstrap control for subsequent reboots.
     cfg.use_spi_load_bootstrap = 1'b0;
 
-    `uvm_info(`gfn, "ROM bootstrap complete, resetting chip and clearing SW straps.", UVM_LOW)
+    `uvm_info(`gfn, "ROM SPI-bootstrap complete, resetting chip and clearing SW straps.", UVM_LOW)
     assert_por_reset();
   endtask
 
