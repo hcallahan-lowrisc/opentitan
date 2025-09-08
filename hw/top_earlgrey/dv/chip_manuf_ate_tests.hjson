@@ -78,10 +78,11 @@
         "+use_otp_image=OtpTypeCustom",
         "+skip_flash_bkdr_load=1",      // Do not pre-load flash in dut_init() at the start of simulation
                                         // Flash-loading is handled entirely in the leaf vseq
-        "+use_spi_load_bootstrap=1", /* This variable SHOULD BE is irrelevant if +skip_flash_bkdr_load=1 */
-        "+dump_mems=1",
-        "+load_mems=0",
-        "+perso_start_phase=0",
+        "+use_spi_load_bootstrap=0", /* This variable SHOULD BE is irrelevant if +skip_flash_bkdr_load=1 */
+        "+dump_mems=0",
+        "+load_mems=1",
+        "+dump_path=/home/harry/scratch/jaspernicus/sim19/",
+        "+perso_start_phase=4",
         // Pre-determined OTTF SPI_Console message payloads.
         "+RMA_UNLOCK_TOKEN_HASH_FILE={proj_root}/binaries/ft_personalize_orch_emu_cw340/ujson_RMA_TOKEN_UNLOCK_HASH",
         "+RMA_UNLOCK_TOKEN_HASH_CRC_FILE={proj_root}/binaries/ft_personalize_orch_emu_cw340/ujson_RMA_TOKEN_UNLOCK_HASH_CRC",
