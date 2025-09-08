@@ -384,7 +384,7 @@ package ottf_spi_console_pkg;
       // Append the bytes from this read transfer to the overall queue.
       chunk_q = {chunk_q, data_q};
     end while (!findStrRe(wait_for, byte_q_as_str(chunk_q)));
-    `uvm_info(`gfn, "Got the expected string in the spi_console.", UVM_LOW)
+    `uvm_info(`gfn, $sformatf("Read expected string from the spi_console : %0s", wait_for), UVM_LOW)
 
     // (If not already de-asserted) wait for the SPI console TX ready to be cleared by the DEVICE.
     `uvm_info(`gfn, "Waiting for the DEVICE to clear 'tx_ready' (IOA5)", UVM_MEDIUM)
