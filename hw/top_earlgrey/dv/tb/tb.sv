@@ -523,15 +523,8 @@ module tb;
           .err_detection_scheme(mem_bkdr_util_pkg::EccHamming_76_68),
           .system_base_addr    (bank_1_base_addr));
 
-        // Enable file operations on the flash memory partitions via their backdoor objects.
-        // - If +skip_flash_bkdr_load=1 is passed, the backdoor loading file operations are disabled
-        //   for some partitions. (This is used for ATE sims).
-
-        $value$plusargs("skip_flash_bkdr_load=%0b", skip_flash_bkdr_load);
-        if (!skip_flash_bkdr_load) begin
-          `MEM_BKDR_UTIL_ENABLE_FILE_OPS(m_mem_bkdr_util[FlashBank0Info], `FLASH0_INFO_MEM_HIER)
-          `MEM_BKDR_UTIL_ENABLE_FILE_OPS(m_mem_bkdr_util[FlashBank1Data], `FLASH1_DATA_MEM_HIER)
-        end
+        `MEM_BKDR_UTIL_ENABLE_FILE_OPS(m_mem_bkdr_util[FlashBank0Info], `FLASH0_INFO_MEM_HIER)
+        `MEM_BKDR_UTIL_ENABLE_FILE_OPS(m_mem_bkdr_util[FlashBank1Data], `FLASH1_DATA_MEM_HIER)
         `MEM_BKDR_UTIL_ENABLE_FILE_OPS(m_mem_bkdr_util[FlashBank0Data], `FLASH0_DATA_MEM_HIER)
         `MEM_BKDR_UTIL_ENABLE_FILE_OPS(m_mem_bkdr_util[FlashBank1Info], `FLASH1_INFO_MEM_HIER)
 
