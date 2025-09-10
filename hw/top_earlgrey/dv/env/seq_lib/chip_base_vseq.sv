@@ -267,7 +267,8 @@ class chip_base_vseq #(
     uart_item item;
     forever begin
       p_sequencer.uart_tx_fifos[uart_idx].get(item);
-      `uvm_info(`gfn, $sformatf("Received UART data over TX:\n%0h", item.data), UVM_HIGH)
+      `uvm_info(`gfn, $sformatf("Agent received UART[%0d] data over TX: 8'h%0h / %0s",
+        uart_idx, item.data, item.data), UVM_MEDIUM)
       uart_tx_data_q.push_back(item.data);
     end
   endtask
