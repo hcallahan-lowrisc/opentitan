@@ -22,7 +22,7 @@ Label. We refer to this extra data as 'flags'. The first flag is always the
 integer 'index', which identifies which device memory system the image should be
 loaded into (e.g. ROM, OTP, Flash, etc). The flag "signed" is used to set the SW
 image extension correctly. The flag "test_in_rom" is used to indicate a test runs
-directly out of ROM instead of flash.
+directly out of ROM instead of flash. There are more possible flags documented below.
 
 A string for each sw image (root filename + index + flags) is also passed through
 to the tesbench, which re-parses it (in chip_env_cfg.sv) to extract the index and
@@ -299,8 +299,8 @@ def _get_image_runfiles(iq: imageQuery, bazel_runner: BazelRunner) -> list[str]:
             # files from the target depending on the kind.
 
             runfiles = bazel_runner.cquery(
-                iq.label,
-                [
+                label=iq.label,
+                opts=[
                     "--output=starlark",
                     f"--starlark:file={BAZEL_STARLARK_QUERY_RULE_KIND[iq.kind]}",
                     # f"--starlark:expr='{BAZEL_STARLARK_QUERY_RULE_KIND[iq.kind]}'",

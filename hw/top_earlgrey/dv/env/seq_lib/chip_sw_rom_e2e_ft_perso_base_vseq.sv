@@ -280,22 +280,23 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::await_test_start();
   // Wait until we reach the start of the Test ROM
   `DV_WAIT(
     /*WAIT_COND_*/  cfg.sw_test_status_vif.sw_test_status == SwTestStatusInBootRom,
-    /*MSG_*/        "Timeout occurred waiting for TestROM start!",
+    /*MSG_*/        "Timeout occurred waiting for InBootRom!",
     /*TIMEOUT_NS_*/ spinwait_timeout_ns)
 
   // Now wait until the start of the test binary.
+  `uvm_info(`gfn, "DUT entered the TestRom, awaiting assertion of TestStart GPIO.", UVM_MEDIUM)
   await_ioa("IOA4"); // IOA4 == TestStart
 endtask
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::await_test_start_after_reset();
-  `uvm_info(`gfn, "Waiting for reset...", UVM_LOW)
+  `uvm_info(`gfn, "Waiting for reset...", UVM_MEDIUM)
   `DV_SPINWAIT(
     /*WAIT_*/       cfg.chip_vif.cpu_clk_rst_if.wait_for_reset();,
     /*MSG_*/        "Timeout waiting for reset to occur and complete.",
     /*TIMEOUT_NS_*/ spinwait_timeout_ns)
 
   // Wait for IOA4 (TestStart) the next time we boot the test binary after reset
-  `uvm_info(`gfn, "Device out of reset, awaiting re-boot and the assertion of TestStart.", UVM_LOW)
+  `uvm_info(`gfn, "Device out of reset, awaiting re-boot and TestStart GPIO.", UVM_MEDIUM)
   await_test_start();
 endtask
 
