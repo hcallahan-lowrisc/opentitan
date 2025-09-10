@@ -145,6 +145,8 @@ class chip_sw_rom_e2e_ft_perso_base_vseq extends chip_sw_rom_e2e_base_vseq;
   extern task do_ft_personalize_phase_4();
   extern function string byte_array_as_str(bit [7:0] q[]);
   extern function void dump_byte_array_to_file(bit [7:0] array[], string filename);
+  // Implement virtual task as a nop to allow print_uart_console_items() to function correctly.
+  extern virtual task get_uart_tx_items(int uart_idx = 0);
 
 endclass : chip_sw_rom_e2e_ft_perso_base_vseq
 
@@ -177,7 +179,6 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::get_plusarg_file_contents();
 endtask : get_plusarg_file_contents
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::pre_start();
-
   super.pre_start();
 
   void'($value$plusargs("dump_mems=%0b", dump_mems));
@@ -208,12 +209,10 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::pre_start();
   // The 'silicon_creator' environment uses the follow baud rate...
   cfg.uart_baud_rate = BaudRate115200;
   configure_uart_agent(.uart_idx(ROM_CONSOLE_UART), .enable(1));
-  fork get_uart_tx_items(ROM_CONSOLE_UART); join_none
-
+  fork print_uart_console_items(ROM_CONSOLE_UART); join_none
 endtask
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::body();
-
   super.body();
   `uvm_info(`gfn, "chip_sw_rom_e2e_ft_perso_base_vseq::body()", UVM_LOW)
 
@@ -231,7 +230,6 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::body();
     join_any
     disable fork;
   end : iso_fork join
-
 endtask
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::load_dut_memories(perso_phase_e perso_phase);
@@ -499,3 +497,5 @@ function void chip_sw_rom_e2e_ft_perso_base_vseq::dump_byte_array_to_file(bit [7
   $fwrite(fd, "%0s", byte_array_as_str(array));
   $fclose(fd);
 endfunction
+
+task chip_sw_rom_e2e_ft_perso_base_vseq::get_uart_tx_items(int uart_idx = 0); endtask
