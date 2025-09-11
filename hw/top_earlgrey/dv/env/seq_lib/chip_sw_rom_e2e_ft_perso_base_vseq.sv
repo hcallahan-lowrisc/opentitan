@@ -131,7 +131,6 @@ class chip_sw_rom_e2e_ft_perso_base_vseq extends chip_sw_rom_e2e_base_vseq;
   extern virtual task body();
   extern task load_dut_memories(perso_phase_e perso_phase);
   extern task dump_dut_memories(perso_phase_e perso_phase);
-  extern task rom_spi_bootstrap();
   extern task await_test_start();
   extern task await_test_start_after_reset();
   // This task sequences the three sub-phases of the personalization flow. (See the header comment

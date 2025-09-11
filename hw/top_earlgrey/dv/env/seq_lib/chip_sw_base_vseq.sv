@@ -532,7 +532,8 @@ class chip_sw_base_vseq extends chip_base_vseq;
       .ptr(ral.spi_device.cmd_info[spi_device_pkg::CmdInfoReadSfdp].opcode),
       .exp_data(SpiFlashReadSfdp),
       .backdoor(1),
-      .spinwait_delay_ns(spinwait_timeout_ns));
+      .spinwait_delay_ns(5000),
+      .timeout_ns(spinwait_timeout_ns));
     csr_spinwait(
       .ptr(ral.spi_device.cmd_info[spi_device_pkg::CmdInfoReadStatus1].opcode),
       .exp_data(SpiFlashReadSts1),
