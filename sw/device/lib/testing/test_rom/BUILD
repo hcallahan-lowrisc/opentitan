@@ -33,6 +33,7 @@ opentitan_binary(
         "//hw/top_earlgrey:fpga_cw340",
         "//hw/top_earlgrey:sim_dv_base",
         "//hw/top_earlgrey:sim_verilator_base",
+        "//hw/top_earlgrey:silicon_creator",
     ],
     kind = "rom",
     linker_script = ":linker_script",
@@ -51,6 +52,7 @@ opentitan_binary(
     for env in [
         "sim_dv",
         "sim_verilator",
+        "silicon_creator",
     ]
 ]
 
