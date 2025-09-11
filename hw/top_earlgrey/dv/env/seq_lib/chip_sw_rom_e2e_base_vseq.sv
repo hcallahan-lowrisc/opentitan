@@ -6,6 +6,15 @@ class chip_sw_rom_e2e_base_vseq extends chip_sw_base_vseq;
   `uvm_object_utils(chip_sw_rom_e2e_base_vseq)
   `uvm_object_new
 
+  // > The below two configuration bits for ROM_CONSOLE UART handling are mutually exclusive.
+  //
+  // When enabled, all bytes from the ROM_CONSOLE UART are pushed to 'uart_tx_data_q[$]'
+  bit get_rom_console_uart_byte_by_byte = 1'b1;
+  // When enabled, all messages sent by the ROM_CONSOLE UART are logged via UVM_INFO.
+  // Messages are delimited by CRLF control characters, at which point all bytes received are
+  // printed as ASCII and the buffer is cleared.
+  bit print_rom_console_uart_messages = 1'b0;
+
   virtual task connect_rom_uart_agent(uint uart_idx = ROM_CONSOLE_UART);
       `uvm_info(`gfn, $sformatf("Configuring and connecting UART agent to UART %0d ...", uart_idx),
         UVM_LOW)
@@ -46,8 +55,10 @@ class chip_sw_rom_e2e_base_vseq extends chip_sw_base_vseq;
   virtual task body();
     super.body();
 
+    `DV_CHECK(get_rom_console_uart_byte_by_byte ^ print_rom_console_uart_messages)
     fork
-      get_uart_tx_items(ROM_CONSOLE_UART);
+      if (get_rom_console_uart_byte_by_byte) get_uart_tx_items(ROM_CONSOLE_UART);
+      if (print_rom_console_uart_messages) print_uart_console_items(ROM_CONSOLE_UART);
     join_none
 
     // Wait for retention SRAM initialization to be done before hooking up the UART agent to
