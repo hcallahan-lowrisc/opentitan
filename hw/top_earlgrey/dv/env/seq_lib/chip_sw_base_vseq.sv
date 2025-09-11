@@ -512,6 +512,12 @@ class chip_sw_base_vseq extends chip_base_vseq;
     uint byte_cnt = 0;
     uint SPI_FLASH_PAGE_SIZE = 256;
 
+    // We determine when the ROM is awaiting external SPI traffic for bootstrap by backdoor-reading
+    // the spi_device HWIP registers to detect it being configured to receive the bootstrap sequence.
+    // The initial delay for this to progress could be quite long if UART logging for debug takes
+    // place. Add a lengthy delay here before timing out.
+    uint spinwait_timeout_ns = 100_000_000; // 100ms
+
     `uvm_info(`gfn, "Initializing spi_host agent for ROM bootstrap procedure.", UVM_LOW)
 
     // Set CSB inactive times to reasonable values. sys_clk is at 24 MHz, and
@@ -526,7 +532,7 @@ class chip_sw_base_vseq extends chip_base_vseq;
       .ptr(ral.spi_device.cmd_info[spi_device_pkg::CmdInfoReadSfdp].opcode),
       .exp_data(SpiFlashReadSfdp),
       .backdoor(1),
-      .spinwait_delay_ns(5000));
+      .spinwait_delay_ns(spinwait_timeout_ns));
     csr_spinwait(
       .ptr(ral.spi_device.cmd_info[spi_device_pkg::CmdInfoReadStatus1].opcode),
       .exp_data(SpiFlashReadSts1),

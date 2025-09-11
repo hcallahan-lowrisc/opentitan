@@ -124,7 +124,7 @@ class chip_sw_rom_e2e_ft_perso_base_vseq extends chip_sw_rom_e2e_base_vseq;
   bit [7:0] tbs_certs[];
   bit [7:0] final_hash[];
 
-  uint spinwait_timeout_ns = 30_000_000; // 30ms
+  uint spinwait_timeout_ns = 100_000_000; // 100ms
 
   extern virtual task get_plusarg_file_contents();
   extern virtual task pre_start();
