@@ -5,7 +5,7 @@
 // Routines to interact with an OTTF SPI console using an OpenTitan spi_host agent.
 //
 // This package provides the 'ottf_spi_console' class which can be instantiated as a testbench
-// object and provides methods to drive HOST-side communications of an OpenTitan OTTF SPI console.
+// component to provide methods to drive HOST-side communications of an OpenTitan OTTF SPI console.
 // The env can configure this object by connecting the virtual interfaces (clk_rst and flow_ctrl),
 // and the base_vseq should assign handles for the parent sequence (seq_h) and the sequencer for
 // the OpenTitan spi_host UVC (spi_host_sequencer_h).
@@ -372,9 +372,9 @@ package ottf_spi_console_pkg;
     `uvm_info(`gfn, $sformatf("Waiting to read the following string in the spi_console : %0s",
       wait_for), UVM_LOW)
 
-    `uvm_info(`gfn, "Waiting for the DEVICE to set 'tx_ready' (IOA5)", UVM_MEDIUM)
+    `uvm_info(`gfn, "Waiting for the DEVICE to set 'tx_ready' (IOA5)", UVM_HIGH)
     await_flow_ctrl_signal(tx_ready_idx, 1'b1);
-    `uvm_info(`gfn, "DEVICE set 'tx_ready' now.", UVM_MEDIUM)
+    `uvm_info(`gfn, "DEVICE set 'tx_ready' now.", UVM_HIGH)
 
     // Next, get all the data_bytes from the frame until we see the expected message in the buffer.
     do begin
@@ -384,12 +384,12 @@ package ottf_spi_console_pkg;
       // Append the bytes from this read transfer to the overall queue.
       chunk_q = {chunk_q, data_q};
     end while (!findStrRe(wait_for, byte_q_as_str(chunk_q)));
-    `uvm_info(`gfn, "Got the expected string in the spi_console.", UVM_LOW)
+    `uvm_info(`gfn, $sformatf("Got expected string from spi_console : '%0s'", wait_for), UVM_LOW)
 
     // (If not already de-asserted) wait for the SPI console TX ready to be cleared by the DEVICE.
-    `uvm_info(`gfn, "Waiting for the DEVICE to clear 'tx_ready' (IOA5)", UVM_MEDIUM)
+    `uvm_info(`gfn, "Waiting for the DEVICE to clear 'tx_ready' (IOA5)", UVM_HIGH)
     await_flow_ctrl_signal(tx_ready_idx, 1'b0);
-    `uvm_info(`gfn, "DEVICE cleared 'tx_ready' now.", UVM_MEDIUM)
+    `uvm_info(`gfn, "DEVICE cleared 'tx_ready' now.", UVM_HIGH)
 
   endtask : host_spi_console_read_wait_for
 
@@ -399,9 +399,9 @@ package ottf_spi_console_pkg;
     int       len_ctr = 0;
     `uvm_info(`gfn, $sformatf("Awaiting read_payload. (max %0d bytes)", max_len), UVM_LOW)
 
-    `uvm_info(`gfn, "Waiting for the DEVICE to set 'tx_ready' (IOA5)", UVM_MEDIUM)
+    `uvm_info(`gfn, "Waiting for the DEVICE to set 'tx_ready' (IOA5)", UVM_HIGH)
     await_flow_ctrl_signal(tx_ready_idx, 1'b1);
-    `uvm_info(`gfn, "DEVICE set 'tx_ready' now.", UVM_MEDIUM)
+    `uvm_info(`gfn, "DEVICE set 'tx_ready' now.", UVM_HIGH)
 
     // Keep getting spi console frames until we determine the payload has completed by length.
     while (len_ctr < max_len) begin
@@ -422,9 +422,9 @@ package ottf_spi_console_pkg;
         // understand that two full spi transfers need to complete (header + data). It won't
         // re-assert tx_ready until after the 4th CSB edge (the end of the second transfer)
         begin : await_tx_ready_deassert
-          `uvm_info(`gfn, "Waiting for the DEVICE to clear 'tx_ready' (IOA5)", UVM_MEDIUM)
+          `uvm_info(`gfn, "Waiting for the DEVICE to clear 'tx_ready' (IOA5)", UVM_HIGH)
           await_flow_ctrl_signal(tx_ready_idx, 1'b0);
-          `uvm_info(`gfn, "DEVICE cleared 'tx_ready' now.", UVM_MEDIUM)
+          `uvm_info(`gfn, "DEVICE cleared 'tx_ready' now.", UVM_HIGH)
         end
       join
 
@@ -525,7 +525,7 @@ package ottf_spi_console_pkg;
     uint written_data_len = 0;
 
     `uvm_info(`gfn, $sformatf("console_write() :: len=%0d : %0s", $size(bytes),
-      byte_array_as_str(bytes)), UVM_DEBUG)
+      byte_array_as_str(bytes)), UVM_MEDIUM)
 
     do begin
       // - chunk_len holds the size of the current chunk we are about to write
@@ -566,9 +566,9 @@ package ottf_spi_console_pkg;
 
   task ottf_spi_console::host_spi_console_write_when_ready(input bit [7:0] bytes[][]);
 
-    `uvm_info(`gfn, "Awaiting the DEVICE to set 'rx_ready' (IOA6)", UVM_MEDIUM)
+    `uvm_info(`gfn, "Awaiting the DEVICE to set 'rx_ready' (IOA6)", UVM_HIGH)
     await_flow_ctrl_signal(rx_ready_idx, 1'b1);
-    `uvm_info(`gfn, "DEVICE set 'rx_ready' now.", UVM_MEDIUM)
+    `uvm_info(`gfn, "DEVICE set 'rx_ready' now.", UVM_HIGH)
 
     `DV_SPINWAIT(
       /* WAIT_ */       foreach (bytes[i]) host_spi_console_write(bytes[i]);,
@@ -576,9 +576,9 @@ package ottf_spi_console_pkg;
       /* TIMEOUT_NS_ */ write_timeout_ns
     )
 
-    `uvm_info(`gfn, "Awaiting the DEVICE to clear 'rx_ready' (IOA6)", UVM_MEDIUM)
+    `uvm_info(`gfn, "Awaiting the DEVICE to clear 'rx_ready' (IOA6)", UVM_HIGH)
     await_flow_ctrl_signal(rx_ready_idx, 1'b0);
-    `uvm_info(`gfn, "DEVICE cleared 'rx_ready' now.", UVM_MEDIUM)
+    `uvm_info(`gfn, "DEVICE cleared 'rx_ready' now.", UVM_HIGH)
 
   endtask : host_spi_console_write_when_ready
 

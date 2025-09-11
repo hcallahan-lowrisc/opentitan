@@ -303,51 +303,58 @@ interface clk_rst_if #(
     `dv_info("clk_rst_if::apply_reset() END")
   endtask
 
-  // clk gen when the clock is active, so this waits until the set_active function was called.
-  initial begin
-    // start driving clk only after the first por reset assertion. The fork/join means that we'll
+  // Clock generation sequential block, by which this interface pertually generates an output clock
+  // signal when configured in active clk mode.
+  initial begin : initial_active_clk_gen
+    bit done;
+
+    // The set_active() routine must be called to configure this interface as an active driver of
+    // the clk (or rst) signals. If the clk-driver functionality is not enabled by this method, just
+    // disable the clk_gen process.
+    @set_active_called;
+    if (!drive_clk) disable initial_active_clk_gen;
+
+    // Start driving clk only after the first por reset assertion. The fork/join means that we'll
     // wait a whole number of clock periods, which means it's possible for the clock to synchronise
     // with the "expected" timestamps.
-    bit done;
-    @set_active_called;
-    if (drive_clk) begin
-      fork
-        begin
-          // Only wait for reset if driving it, otherwise it may never come.
-          if (drive_rst_n) begin
-            wait_for_reset(.wait_posedge(1'b0));
+    fork
+      begin
+        // Only wait for reset if driving it, otherwise it may never come.
+        if (drive_rst_n) begin
+          wait_for_reset(.wait_posedge(1'b0));
 
-            // Wait a short time after reset before starting to drive the clock.
-            #1ps;
-          end
-          o_clk = 1'b0;
-
-          done = 1'b1;
+          // Wait a short time after reset before starting to drive the clock.
+          #1ps;
         end
-        while (!done) #(clk_period_ps * 1ps);
-      join
-
-      // If there might be multiple clocks in the system, wait another (randomised) short time to
-      // desynchronise.
-      if (!sole_clock) #($urandom_range(0, clk_period_ps) * 1ps);
-
-      forever begin
-        if (recompute) begin
-          clk_hi_ps = clk_period_ps * duty_cycle / 100;
-          clk_lo_ps = clk_period_ps - clk_hi_ps;
-          clk_hi_modified_ps = clk_hi_ps;
-          clk_lo_modified_ps = clk_lo_ps;
-          recompute = 1'b0;
-        end
-        if (clk_freq_scaling_pc && clk_freq_scaling_chance_pc) apply_freq_scaling();
-        if (jitter_chance_pc) apply_jitter();
-        #(clk_lo_modified_ps * 1ps);
-        if (!clk_gate) o_clk = 1'b1;
-        #(clk_hi_modified_ps * 1ps);
         o_clk = 1'b0;
+
+        done = 1'b1;
       end
+      while (!done) #(clk_period_ps * 1ps);
+    join
+
+    // If there might be multiple clocks in the system, wait another (randomised) short time to
+    // desynchronise.
+    if (!sole_clock) #($urandom_range(0, clk_period_ps) * 1ps);
+
+    // Clock generator loop. Once started, this should only be paused/restarted by the clk_gate bit
+    // controlled by the stop_clk()/start_clk() methods.
+    forever begin
+      if (recompute) begin
+        clk_hi_ps = clk_period_ps * duty_cycle / 100;
+        clk_lo_ps = clk_period_ps - clk_hi_ps;
+        clk_hi_modified_ps = clk_hi_ps;
+        clk_lo_modified_ps = clk_lo_ps;
+        recompute = 1'b0;
+      end
+      if (clk_freq_scaling_pc && clk_freq_scaling_chance_pc) apply_freq_scaling();
+      if (jitter_chance_pc) apply_jitter();
+      #(clk_lo_modified_ps * 1ps);
+      if (!clk_gate) o_clk = 1'b1;
+      #(clk_hi_modified_ps * 1ps);
+      o_clk = 1'b0;
     end
-  end
+  end : initial_active_clk_gen
 
   assign clk   = drive_clk   ? o_clk   : 1'bz;
   assign rst_n = drive_rst_n ? o_rst_n : 1'bz;

@@ -172,19 +172,26 @@ class uart_monitor extends dv_base_monitor#(
   // this to check data stable from (50 - max_drift_cycle_pct) to (50 + max_drift_cycle_pct)
   task mon_tx_stable();
     forever begin
+      // Trigger a new check each time each time the clk_pulse counter decrements.
       @(cfg.vif.uart_tx_clk_pulses);
-      if (cfg.vif.uart_tx_clk_pulses == 0) continue;
+      if (cfg.vif.uart_tx_clk_pulses == 0) continue; // Final cycle cannot be checked.
 
+      // Wait until the start point of the UART clk cycle from when we expect stability
       #(cfg.vif.uart_clk_period * (50 - cfg.get_max_drift_cycle_pct()) / 100);
+      // Wait for the expected stable time, error if Tx changes during that time.
       `DV_SPINWAIT_EXIT(
-          begin
-            @(cfg.vif.uart_tx_int);
-            `uvm_error(`gfn, $sformatf(
-                "Expect uart_tx stable from %0d to %0d of the period, but it's changed",
-                50 - cfg.get_max_drift_cycle_pct(), 50 + cfg.get_max_drift_cycle_pct()))
-          end,
-          // simplified from cfg.vif.uart_clk_period * max_drift_cycle_pct * 2 / 100
-          #(cfg.vif.uart_clk_period * cfg.get_max_drift_cycle_pct() / 50))
+        // WAIT_
+        begin
+          // If we see the Tx line change before the EXIT_ timer expires, then we know that
+          // Tx has not been stable for as long as expected.
+          @(cfg.vif.uart_tx_int);
+          `uvm_error(`gfn, $sformatf(
+            "UART Tx signal was not stable from %0d\%% to %0d\%% of the UART clk period.",
+            50 - cfg.get_max_drift_cycle_pct(),
+            50 + cfg.get_max_drift_cycle_pct()))
+        end,
+        // EXIT_
+        #(cfg.vif.uart_clk_period * cfg.get_max_drift_cycle_pct() * 2 / 100))
     end
   endtask
 
