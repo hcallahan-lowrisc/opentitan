@@ -55,10 +55,8 @@ class chip_sw_rom_e2e_base_vseq extends chip_sw_base_vseq;
   virtual task body();
     super.body();
 
-    `DV_CHECK(get_rom_console_uart_byte_by_byte ^ print_rom_console_uart_messages)
     fork
       if (get_rom_console_uart_byte_by_byte) get_uart_tx_items(ROM_CONSOLE_UART);
-      if (print_rom_console_uart_messages) print_uart_console_items(ROM_CONSOLE_UART);
     join_none
 
     // Wait for retention SRAM initialization to be done before hooking up the UART agent to

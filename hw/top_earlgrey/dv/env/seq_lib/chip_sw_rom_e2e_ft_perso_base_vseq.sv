@@ -226,6 +226,12 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::pre_start();
   configure_uart_agent(.uart_idx(ROM_CONSOLE_UART), .enable(1));
   get_rom_console_uart_byte_by_byte = 1'b0;
   print_rom_console_uart_messages = 1'b1;
+
+  // TEMP
+  `DV_CHECK(get_rom_console_uart_byte_by_byte ^ print_rom_console_uart_messages)
+  fork
+    if (print_rom_console_uart_messages) print_uart_console_items(ROM_CONSOLE_UART);
+  join_none
 endtask
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::body();
