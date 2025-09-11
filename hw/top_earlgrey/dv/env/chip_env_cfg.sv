@@ -14,7 +14,15 @@ class chip_env_cfg #(type RAL_T = chip_ral_pkg::chip_reg_block) extends cip_base
   // Write logs from sw test to separate log file as well, in addition to the simulator log file.
   bit                 write_sw_logs_to_file = 1'b1;
 
-  // use spi or backdoor to load bootstrap on the next boot
+  // When set, bootstrap a flash image on the next boot using either:
+  // - ROM SPI bootstrap routine, or
+  // - Backdoor memory model access
+  // If frontdoor-loading via the ROM SPI bootstrap mechanism, the sw_straps will be set at the
+  // point the test_rom begins executing, and cleared after the bootstrap has completed.
+  // This config knob is cleared to 0 after a ROM SPI bootstrap has completed, and hence setting
+  // it to 1 via the plusarg +use_spi_load_bootstrap=1 will only enable the bootstrap process
+  // for the first boot. To re-use this mechanism for subsequent boots in the same simulation, the
+  // stimulus sequence should set this bit again before applying reset.
   bit                 use_spi_load_bootstrap = 0;
 
   // skip ROM backdoor loading (when using ROM macro block)
