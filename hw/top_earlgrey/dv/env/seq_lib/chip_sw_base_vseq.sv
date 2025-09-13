@@ -113,7 +113,7 @@ class chip_sw_base_vseq extends chip_base_vseq;
       cfg.mem_bkdr_util_h[chip_mem_e'(RamRet0 + ram_idx)].randomize_mem();
     end
 
-    // Backdoor load memories with sw images.
+    // (Optionally) Backdoor load memories with sw images.
 
     if (!cfg.skip_rom_bkdr_load) begin
       `uvm_info(`gfn, "Initializing ROM", UVM_MEDIUM)
@@ -121,7 +121,7 @@ class chip_sw_base_vseq extends chip_base_vseq;
     end
 
     if (!cfg.skip_flash_bkdr_load) begin
-      `uvm_info(`gfn, "Initializing FLASH", UVM_MEDIUM)
+      `uvm_info(`gfn, "Initializing FLASH in cpu_init()...", UVM_MEDIUM)
       if ((cfg.use_spi_load_bootstrap) && (cfg.sw_images.exists(SwTypeTestSlotA))) begin
         // TODO: support bootstrapping entire flash address space, not just slot A.
         `uvm_info(`gfn, "SPI-Bootstrapping FLASH SlotA...", UVM_MEDIUM)
@@ -276,14 +276,9 @@ class chip_sw_base_vseq extends chip_base_vseq;
     assert_off();
     cfg.sw_test_status_vif.set_num_iterations(num_trans);
 
-    // Initialize the CPU to kick off the sw test.
-    // TODO: Should be called in pre_start() instead.
-    if (cfg.early_cpu_init) begin
-      // If early_cpu_init is set, cpu_init() was already called from dut_init()
-      `uvm_info(`gfn, "early_cpu_init is set. cpu_init() was called during dut_init()", UVM_LOW)
-    end else begin
-      cpu_init();
-    end
+    // Initialize the CPU to kick off the sw test. (TODO: Should be called in pre_start() instead.)
+    // If early_cpu_init is set, cpu_init() was already called from dut_init()
+    if (!cfg.early_cpu_init) cpu_init();
   endtask
 
   virtual task post_start();

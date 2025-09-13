@@ -126,7 +126,7 @@ class chip_base_vseq #(
       cfg.chip_vif.ext_clk_if.set_freq_mhz(cfg.chip_clock_source);
     end
 
-    // Connect DIOs
+    // Connect any DIO blocks to Agents
     cfg.chip_vif.enable_spi_host = 1;
 
     // Initialize Flash memories (to '1) via backdoor.
