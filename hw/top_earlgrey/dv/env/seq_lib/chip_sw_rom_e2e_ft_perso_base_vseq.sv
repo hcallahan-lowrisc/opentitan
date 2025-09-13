@@ -187,17 +187,10 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::pre_start();
   `uvm_info(`gfn, $sformatf("perso_start_phase = %0d (%0s)", perso_start_phase,
     perso_start_phase.name), UVM_LOW)
 
-  // Allow the first-boot dut_init() routine to load flash with an initial image. This can occur
-  // via the frontdoor ROM SPI bootstrap mechanism or a backdoor memory model interface.
-  cfg.skip_flash_bkdr_load = 0;
-
-  if (perso_start_phase == Phase0) begin
-    // If starting at Phase0, we need to utilize the dut_init() bootstrap mechanism to ensure
-    // sw_straps are set early enough for a first-boot SPI bootstrap to be executed.
-    // This is the default configuration, as perso_start_phase is set to Phase0 if not overridden
-    // by an explicit plusarg.
-    cfg.use_spi_load_bootstrap = 1;
-  end
+  // Don't allow the first-boot dut_init() routine to load flash with an initial image.
+  cfg.skip_flash_bkdr_load = 1;
+  // Don't use the ROM SPI Bootstrap in cpu_init(). We manage everything from the leaf vseq.
+  cfg.use_spi_load_bootstrap = 0;
 
   if ((perso_start_phase > Phase0) && dump_mems) begin
     // TODO: Calling load_mem_from_file() and write_mem_to_file() at the same time may not give a
