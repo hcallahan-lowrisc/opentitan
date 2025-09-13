@@ -69,6 +69,8 @@
                // Use this to conditionally compile for VCS (example: LRM interpretations differ
                // across tools).
                "+define+VCS",
+               "-Xcflags='-Wno-error=implicit-function-declaration'",
+               "-Xcflags='-Wno-error=int-conversion'",
                // Upgrade below warnings to errors to make VCS more strict on syntax to avoid
                // having issue with other simulators but passing with VCS
                //
