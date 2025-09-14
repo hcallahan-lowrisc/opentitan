@@ -74,7 +74,7 @@
       en_run_modes: ["sw_test_mode_base"]
       run_opts: [
         "+disable_assert_final_checks",
-        "+sw_test_timeout_ns=1000000000",
+        "+sw_test_timeout_ns=1_000_000_000", // 1s
         "+use_otp_image=OtpTypeCustom",
 
         // Dump simulation memory model images between phases, to allow re-loading of these images in

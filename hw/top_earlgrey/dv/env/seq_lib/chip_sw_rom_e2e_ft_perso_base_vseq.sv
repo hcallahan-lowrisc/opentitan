@@ -129,11 +129,11 @@ class chip_sw_rom_e2e_ft_perso_base_vseq extends chip_sw_rom_e2e_base_vseq;
   uint spinwait_timeout_ns = 200_000_000; // 200ms
 
   extern virtual task get_plusarg_file_contents();
+  extern virtual task await_ioa(string name, bit val = 1'b1, uint timeout_ns = 10_000_000);
   extern virtual task pre_start();
   extern virtual task body();
   extern task load_dut_memories(perso_phase_e perso_phase);
   extern task dump_dut_memories(perso_phase_e perso_phase);
-  extern task await_test_start();
   extern task await_test_start_after_reset();
   // This task sequences the three sub-phases of the personalization flow. (See the header comment
   // for more context about the breakdown.)
@@ -175,6 +175,33 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::get_plusarg_file_contents();
   $fclose(fd);
   `uvm_info(`gfn, $sformatf("MANUF_PERSO_DATA_BACK_FILE     :: len=%0d", len), UVM_LOW)
 endtask : get_plusarg_file_contents
+
+
+task chip_sw_rom_e2e_ft_perso_base_vseq::await_ioa(
+  string name,
+  bit    val = 1'b1,
+  uint   timeout_ns = 10_000_000 /* 10ms */
+);
+  string timeout_msg = $sformatf("Timed out waiting for %0s to be %0d.", name, val);
+
+  // IOA6 (GPIO4) is for SPI console RX ready signal. (HOST->DEVICE flow control)
+  // IOA5 (GPIO3) is for SPI console TX ready signal. (DEVICE->HOST flow control)
+  // IOA4 (GPIO0) is for test start reporting.
+  // IOA1 (GPIO1) is for test done reporting.
+  // IOA0 (GPIO2) is for error reporting.
+
+  `uvm_info(`gfn, $sformatf("Waiting for %0s to be %0d now...", name, val), UVM_LOW)
+  case (name)
+    "IOA6": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa6] == val, timeout_msg, timeout_ns)
+    "IOA5": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa5] == val, timeout_msg, timeout_ns)
+    "IOA4": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa4] == val, timeout_msg, timeout_ns)
+    "IOA1": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa1] == val, timeout_msg, timeout_ns)
+    "IOA0": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa0] == val, timeout_msg, timeout_ns)
+    default : `uvm_fatal(`gfn, "Given name of IOAx pad is not supported by await!")
+  endcase
+
+  `uvm_info(`gfn, $sformatf("Saw %0s as %0d now!", name, val), UVM_LOW)
+endtask: await_ioa
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::pre_start();
   super.pre_start();
@@ -240,7 +267,7 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::body();
       end
       begin : detect_error_gpio
         // If we see the error gpio, immediately end the test with a failure
-        await_ioa("IOA0");
+        await_ioa("IOA0", 1'b1, cfg.sw_test_timeout_ns);
         override_test_status_and_finish(.passed(1'b0));
       end
     join_any
@@ -291,18 +318,6 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::dump_dut_memories(perso_phase_e perso_p
   `uvm_info(`gfn, $sformatf("Dumped DUT memories in phase '%0s' now.", perso_phase.name), UVM_LOW)
 endtask
 
-task chip_sw_rom_e2e_ft_perso_base_vseq::await_test_start();
-  // Wait until we reach the start of the Test ROM
-  `DV_WAIT(
-    /*WAIT_COND_*/  cfg.sw_test_status_vif.sw_test_status == SwTestStatusInBootRom,
-    /*MSG_*/        "Timeout occurred waiting for InBootRom!",
-    /*TIMEOUT_NS_*/ spinwait_timeout_ns)
-
-  // Now wait until the start of the test binary.
-  `uvm_info(`gfn, "DUT entered the TestRom, awaiting assertion of TestStart GPIO.", UVM_MEDIUM)
-  await_ioa("IOA4"); // IOA4 == TestStart
-endtask
-
 task chip_sw_rom_e2e_ft_perso_base_vseq::await_test_start_after_reset();
   `uvm_info(`gfn, "Waiting for reset...", UVM_MEDIUM)
   `DV_SPINWAIT(
@@ -310,9 +325,10 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::await_test_start_after_reset();
     /*MSG_*/        "Timeout waiting for reset to occur and complete.",
     /*TIMEOUT_NS_*/ spinwait_timeout_ns)
 
-  // Wait for IOA4 (TestStart) the next time we boot the test binary after reset
-  `uvm_info(`gfn, "Device out of reset, awaiting re-boot and TestStart GPIO.", UVM_MEDIUM)
-  await_test_start();
+  // Now wait until the start of the test binary.
+  // This can be a long time due to UART traffic and SPI Bootstrapping.
+  `uvm_info(`gfn, "Device out of reset, awaiting TestStart GPIO.", UVM_MEDIUM)
+  await_ioa("IOA4", 1'b1, 200_000_000 /* 200ms */); // IOA4 == TestStart
 endtask
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize();
