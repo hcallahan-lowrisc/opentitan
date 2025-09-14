@@ -8,13 +8,21 @@ import random
 import re
 import sys
 import textwrap
+import datetime
 from math import ceil, log2
 from pathlib import Path
+from typing import Union
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
 from topgen import secure_prng as sp  # noqa : E402
 
+OUTFILE_HEADER_TPL = \
+"""
+// Generated on '{}' with the following cmd:
+// $ {} {}
+//
+"""
 
 def wrapped_docstring() -> str:
     """Return a text-wrapped version of the module docstring."""
@@ -347,3 +355,29 @@ def vmem_permutation_string(data_perm) -> Union[str, list[str]]:
             expanded_perm = list(range(k0, k1 - 1, -1)) + expanded_perm
 
     return expanded_perm
+
+
+def create_outfile_header(file, args) -> str:
+    """Returns the file header to be inserted into generated output files.
+
+    This prints the datetime and args for reference.
+    """
+
+    # Generate datetime string
+    dt = datetime.datetime.now(datetime.timezone.utc)
+    dtstr = dt.strftime("%a, %d %b %Y %H:%M:%S %Z")
+
+    # Generate string of script arguments
+    argstr = ''
+    for arg, argval in sorted(vars(args).items()):
+        if argval:
+            if not isinstance(argval, list):
+                argval = [argval]
+            for a in argval:
+                argname = '-'.join(arg.split('_'))
+                # Get absolute paths for all files specified.
+                a = a.resolve() if isinstance(a, Path) else a
+                argstr += ' \\\n//   --' + argname + ' ' + str(a) + ''
+
+    return OUTFILE_HEADER_TPL.format(dtstr, file, argstr).strip() + '\n'
+
