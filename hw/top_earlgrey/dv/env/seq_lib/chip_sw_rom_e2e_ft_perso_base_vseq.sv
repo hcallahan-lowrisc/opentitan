@@ -124,7 +124,9 @@ class chip_sw_rom_e2e_ft_perso_base_vseq extends chip_sw_rom_e2e_base_vseq;
   bit [7:0] tbs_certs[];
   bit [7:0] final_hash[];
 
-  uint spinwait_timeout_ns = 100_000_000; // 100ms
+  // Due to fully simulating both UART@115200baud and SPI Console traffic, this test is quite slow,
+  // and we can spend quite a long time waiting for salient state changes. Hence the large timeout.
+  uint spinwait_timeout_ns = 200_000_000; // 200ms
 
   extern virtual task get_plusarg_file_contents();
   extern virtual task pre_start();
@@ -196,7 +198,7 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::pre_start();
     // TODO: Calling load_mem_from_file() and write_mem_to_file() at the same time may not give a
     // repeatable result, and so for the moment we do not allow dumping and loading at the same
     // time. This could probably be fixed with some careful investigation.
-    `uvm_fatal(`gfn, "Cannot dump memories when perso_start_phase >= 1.")
+    `uvm_fatal(`gfn, "Cannot dump memories when perso_start_phase >= 0.")
   end
 
   // Enable the 'chip_reg_block' tl_agent to end the simulation if the 'ok_to_end' watchdog
