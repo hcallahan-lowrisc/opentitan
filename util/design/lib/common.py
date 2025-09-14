@@ -193,11 +193,11 @@ def hd_histogram(existing_words) -> dict:
     return stats
 
 
-def is_valid_codeword(config, codeword):
+def is_valid_codeword(secded_cfg: dict, codeword) -> bool:
     """Checks whether the bitstring is a valid ECC codeword."""
 
-    data_width = config['secded']['data_width']
-    ecc_width = config['secded']['ecc_width']
+    data_width = secded_cfg['data_width']
+    ecc_width = secded_cfg['ecc_width']
     if len(codeword) != (data_width + ecc_width):
         raise RuntimeError("Invalid codeword length {}".format(len(codeword)))
 
@@ -205,7 +205,7 @@ def is_valid_codeword(config, codeword):
     syndrome = [0 for k in range(ecc_width)]
 
     # The bitstring must be formatted as "data bits[N-1:0]" + "ecc bits[M-1:0]".
-    for j, fanin in enumerate(config['secded']['ecc_matrix']):
+    for j, fanin in enumerate(secded_cfg['ecc_matrix']):
         syndrome[j] = int(codeword[ecc_width - 1 - j])
         for k in fanin:
             syndrome[j] ^= int(codeword[ecc_width + data_width - 1 - k])
@@ -213,19 +213,19 @@ def is_valid_codeword(config, codeword):
     return sum(syndrome) == 0
 
 
-def ecc_encode(config, dataword):
-    if len(dataword) != config['secded']['data_width']:
+def ecc_encode(secded_cfg: dict, dataword) -> str:
     """Calculate and prepend ECC bits."""
+    if len(dataword) != secded_cfg['data_width']:
         raise RuntimeError("Invalid codeword length {}".format(len(dataword)))
 
     # Note that certain codes like the Hamming code refer to previously
     # calculated parity bits. Hence, we incrementally build the codeword
     # and extend it such that previously calculated bits can be referenced.
     codeword = dataword
-    for j, fanin in enumerate(config['secded']['ecc_matrix']):
+    for j, fanin in enumerate(secded_cfg['ecc_matrix']):
         bit = 0
         for k in fanin:
-            bit ^= int(codeword[config['secded']['data_width'] + j - 1 - k])
+            bit ^= int(codeword[secded_cfg['data_width'] + j - 1 - k])
         codeword = str(bit) + codeword
 
     return codeword
