@@ -339,7 +339,7 @@ class chip_base_vseq #(
                 "OTP: Preloading creator_sw_cfg_ast_cfg_data[%0d] with 0x%0h via backdoor",
                 i,
                 cfg.creator_sw_cfg_ast_cfg_data[i]
-                ), UVM_MEDIUM)
+                ), UVM_HIGH)
       cfg.mem_bkdr_util_h[Otp].write32(otp_ctrl_reg_pkg::CreatorSwCfgAstCfgOffset + i * 4,
                                        cfg.creator_sw_cfg_ast_cfg_data[i]);
     end
