@@ -1,7 +1,8 @@
 # Copyright lowRISC contributors (OpenTitan project).
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
-r'''Common utilities used by various util/design scripts.'''
+"""Common utilities used by various util/design scripts."""
+
 import os
 import random
 import re
@@ -15,8 +16,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 from topgen import secure_prng as sp  # noqa : E402
 
 
-def wrapped_docstring():
-    '''Return a text-wrapped version of the module docstring.'''
+def wrapped_docstring() -> str:
+    """Return a text-wrapped version of the module docstring."""
     paras = []
     para = []
     for line in __doc__.strip().split('\n'):
@@ -34,26 +35,26 @@ def wrapped_docstring():
 
 
 def path_to_include_guard(filepath: str) -> str:
-    '''Generates C header include guard from file path.
+    """Generates C header include guard from file path.
 
     Args:
         filepath: Input file path.
     Returns:
         String repesenting include guard encoded format.
-    '''
+    """
     header = Path(filepath)
     dir = re.sub(r'[^\w]', '_', str(header.parent)).upper()
     stem = re.sub(r'[^\w]', '_', str(header.stem)).upper()
     return f'OPENTITAN_{dir}_{stem}_H_'
 
 
-def check_bool(x):
-    '''check_bool checks if input 'x' either a bool or one of the following
+def check_bool(x) -> bool:
+    """Checks if input 'x' either a bool or one of the following
     strings: ["true", "false"]
 
     Returns:
         Value 'x' as Bool type.
-    '''
+    """
     if isinstance(x, bool):
         return x
     if x.lower() not in ["true", "false"]:
@@ -62,12 +63,12 @@ def check_bool(x):
         return (x.lower() == "true")
 
 
-def check_int(x):
-    '''check_int checks if input 'x' is decimal integer.
+def check_int(x) -> int:
+    """Checks if input 'x' is decimal integer.
 
     Returns:
         Value 'x' as an int type.
-    '''
+    """
     if isinstance(x, int):
         return x
     if not x.isdecimal():
@@ -75,8 +76,8 @@ def check_int(x):
     return int(x)
 
 
-def as_snake_case_prefix(name):
-    '''Convert PascalCase name into snake_case name.'''
+def as_snake_case_prefix(name) -> str:
+    """Convert PascalCase name into snake_case name."""
     outname = ""
     for c in name:
         if c.isupper() and len(outname) > 0:
@@ -85,15 +86,15 @@ def as_snake_case_prefix(name):
     return outname + ('_' if name else '')
 
 
-def get_random_data_hex_literal(width):
-    '''Fetch 'width' random bits and return them as hex literal.'''
+def get_random_data_hex_literal(width) -> str:
+    """Fetch 'width' random bits and return them as hex literal."""
     width = int(width)
     literal_str = hex(random.getrandbits(width))
     return blockify(literal_str, width, 64)
 
 
-def blockify(s, size, limit):
-    '''Make sure the output does not exceed a certain size per line.'''
+def blockify(s, size, limit) -> str:
+    """Make sure the output does not exceed a certain size per line."""
 
     str_idx = 2
     remain = size % (limit * 4)
@@ -116,9 +117,9 @@ def blockify(s, size, limit):
     return (",\n  ".join(s_list))
 
 
-def get_random_perm_hex_literal(numel):
-    '''Compute a random permutation of 'numel' elements and
-    return as packed hex literal.'''
+def get_random_perm_hex_literal(numel) -> str:
+    """Compute a random permutation of 'numel' elements and
+    return as packed hex literal."""
     num_elements = int(numel)
     width = int(ceil(log2(num_elements)))
     idx = [x for x in range(num_elements)]
@@ -131,8 +132,8 @@ def get_random_perm_hex_literal(numel):
     return blockify(literal_str, width * numel, 64)
 
 
-def hist_to_bars(hist, m):
-    '''Convert histogramm list into ASCII bar plot'''
+def hist_to_bars(hist, m) -> str:
+    """Convert histogramm list into ASCII bar plot"""
     bars = []
     for i, j in enumerate(hist):
         bar_prefix = "{:2}: ".format(i)
@@ -146,7 +147,7 @@ def hist_to_bars(hist, m):
 
 
 def get_hd(word1: str, word2: str) -> int:
-    '''Calculate Hamming distance between two words.'''
+    """Calculate Hamming distance between two words."""
     if len(word1) != len(word2):
         raise RuntimeError('Words are not of equal size')
     # Python's int(n, 2) function will accept both strings of bits and
@@ -157,8 +158,8 @@ def get_hd(word1: str, word2: str) -> int:
     return bin(int(word1, 2) ^ int(word2, 2)).count('1')
 
 
-def hd_histogram(existing_words):
-    '''Build Hamming distance histogram'''
+def hd_histogram(existing_words) -> dict:
+    """Build Hamming distance histogram"""
     minimum_hd = len(existing_words[0])
     maximum_hd = 0
     minimum_hw = len(existing_words[0])
@@ -185,7 +186,7 @@ def hd_histogram(existing_words):
 
 
 def is_valid_codeword(config, codeword):
-    '''Checks whether the bitstring is a valid ECC codeword.'''
+    """Checks whether the bitstring is a valid ECC codeword."""
 
     data_width = config['secded']['data_width']
     ecc_width = config['secded']['ecc_width']
@@ -205,8 +206,8 @@ def is_valid_codeword(config, codeword):
 
 
 def ecc_encode(config, dataword):
-    '''Calculate and prepend ECC bits.'''
     if len(dataword) != config['secded']['data_width']:
+    """Calculate and prepend ECC bits."""
         raise RuntimeError("Invalid codeword length {}".format(len(dataword)))
 
     # Note that certain codes like the Hamming code refer to previously
@@ -222,8 +223,8 @@ def ecc_encode(config, dataword):
     return codeword
 
 
-def scatter_bits(mask, bits):
-    '''Scatter the bits into unset positions of mask.'''
+def scatter_bits(mask, bits) -> str:
+    """Scatter the bits into unset positions of mask."""
     j = 0
     scatterword = ''
     for b in mask:
@@ -236,8 +237,8 @@ def scatter_bits(mask, bits):
     return scatterword
 
 
-def validate_data_perm_option(word_bit_length, data_perm):
-    '''Validate OTP data permutation option by checking for bijectivity.'''
+def validate_data_perm_option(word_bit_length: int, data_perm: list[int]) -> None:
+    """Validate OTP data permutation option by checking for bijectivity."""
     if len(data_perm) != word_bit_length:
         raise RuntimeError(
             'Data permutation "{}" is not bijective, since '
@@ -254,8 +255,8 @@ def validate_data_perm_option(word_bit_length, data_perm):
             'since it contains duplicated indices.'.format(data_perm))
 
 
-def inverse_permute_bits(bit_str, permutation):
-    '''Un-permute the bits in a bitstring (inverse of `permute_bits`).'''
+def inverse_permute_bits(bit_str: str, permutation: list[int]) -> str:
+    """Un-permute the bits in a bitstring (inverse of `permute_bits()`)."""
     bit_str_len = len(bit_str)
     assert bit_str_len == len(permutation)
     bit_vector = ["0"] * bit_str_len
@@ -264,26 +265,25 @@ def inverse_permute_bits(bit_str, permutation):
     return ''.join(bit_vector)
 
 
-def permute_bits(bit_str, permutation):
-    '''Permute the bits in a bitstring.'''
-    bitlen = len(bit_str)
-    assert bitlen == len(permutation)
+def permute_bits(bit_str: str, permutation: list[int]) -> str:
+    """Permute the bits in a bitstring."""
+    assert len(bit_str) == len(permutation)
     permword = ''
     for k in permutation:
-        permword = bit_str[bitlen - k - 1] + permword
+        permword = bit_str[len(bit_str) - k - 1] + permword
     return permword
 
 
-def _parse_hex(value):
-    '''Parse a hex value into an integer.
+def _parse_hex(value: Union[list[str], str]) -> int:
+    """Parse a hex value into an integer.
 
     Args:
-      value: list[str] or str:
+      value:
         If a `list[str]`, parse each element as a 32-bit integer.
         If a `str`, parse as a single hex string.
     Returns:
         int
-    '''
+    """
     if isinstance(value, list):
         result = 0
         for (i, v) in enumerate(value):
@@ -293,9 +293,14 @@ def _parse_hex(value):
         value = value.translate(str.maketrans('', '', ' \r\n\t'))
         return int(value, 16)
 
+def random_or_hexvalue(dict_obj: dict, key: str, num_bits: int) -> bool:
+    """Convert hex value at "key" to an integer or draw a random number.
 
-def random_or_hexvalue(dict_obj, key, num_bits):
-    '''Convert hex value at "key" to an integer or draw a random number.'''
+    If the value is set to '<random>', generate a new randomized value
+    with width 'num_bits'.
+
+    This assumes the RNG ('sp') has been externally seeded.
+    """
 
     # Initialize to default if this key does not exist.
     dict_obj.setdefault(key, '0x0')
@@ -317,8 +322,8 @@ def random_or_hexvalue(dict_obj, key, num_bits):
                     dict_obj[key]))
 
 
-def vmem_permutation_string(data_perm):
-    '''Check VMEM permutation format and expand the ranges.'''
+def vmem_permutation_string(data_perm) -> Union[str, list[str]]:
+    """Check VMEM permutation format and expand the ranges."""
 
     if not isinstance(data_perm, str):
         raise TypeError()
