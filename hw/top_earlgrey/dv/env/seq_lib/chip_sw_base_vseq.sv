@@ -37,6 +37,10 @@ class chip_sw_base_vseq extends chip_base_vseq;
     cfg.chip_vif.sw_straps_if.drive(3'h0);
     forever begin
       wait (cfg.sw_test_status_vif.sw_test_status != prev_status);
+      // Log whenever the sw_test_status changes
+      `uvm_info(`gfn, $sformatf("sw_test_status: %0s -> %0s",
+        prev_status.name, cfg.sw_test_status_vif.sw_test_status.name), UVM_MEDIUM)
+      // Depending on the new state, drive the sw_straps for bootstrap
       case (cfg.sw_test_status_vif.sw_test_status)
         SwTestStatusInBootRom: begin
           if (cfg.use_spi_load_bootstrap) begin
