@@ -17,6 +17,9 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
 from topgen import secure_prng as sp  # noqa : E402
 
+import logging
+logger = logging.getLogger(__name__)
+
 OUTFILE_HEADER_TPL = \
 """
 // Generated on '{}' with the following cmd:
@@ -282,51 +285,48 @@ def permute_bits(bit_str: str, permutation: list[int]) -> str:
     return permword
 
 
-def _parse_hex(value: Union[list[str], str]) -> int:
-    """Parse a string-formatted hex value into an integer.
+def _try_convert_hex_str(inp: Union[list[str], str], num_bits: int) -> int:
+    """Parse a string-formatted hex word or list of 4B hex words into an integer.
 
-    Args:
-      value:
-        If a `list[str]`, parse each element as a 32-bit integer.
-        If a `str`, parse as a single hex string.
-    Returns:
-        int
+    The input 'num_bits' captures the number of bits the resultant integer should be
+    able to fit into. If the result does not fit into this many bits, something has
+    gone wrong, so throw a RuntimeError.
 
-    Example:
-        _parse_hex(["0x10", "0x20"]) = 
-        _parse_hex("0xa5") = 
-    """
-    if isinstance(value, list):
-        result = 0
-        for (i, v) in enumerate(value):
-            result |= int(v, 16) << (i * 32)
-        return result
-    else:
-        value = value.translate(str.maketrans('', '', ' \r\n\t'))
-        return int(value, 16)
-
-
-def _try_convert_hex_range(inp: Any, num_bits: int) -> int:
-    """Attempt to convert 'inp' to an integer.
-
-    Raises:
-        RuntimeError: - if 'inp' cannot be converted to an int.
-                      - if the 
+    This function may be passed strings containing some unicode control characters or
+    surrounding whitespace. Remove these characters first.
 
     Returns:
         The converted integer value of 'inp'.
+
+    Example:
+        _try_convert_hex_str(["0x10", "0x20"]) = int("0x2000000010", 16)
+                                               = 137438953488
+        _try_convert_hex_str("0x10101bb000000a5") = 72340971685150885
     """
-    try:
-        val = _parse_hex(inp)
-    except ValueError:
-        raise RuntimeError(
-            f"Cannot convert '{val}' to int.")
+    def _remove_control_chars_and_whitespace(s: str) -> str:
+        """Remove some stray control characters and whitespace."""
+        trans_map = str.maketrans('', '', ' \r\n\t')
+        return s.translate(trans_map)
 
-    # Check that the range is correct.
-    if val >= 2**num_bits:
-        raise RuntimeError(f"Value '{val}' is out of range.")
+    result: int = 0
 
-    return val
+    if isinstance(inp, list):
+        for (i, v) in enumerate(inp):
+            s = _remove_control_chars_and_whitespace(v)
+            int_w = int(s, 16)
+            # Check each word is a maximum of 4B
+            assert int_w < (1 << 32)
+            result |= int_w << (i * 32)
+    elif isinstance(inp, str):
+        s = _remove_control_chars_and_whitespace(inp)
+        result = int(s, 16)
+    else:
+        raise RuntimeError("Input 'inp' is of the incorrect type.")
+
+    # Check that the returned integer can fit into 'num_bits'.
+    assert result < (2**num_bits)
+
+    return result
 
 
 def random_or_hexvalue(dict_obj: dict, key: str, num_bits: int) -> bool:
@@ -345,8 +345,9 @@ def random_or_hexvalue(dict_obj: dict, key: str, num_bits: int) -> bool:
 
     # Initialize to default if this key does not exist.
     dict_obj.setdefault(key, '0x0')
-
     val = dict_obj[key]
+
+    logger.info(f'random_or_hexvalue(): val = {val}')
 
     # If the number is already an integer, nothing to do.
     if isinstance(val, int):
@@ -357,9 +358,9 @@ def random_or_hexvalue(dict_obj: dict, key: str, num_bits: int) -> bool:
         dict_obj[key] = sp.getrandbits(num_bits)
         return True
 
-    # Otherwise attempt to convert this number to an int.
+    # Otherwise attempt to convert this value to an int.
     else:
-        dict_obj[key] = _try_convert_hex_range(val, num_bits)
+        dict_obj[key] = _try_convert_hex_str(val, num_bits)
         return False
 
 

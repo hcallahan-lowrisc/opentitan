@@ -414,7 +414,7 @@ class OtpMemImg(OtpMemMap):
         else:
             mmap_item.setdefault('value', '0x0')
             # Store value as int in the config dict
-            mmap_item["value"] = common._try_convert_hex_range(img_item["value"], width)
+            mmap_item["value"] = common._try_convert_hex_str(img_item["value"], width)
             # Format for print
             pre_str = ""
             val_str = ("0x{:0" + str(mmap_item['size'] * 2) + "x}").format(mmap_item['value'])
