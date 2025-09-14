@@ -11,7 +11,7 @@ import textwrap
 import datetime
 from math import ceil, log2
 from pathlib import Path
-from typing import Union
+from typing import Union, Any
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
@@ -283,7 +283,7 @@ def permute_bits(bit_str: str, permutation: list[int]) -> str:
 
 
 def _parse_hex(value: Union[list[str], str]) -> int:
-    """Parse a hex value into an integer.
+    """Parse a string-formatted hex value into an integer.
 
     Args:
       value:
@@ -291,6 +291,10 @@ def _parse_hex(value: Union[list[str], str]) -> int:
         If a `str`, parse as a single hex string.
     Returns:
         int
+
+    Example:
+        _parse_hex(["0x10", "0x20"]) = 
+        _parse_hex("0xa5") = 
     """
     if isinstance(value, list):
         result = 0
@@ -301,33 +305,62 @@ def _parse_hex(value: Union[list[str], str]) -> int:
         value = value.translate(str.maketrans('', '', ' \r\n\t'))
         return int(value, 16)
 
+
+def _try_convert_hex_range(inp: Any, num_bits: int) -> int:
+    """Attempt to convert 'inp' to an integer.
+
+    Raises:
+        RuntimeError: - if 'inp' cannot be converted to an int.
+                      - if the 
+
+    Returns:
+        The converted integer value of 'inp'.
+    """
+    try:
+        val = _parse_hex(inp)
+    except ValueError:
+        raise RuntimeError(
+            f"Cannot convert '{val}' to int.")
+
+    # Check that the range is correct.
+    if val >= 2**num_bits:
+        raise RuntimeError(f"Value '{val}' is out of range.")
+
+    return val
+
+
 def random_or_hexvalue(dict_obj: dict, key: str, num_bits: int) -> bool:
     """Convert hex value at "key" to an integer or draw a random number.
 
     If the value is set to '<random>', generate a new randomized value
     with width 'num_bits'.
-
     This assumes the RNG ('sp') has been externally seeded.
+
+    Raises:
+        RuntimeError: if the existing value cannot be converted to an int.
+
+    Returns:
+        True if a new random number was drawn for the value at "key", otherwise False.
     """
 
     # Initialize to default if this key does not exist.
     dict_obj.setdefault(key, '0x0')
 
-    # Generate a random number of requested size in this case.
-    if dict_obj[key] == '<random>':
+    val = dict_obj[key]
+
+    # If the number is already an integer, nothing to do.
+    if isinstance(val, int):
+        return False
+
+    # If '<random>', draw a new random number of 'num_bits' size.
+    elif val == '<random>':
         dict_obj[key] = sp.getrandbits(num_bits)
+        return True
+
     # Otherwise attempt to convert this number to an int.
-    # Check that the range is correct.
     else:
-        try:
-            dict_obj[key] = _parse_hex(dict_obj[key])
-            if dict_obj[key] >= 2**num_bits:
-                raise RuntimeError('Value "{}" is out of range.'.format(
-                    dict_obj[key]))
-        except ValueError:
-            raise RuntimeError(
-                'Invalid value "{}". Must be hex or "<random>".'.format(
-                    dict_obj[key]))
+        dict_obj[key] = _try_convert_hex_range(val, num_bits)
+        return False
 
 
 def vmem_permutation_string(data_perm) -> Union[str, list[str]]:
