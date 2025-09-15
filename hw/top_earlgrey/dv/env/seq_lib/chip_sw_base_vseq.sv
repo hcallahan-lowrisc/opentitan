@@ -533,16 +533,20 @@ class chip_sw_base_vseq extends chip_base_vseq;
       .backdoor(1),
       .spinwait_delay_ns(5000),
       .timeout_ns(spinwait_timeout_ns));
+    `uvm_info(`gfn, "CmdInfoReadSfdp configured for bootstrap.", UVM_MEDIUM)
     csr_spinwait(
       .ptr(ral.spi_device.cmd_info[spi_device_pkg::CmdInfoReadStatus1].opcode),
       .exp_data(SpiFlashReadSts1),
       .backdoor(1),
-      .spinwait_delay_ns(5000));
+      .spinwait_delay_ns(5000),
+      .timeout_ns(spinwait_timeout_ns));
+    `uvm_info(`gfn, "CmdInfoReadStatus1 configured for bootstrap.", UVM_MEDIUM)
     csr_spinwait(
       .ptr(ral.spi_device.cmd_info_wren.opcode),
       .exp_data(SpiFlashWriteEnable),
       .backdoor(1),
-      .spinwait_delay_ns(5000));
+      .spinwait_delay_ns(5000),
+      .timeout_ns(spinwait_timeout_ns));
     `uvm_info(`gfn, "DUT fully configured spi_device, and is now ready for bootstrap.", UVM_LOW)
 
     `uvm_info(`gfn, "Sending SPI flash erase command ...", UVM_LOW)
