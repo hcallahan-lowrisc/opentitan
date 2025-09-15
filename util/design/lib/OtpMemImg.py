@@ -677,15 +677,13 @@ class OtpMemImg(OtpMemMap):
         did_randomize = 0
         for part in self.config['partitions']:
             for item in part['items']:
-                item_size = item['size']
-                item_width = item_size * 8
                 if not item['ismubi']:
-                    isRandomized = common.random_or_hexvalue(item, 'value', item_width)
+                    isRandomized = common.random_or_hexvalue(item, 'value', item['size'] * 8)
                     if isRandomized:
                         did_randomize = 1
                         # Log the value of the item.
                         log.debug('> Randomized item {} with size {}B and value {:d}:'.format(
-                            item['name'], item_size, item['value']))
+                            item['name'], item['size'], item['value']))
 
         if not did_randomize:
             log.debug('No partition item values to randomize.')
