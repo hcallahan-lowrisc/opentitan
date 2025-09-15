@@ -99,7 +99,7 @@ def check_int(x: Union[int, str]) -> int:
     if isinstance(x, int):
         return x
     elif isinstance(x, str) and not x.isdecimal():
-        raise RuntimeError(f"{x} is not a decimal number.")
+        raise RuntimeError(f"{x} is a string but not a decimal number.")
     else:
         # Try to convert to an integer using int(). Throw if this fails.
         x_int: int
@@ -109,24 +109,27 @@ def check_int(x: Union[int, str]) -> int:
             raise RuntimeError(f"Could not convert {x} to a decimal number using int().")
         return x_int
 
-def as_snake_case_prefix(name: str) -> str:
-    """Convert PascalCase name into snake_case name."""
-    outname = ""
-    for c in name:
-        if c.isupper() and len(outname) > 0:
-            outname += '_'
-        outname += c.lower()
-    return outname + ('_' if name else '')
+
+def pascal_to_snake_case(pascal: str) -> str:
+    """Convert PascalCase into snake_case.
+
+    This method assumes, and does not check, that the input is already formatted in PascalCase.
+    """
+    snake: str = ""
+    for c in pascal:
+        if c.isupper() and len(snake) > 0:
+            snake += '_'
+        snake += c.lower()
+    return snake + ('_' if pascal else '')
 
 
-def get_random_data_hex_literal(width) -> str:
+def get_random_data_hex_literal(width: int) -> str:
     """Fetch 'width' random bits and return them as hex literal."""
-    width = int(width)
     literal_str = hex(random.getrandbits(width))
     return blockify(literal_str, width, 64)
 
 
-def blockify(s, size, limit) -> str:
+def blockify(s: str, size: int, limit: int) -> str:
     """Make sure the output does not exceed a certain size per line."""
 
     str_idx = 2

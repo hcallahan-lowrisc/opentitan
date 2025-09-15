@@ -63,7 +63,7 @@ def main():
 
     print(SV_INSTRUCTIONS)
 
-    type_prefix = common.as_snake_case_prefix(args.prefix)
+    type_prefix = common.pascal_to_snake_case(args.prefix)
 
     outstr = '''
 // These LFSR parameters have been generated with
