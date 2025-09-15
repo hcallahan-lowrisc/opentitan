@@ -53,7 +53,7 @@ def create_outfile_header(file, args) -> str:
 
 
 def wrapped_docstring() -> str:
-    """Return a text-wrapped version of the module docstring."""
+    """Return a text-wrapped version of a module's docstring."""
     paras = []
     para = []
     for line in __doc__.strip().split('\n'):
@@ -70,49 +70,46 @@ def wrapped_docstring() -> str:
     return '\n\n'.join(textwrap.fill(p) for p in paras)
 
 
-def path_to_include_guard(filepath: str) -> str:
-    """Generates C header include guard from file path.
+def check_bool(x: Union[bool, str]) -> bool:
+    """Coerce input 'x' to a bool which may be either string: ["true", "false"]
 
-    Args:
-        filepath: Input file path.
-    Returns:
-        String repesenting include guard encoded format.
-    """
-    header = Path(filepath)
-    dir = re.sub(r'[^\w]', '_', str(header.parent)).upper()
-    stem = re.sub(r'[^\w]', '_', str(header.stem)).upper()
-    return f'OPENTITAN_{dir}_{stem}_H_'
-
-
-def check_bool(x) -> bool:
-    """Checks if input 'x' either a bool or one of the following
-    strings: ["true", "false"]
+    Raises:
+        RuntimeError: if 'x' is not boolean or a valid string
 
     Returns:
         Value 'x' as Bool type.
     """
     if isinstance(x, bool):
         return x
-    if x.lower() not in ["true", "false"]:
-        raise RuntimeError("{} is not a boolean value.".format(x))
-    else:
+    elif isinstance(x, str) and x.lower() in ["true", "false"]:
         return (x.lower() == "true")
+    else:
+        raise RuntimeError(f"{x} is not a boolean value, and cannot be coerced."))
 
 
-def check_int(x) -> int:
-    """Checks if input 'x' is decimal integer.
+def check_int(x: Union[int, str]) -> int:
+    """Coerce input 'x' to an integer if it is a decimal string.
+
+    Raises:
+        RuntimeError: if 'x' is not a decimal string, or cannot be converted using int().
 
     Returns:
-        Value 'x' as an int type.
+        'x' as an int type.
     """
     if isinstance(x, int):
         return x
-    if not x.isdecimal():
-        raise RuntimeError("{} is not a decimal number.".format(x))
-    return int(x)
+    elif isinstance(x, str) and not x.isdecimal():
+        raise RuntimeError(f"{x} is not a decimal number.")
+    else:
+        # Try to convert to an integer using int(). Throw if this fails.
+        x_int: int
+        try:
+            x_int = int(x)
+        except Exception:
+            raise RuntimeError(f"Could not convert {x} to a decimal number using int().")
+        return x_int
 
-
-def as_snake_case_prefix(name) -> str:
+def as_snake_case_prefix(name: str) -> str:
     """Convert PascalCase name into snake_case name."""
     outname = ""
     for c in name:
