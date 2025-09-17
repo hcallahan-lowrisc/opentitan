@@ -123,39 +123,57 @@ def pascal_to_snake_case(pascal: str) -> str:
     return snake + ('_' if pascal else '')
 
 
-def get_random_data_hex_literal(width: int) -> str:
-    """Fetch 'width' random bits and return them as hex literal."""
-    literal_str = hex(random.getrandbits(width))
-    return blockify(literal_str, width, 64)
-
-
 def blockify(s: str, size: int, limit: int) -> str:
-    """Make sure the output does not exceed a certain size per line."""
+    """Make sure the output does not exceed a certain size per line.
+
+
+    """
+    output_list: list[str] = []
 
     str_idx = 2
     remain = size % (limit * 4)
     numbits = remain if remain else limit * 4
-    s_list = []
 
     remain = size
     while remain > 0:
         s_incr = int(numbits / 4)
         string = s[str_idx:str_idx + s_incr]
+
         # Separate 32-bit words for readability.
         for i in range(s_incr - 1, 0, -1):
             if (s_incr - i) % 8 == 0:
                 string = string[:i] + "_" + string[i:]
-        s_list.append("{}'h{}".format(numbits, string))
+
+        # 
+        output_list.append("{}'h{}".format(numbits, string))
+
         str_idx += s_incr
         remain -= numbits
         numbits = limit * 4
 
-    return (",\n  ".join(s_list))
+    return (",\n  ".join(output_list))
+
+
+def get_random_data_hex_literal(num_bits: int) -> str:
+    """Get 'num_bits' random bits and return them as hex-formatted literal.
+
+    This function uses the python 'random' library to generate random bits,
+    which uses a Mersenne Twister PRNG seeded with the current system time.
+
+    The returned literal is 'blockified', which adds 
+    """
+    rnd_bits = random.getrandbits(num_bits)
+    hex_literal = blockify(hex(rnd_bits), num_bits, 64)
+    return hex_literal
 
 
 def get_random_perm_hex_literal(numel) -> str:
-    """Compute a random permutation of 'numel' elements and
-    return as packed hex literal."""
+    """Compute a random permutation of 'numel' elements and return as packed hex literal.
+
+    This function uses the python 'random' library to randomize the permutation,
+    which uses a Mersenne Twister PRNG seeded with the current system time.
+
+    """
     num_elements = int(numel)
     width = int(ceil(log2(num_elements)))
     idx = [x for x in range(num_elements)]

@@ -6,6 +6,7 @@ r"""This script generates random seeds and state permutations for LFSRs
 and outputs them them as a packed SV logic vectors suitable for use with
 prim_lfsr.sv.
 """
+import textwrap
 import argparse
 import logging as log
 import random
@@ -65,23 +66,20 @@ def main():
 
     type_prefix = common.pascal_to_snake_case(args.prefix)
 
-    outstr = '''
-// These LFSR parameters have been generated with
-// $ ./util/design/gen-lfsr-seed.py --width {} --seed {} --prefix "{}"
-parameter int {}LfsrWidth = {};
-typedef logic [{}LfsrWidth-1:0] {}lfsr_seed_t;
-typedef logic [{}LfsrWidth-1:0][$clog2({}LfsrWidth)-1:0] {}lfsr_perm_t;
-parameter {}lfsr_seed_t RndCnst{}LfsrSeedDefault = {{
-  {}
-}};
-parameter {}lfsr_perm_t RndCnst{}LfsrPermDefault = {{
-  {}
-}};
-'''.format(args.width, args.seed, args.prefix, args.prefix, args.width,
-           args.prefix, type_prefix, args.prefix, args.prefix, type_prefix,
-           type_prefix, args.prefix,
-           common.get_random_data_hex_literal(args.width), type_prefix,
-           args.prefix, common.get_random_perm_hex_literal(args.width))
+    outstr = textwrap.dedent(f'''
+        // These LFSR parameters have been generated with
+        // $ ./util/design/gen-lfsr-seed.py --width {args.width} --seed {args.seed} --prefix "{args.prefix}"
+
+        parameter int {args.prefix}LfsrWidth = {args.width};
+        typedef logic [{args.prefix}LfsrWidth-1:0] {args.prefix}lfsr_seed_t;
+        typedef logic [{args.prefix}LfsrWidth-1:0][$clog2({args.prefix}LfsrWidth)-1:0] {type_prefix}lfsr_perm_t;
+        parameter {type_prefix}lfsr_seed_t RndCnst{args.prefix}LfsrSeedDefault = {{
+          {common.get_random_data_hex_literal(args.width)}
+        }};
+        parameter {type_prefix}lfsr_perm_t RndCnst{args.prefix}LfsrPermDefault = {{
+          {common.get_random_perm_hex_literal(args.width)}
+        }};
+    ''').strip("\n")
 
     print(outstr)
 
