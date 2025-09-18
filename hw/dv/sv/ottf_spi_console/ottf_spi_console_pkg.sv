@@ -37,7 +37,7 @@ package ottf_spi_console_pkg;
   // Note that this stimulus may be timing-sensitive due to interactions with the software running
   // the DEVICE-side of the OTTF SPI Console.
   uint spinwait_timeout_ns = 200_000_000; // 200ms
-  uint write_timeout_ns    =  20_000_000; //  20ms
+  uint write_timeout_ns    = 200_000_000; // 200ms
   uint min_interval_ns     =       3_000; //   3us
 
   // Typical opcodes used by SPI NOR-flash devices.
