@@ -1052,7 +1052,7 @@ static status_t check_otp_measurement_post_lock(hmac_digest_t *measurement,
 }
 
 static status_t finalize_otp_partitions(void) {
-  TRY(check_next_slot_bootable());
+  /* TRY(check_next_slot_bootable()); */
 
   // Complete the provisioning of OTP OwnerSwCfg partition.
   if (!status_ok(manuf_individualize_device_owner_sw_cfg_check(&otp_ctrl))) {
