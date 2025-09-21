@@ -509,6 +509,7 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_4();
   // The device now checks the imported certificate package.
 
   // Read out the final hash sent from the device
+  `uvm_info(`gfn, "Awaiting export of the final hash...", UVM_LOW)
   cfg.ottf_spi_console_h.host_spi_console_read_payload(final_hash, kSerdesSha256HashSerializedMaxSize);
   dump_byte_array_to_file(final_hash, FINAL_HASH_FILE);
 
