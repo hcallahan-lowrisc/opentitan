@@ -263,6 +263,8 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::body();
     fork
       begin : apply_stimulus
         do_ft_personalize();
+        // After the completion of all stimulus, the device should raise the test done gpio
+        await_ioa("IOA1", 1'b1, cfg.sw_test_timeout_ns);
         override_test_status_and_finish(.passed(1'b1));
       end
       begin : detect_error_gpio
