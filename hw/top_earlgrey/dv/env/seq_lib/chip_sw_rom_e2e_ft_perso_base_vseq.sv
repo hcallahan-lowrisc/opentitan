@@ -449,9 +449,10 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_1();
 endtask
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_2();
-  // Perform the second ROM Bootstrap
+  // Perform the second ROM Bootstrap of Flash
+  // > (the multi-slot binary of perso + ROM_EXT + Owner FW binaries)
   fork
-    spi_device_load_bootstrap({cfg.sw_images[SwTypeTestSlotA], ".64.vmem"});
+    spi_device_load_bootstrap({cfg.sw_images[SwTypeMultiSlot], ".64.vmem"});
 
     // POR must be asserted externally at the end of the bootstrap process.
     // This is handled by the load_bootstrap() routine above.

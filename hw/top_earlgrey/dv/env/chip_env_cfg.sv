@@ -455,7 +455,8 @@ class chip_env_cfg #(type RAL_T = chip_ral_pkg::chip_reg_block) extends cip_base
           end
 
         end else if (i inside {SwTypeTestSlotA, /* 1 */
-                               SwTypeTestSlotB  /* 2 */}) begin
+                               SwTypeTestSlotB, /* 2 */
+                               SwTypeMultiSlot  /* 6 */}) begin
 
           if ("silicon_creator" inside {sw_image_flags[i]}) begin
             // Add the flag `silicon_creator` when using a flash image built

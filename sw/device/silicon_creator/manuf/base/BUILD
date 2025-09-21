@@ -412,6 +412,11 @@ alias(
     actual = "ft_personalize_emulation",
 )
 
+alias(
+    name = "ft_fw_bundle_emulation_silicon_creator",
+    actual = "ft_fw_bundle_emulation",
+)
+
 # Generate artifacts for all SKUs to be signed as part of an offline
 # signing process. Once signed, these artifacts are re-attached to
 # the binaries using the 'offline_signature_attach' rule (:signed)

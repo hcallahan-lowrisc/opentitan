@@ -68,8 +68,9 @@
         // not enable the OTTF, and hence we cannot interact with the perso binary over the
         // spi_console. (sim_dv assumes use of the sw_logger_if instead of the OTTF)
         "//sw/device/silicon_creator/manuf/base:ft_personalize_emulation:1:silicon_creator:dont_filter",
-        "//hw/ip/otp_ctrl/data/earlgrey_skus/emulation:otp_img_prod_manuf_individualized:4"
-        "//sw/device/lib/testing/test_rom:test_rom:0:silicon_creator:dont_filter"
+        "//sw/device/silicon_creator/manuf/base:ft_fw_bundle_emulation:6:silicon_creator:dont_filter",
+        "//hw/ip/otp_ctrl/data/earlgrey_skus/emulation:otp_img_prod_manuf_individualized:4",
+        "//sw/device/lib/testing/test_rom:test_rom:0:silicon_creator:dont_filter",
       ]
       en_run_modes: ["sw_test_mode_base"]
       run_opts: [

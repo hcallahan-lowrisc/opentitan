@@ -147,6 +147,7 @@ class sw_type_e(Enum):
     SwTypeOtbn      = 3 # Otbn SW
     SwTypeOtp       = 4 # Customized OTP image
     SwTypeDebug     = 5 # Debug SW - injected into SRAM.
+    SwTypeMultiSlot = 6 # Ibex SW - multi-slot SW payload.
 
 
 class BazelRunner:
@@ -406,7 +407,8 @@ def _deploy_software_collateral(args) -> None:
         if sw_type_e(image_string.index) in (sw_type_e.SwTypeRom,
                                              sw_type_e.SwTypeTestSlotA,
                                              sw_type_e.SwTypeTestSlotB,
-                                             sw_type_e.SwTypeOtbn):
+                                             sw_type_e.SwTypeOtbn,
+                                             sw_type_e.SwTypeMultiSlot):
 
             if "silicon_creator" in image_string.flags:
                 # Add the flag `silicon_creator` when using a flash image built
