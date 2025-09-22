@@ -265,6 +265,11 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::body();
         do_ft_personalize();
         // After the completion of all stimulus, the device should raise the test done gpio
         await_ioa("IOA1", 1'b1, cfg.sw_test_timeout_ns);
+        // Wait for the OTTF to send the 'Finished %s' message, as the spi_console requires
+        // HOST-side interaction to read it's contents the device software will spin unless it is
+        // fully read out and this will cause continuing bus traffic which prevents the test from
+        // ending.
+        cfg.ottf_spi_console_h.host_spi_console_read_wait_for("Finished ");
         override_test_status_and_finish(.passed(1'b1));
       end
       begin : detect_error_gpio
@@ -513,7 +518,8 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_4();
 
   // Read out the final hash sent from the device
   `uvm_info(`gfn, "Awaiting export of the final hash...", UVM_LOW)
-  cfg.ottf_spi_console_h.host_spi_console_read_payload(final_hash, kSerdesSha256HashSerializedMaxSize);
+  cfg.ottf_spi_console_h.host_spi_console_read_payload(final_hash,
+                                                       kSerdesSha256HashSerializedMaxSize);
   dump_byte_array_to_file(final_hash, FINAL_HASH_FILE);
 
   // Wait until the device indicates it has successfully completed perso!
