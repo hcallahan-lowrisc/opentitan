@@ -134,7 +134,7 @@ class chip_sw_rom_e2e_ft_perso_base_vseq extends chip_sw_rom_e2e_base_vseq;
   extern virtual task body();
   extern task load_dut_memories(perso_phase_e perso_phase);
   extern task dump_dut_memories(perso_phase_e perso_phase);
-  extern task await_test_start_after_reset();
+  extern task await_test_start_after_reset(uint timeout_ns = 200_000_000);
   // This task sequences the three sub-phases of the personalization flow. (See the header comment
   // for more context about the breakdown.)
   extern task do_ft_personalize();
@@ -320,7 +320,7 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::dump_dut_memories(perso_phase_e perso_p
   `uvm_info(`gfn, $sformatf("Dumped DUT memories in phase '%0s' now.", perso_phase.name), UVM_LOW)
 endtask
 
-task chip_sw_rom_e2e_ft_perso_base_vseq::await_test_start_after_reset();
+task chip_sw_rom_e2e_ft_perso_base_vseq::await_test_start_after_reset(uint timeout_ns = 200_000_000);
   `uvm_info(`gfn, "Waiting for reset...", UVM_MEDIUM)
   `DV_SPINWAIT(
     /*WAIT_*/       cfg.chip_vif.cpu_clk_rst_if.wait_for_reset();,
@@ -330,7 +330,7 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::await_test_start_after_reset();
   // Now wait until the start of the test binary.
   // This can be a long time due to UART traffic and SPI Bootstrapping.
   `uvm_info(`gfn, "Device out of reset, awaiting TestStart GPIO.", UVM_MEDIUM)
-  await_ioa("IOA4", 1'b1, 500_000_000 /* 500ms */); // IOA4 == TestStart
+  await_ioa("IOA4", 1'b1, timeout_ns); // IOA4 == TestStart
 endtask
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize();
@@ -457,7 +457,7 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_2();
     // POR must be asserted externally at the end of the bootstrap process.
     // This is handled by the load_bootstrap() routine above.
     // Wait for the chip to restart, and the ROM to complete loading the bootstrapped Flash image.
-    await_test_start_after_reset();
+    await_test_start_after_reset(.timeout_ns(1_000_000_000 /* 1s */));
   join
 endtask
 
