@@ -1,32 +1,26 @@
-set dv_root ""
-if {[info exists ::env(dv_root)]} {
-  set dv_root "$::env(dv_root)"
-} else {
-  puts "ERROR: Script run without dv_root environment variable."
-  quit
-}
+if {[info exists ::env(dv_root)]} {set dv_root "$::env(dv_root)";} \
+else {puts "ERROR: Script run without dv_root environment variable."; exit;}
 
 set simulator "vcs"
 set waves "fsdb"
 set gui 0
 set tb_top "tb"
 
-proc wavedumpScope {scope {depth 0} {fsdb_flags "+all"} {probe_flags "-all"} {dump_flags "-aggregates"}} {
-    fsdbDumpvars $depth $scope $fsdb_flags
-}
+# Helper procedure libraries
+source "${dv_root}/tools/tcl/procs.tcl"
+source "${dv_root}/tools/tcl/procs_waves.tcl"
+source "${dv_root}/tools/tcl/procs_run.tcl"
 
+# Open a default database
 set wavedump_db "waves.$waves"
-puts "INFO: Dumping waves in [string toupper $waves] format to $wavedump_db."
+puts "INFO: Dumping waves to $wavedump_db."
+waveOpenDB $wavedump_db $waves $simulator
 
-run 120000us
-
-# fsdbDumpfile $wavedump_db
-# wavedumpScope "/tb/dut/top_earlgrey/u_flash_ctrl"
-# wavedumpScope "/tb/dut/top_earlgrey/u_uart0"
-# wavedumpScope "/tb/dut/top_earlgrey/u_spi_device"
-# wavedumpScope "/tb/dut/chip_if/gpios_if"
-
-wavedumpScope $tb_top
+# Selectively choose the scopes you wish to dump
+wavedumpScope $waves $simulator "/tb/dut/top_earlgrey/u_uart0" 1
+wavedumpScope $waves $simulator "/tb/dut/top_earlgrey/u_spi_device" 2
+wavedumpScope $waves $simulator "/tb/dut/chip_if/gpios_if"
+wavedumpScope $waves $simulator "/tb/dut/top_earlgrey/u_rv_core_ibex" 2
 
 run
 
