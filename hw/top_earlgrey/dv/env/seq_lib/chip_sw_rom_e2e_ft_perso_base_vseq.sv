@@ -330,7 +330,7 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::await_test_start_after_reset();
   // Now wait until the start of the test binary.
   // This can be a long time due to UART traffic and SPI Bootstrapping.
   `uvm_info(`gfn, "Device out of reset, awaiting TestStart GPIO.", UVM_MEDIUM)
-  await_ioa("IOA4", 1'b1, 200_000_000 /* 200ms */); // IOA4 == TestStart
+  await_ioa("IOA4", 1'b1, 500_000_000 /* 500ms */); // IOA4 == TestStart
 endtask
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize();
