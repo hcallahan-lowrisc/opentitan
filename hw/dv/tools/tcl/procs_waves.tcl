@@ -4,17 +4,20 @@
 
 ################################################################################
 #
-# Helper procedure library for waveform capture.
+# Helper procedure library for waveform capture
 #
 ################################################################################
 
-# A procedure to open a default database for waveform dumping
+# A procedure to open a database for waveform dumping
 #
 # db_name                     Database name
 # waves                       The wave-format (fsdb, shm, vpd, vcd, evcd, etc).
 # simulator                   The simulator used for running the simulation (vcs, xcelium, etc).
 #
 proc waveOpenDB {db_name waves simulator} {
+  # First, check the waveform file format is compatible with the chosen simulator
+  checkWaveformFileCompat $simulator $waves
+
   switch $waves {
     "fsdb" {
       if {$simulator eq "xcelium"} {
@@ -72,7 +75,7 @@ proc wavedumpScope {waves simulator scope {depth 0} {fsdb_flags "+all"} {probe_f
 
   switch $waves {
     "none" {
-      puts "INFO: Not dumping from call to wavedumpScope because waves=\"none\"."
+      puts "INFO: Not dumping from call to wavedumpScope because waves='none'."
       return
     }
 

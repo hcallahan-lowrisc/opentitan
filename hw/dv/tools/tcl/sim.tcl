@@ -22,7 +22,7 @@
 #
 # - simulator(SIMULATOR) mandatory    ""        RTL Simulator to use
 # - waves(WAVES)         optional     "none"    Waveform format for waveform dumping, opens a default database
-# - gui(GUI)             optional     0         Invoke the simulator in an interactive mode
+# - gui(GUI)             optional     0         Return early for user control in a GUI context
 # - tb_top(TB_TOP)       optional     "tb"      Top-level module in simulation (typically the testbench)
 #
 # The sourced .tcl files may assume the existence of these variables in the global scope.
@@ -56,7 +56,8 @@ setViaUpcaseEnvVarElseWarning tb_top "WARNING: TB_TOP environment variable not s
 # - Opens a default database
 # - Probes all waves (infinite depth) from the scope $tb_top
 if {$waves ne "none"} {
-  source "${dv_root}/tools/tcl/dump_tb_waves.tcl"
+  set scope $tb_top
+  source "${dv_root}/tools/tcl/capture_single_waves_scope.tcl"
 }
 
 # Import any simulator-specific TCL
