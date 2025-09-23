@@ -584,7 +584,8 @@ class chip_sw_base_vseq extends chip_base_vseq;
   virtual task spi_device_load_bootstrap(string sw_image);
     byte sw_byte_q[$];
 
-    `uvm_info(`gfn, "Starting spi_device_load_bootstrap() procedure now.", UVM_LOW)
+    `uvm_info(`gfn, "Start of spi_device_load_bootstrap() now.", UVM_LOW)
+    `uvm_info(`gfn, $sformatf("Bootstrapping image file '%0s'.", sw_image), UVM_LOW)
 
     read_sw_frames(sw_image, sw_byte_q);
 
