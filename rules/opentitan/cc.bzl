@@ -178,6 +178,8 @@ def _build_binary(ctx, exec_env, name, deps, kind):
     Returns:
       (dict, dict): A dict of output artifacts and a dict of signing artifacts.
     """
+
+    # First, build the binary itself, outputting an ELF format file and associated mapfile.
     linker_script = get_fallback(ctx, "attr.linker_script", exec_env)
     elf, mapfile = ot_binary(
         ctx,
@@ -185,6 +187,7 @@ def _build_binary(ctx, exec_env, name, deps, kind):
         deps = deps,
         linker_script = linker_script,
     )
+    # Convert the ELF file to a pure binary (.bin) file format
     binary = obj_transform(
         ctx,
         name = name,
@@ -193,10 +196,10 @@ def _build_binary(ctx, exec_env, name, deps, kind):
         src = elf,
     )
 
+    # If a manifest and appropriate signing keys were passed, sign the generated binary
     manifest = get_fallback(ctx, "file.manifest", exec_env)
     if manifest and str(manifest.owner).endswith("@//hw/top_earlgrey:none_manifest"):
         manifest = None
-
     ecdsa_key = get_fallback(ctx, "attr.ecdsa_key", exec_env)
     rsa_key = get_fallback(ctx, "attr.rsa_key", exec_env)
     spx_key = get_fallback(ctx, "attr.spx_key", exec_env)
@@ -216,12 +219,15 @@ def _build_binary(ctx, exec_env, name, deps, kind):
     else:
         signed = {}
 
+    # Generate a disassembly file from the ELF
     disassembly = obj_disassemble(
         ctx,
         name = name,
         src = elf,
     )
 
+    # Transform the files generated so far according to the specific exec_env's
+    # output file transform() function.
     provides = exec_env.transform(
         ctx,
         exec_env,
@@ -238,35 +244,42 @@ def _opentitan_binary(ctx):
     providers = []
     default_info = []
     groups = {}
+
+    # Build the outputs for all exec_envs passed to the rule
     for exec_env_target in ctx.attr.exec_env:
         exec_env = exec_env_target[ExecEnvInfo]
         name = _binary_name(ctx, exec_env)
         deps = ctx.attr.deps + exec_env.libs
 
         kind = ctx.attr.kind
+        # Build the binary and return the associated sets of signed and unsigned artifacts
         provides, signed = _build_binary(ctx, exec_env, name, deps, kind)
-        providers.append(exec_env.provider(kind = kind, **provides))
+
+        # Extract some of the possible unsigned artifacts for placing into the
+        # DeafultInfo output.
         default_info.append(provides["default"])
         default_info.append(provides["elf"])
         default_info.append(provides["disassembly"])
-
         # FIXME(cfrantz): logs are a special case and get added into
         # the DefaultInfo provider.
         if "logs" in provides:
             default_info.extend(provides["logs"])
-
         # FIXME: vmem is a special case for ram targets used in ROM e2e test
         # cases.
         if provides.get("vmem_base"):
             default_info.append(provides["vmem_base"])
         if provides.get("vmem"):
             default_info.append(provides["vmem"])
-
         # FIXME(cfrantz): Special case: The englishbreakfast verilator model
         # requires a non-scrambled ROM image.
         if provides.get("rom32"):
             default_info.append(provides["rom32"])
 
+        # Create the exec_env's BinaryInfo provider, and pass it through
+        # to the output.
+        providers.append(exec_env.provider(kind = kind, **provides))
+        # Add output groups for the signed and unsigned artifacts
+        # Each artifact is prefixed with the exec_env name.
         groups.update(_as_group_info(exec_env.exec_env, signed))
         groups.update(_as_group_info(exec_env.exec_env, provides))
 
