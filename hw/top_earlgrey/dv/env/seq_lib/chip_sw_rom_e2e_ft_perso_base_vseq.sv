@@ -405,7 +405,7 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize();
     do_ft_personalize_phase_3();
   end else begin
     // We started at an earlier phase. Stimulus only.
-    `uvm_info(`gfn, "Starting Phase2 stimulus now.", UVM_LOW)
+    `uvm_info(`gfn, "Starting Phase3 stimulus now.", UVM_LOW)
     do_ft_personalize_phase_3();
   end
 
