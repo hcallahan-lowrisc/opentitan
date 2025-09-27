@@ -17,7 +17,7 @@ class dv_base_monitor #(type ITEM_T = uvm_sequence_item,
 
   // Used to ensure we run the watchdog exactly once at the end of the run phase. Cleared at start
   // of run phase. Set once watchdog_ok_to_end has been started at the end of the run_phase.
-  protected bit phase_ready_to_end_invoked = 0;
+  protected bit run_phase_ready_to_end_invoked = 0;
 
   // Analysis port for the collected transfer.
   uvm_analysis_port #(ITEM_T) analysis_port;
@@ -48,14 +48,39 @@ class dv_base_monitor #(type ITEM_T = uvm_sequence_item,
   endtask
 
   // UVM callback which is invoked during phase sequencing.
+  //
+  // This class provides an impl which is called ONCE the first time the run_phase
+  // ends in a given simulation.
+  //
   virtual function void phase_ready_to_end(uvm_phase phase);
-    if (!phase.is(uvm_run_phase::get())) return;
-    if (phase_ready_to_end_invoked) return;
+    if (phase.is(uvm_run_phase::get())) begin
+      // Ensure function is NOT idempotent
+      if (run_phase_ready_to_end_invoked) return;
+      run_phase_ready_to_end_invoked = 1;
+      run_phase_ready_to_end(phase);
+    end
+  endfunction
 
-    phase_ready_to_end_invoked = 1;
+  // Hook that is called at the end of the first (and possibly only) run_phase.
+  //
+  // This impl spawns two background processes which together provide a mechanism to prevent the
+  // simulation from ending, typically implemented to block using an objection if any ongoing
+  // interface activity is observed by the monitor.
+  //
+  virtual function void run_phase_ready_to_end(uvm_phase phase);
     fork
-      monitor_ready_to_end();
+      // This watchdog task raises an objection and monitors the 'ok_to_end' signal, lowering the
+      // objection when 'ok_to_end' has been true and stable for a certain (configurable) amount of
+      // time. This task never returns, and should re-assert the objection if 'ok_to_end' is set
+      // again by the monitoring task.
+      // This task typically does not need to be overridden by derived classes.
       watchdog_ok_to_end(phase);
+      // This task drives the 'ok_to_end' signal, typically by observing the interface the monitor
+      // is connected to for activity that would indicate that meaningful traffic is still
+      // propogating inside the simulated system. This task never returns, and also should clear
+      // 'ok_to_end' again if further activity is seen on the interface.
+      // This task should be overriden by derived classes on a per-interface basis.
+      monitor_ready_to_end();
     join_none
   endfunction
 
@@ -64,46 +89,71 @@ class dv_base_monitor #(type ITEM_T = uvm_sequence_item,
   // If ok_to_end de-asserts before the watchdog expires, it waits for it to assert again
   // and restarts the timer. This ensures that there is sufficient drain time to allow the
   // simulation to end gracefully. It raises and drops the objection at the appropriate times.
+  //
+  // Returns:
+  //   never
+  //
   virtual task watchdog_ok_to_end(uvm_phase run_phase);
     bit objection_raised;
     bit watchdog_done;
     uint watchdog_restart_count = 1;
 
-    forever begin
-      if (!objection_raised) begin
-        `uvm_info(`gfn, "watchdog_ok_to_end: raising objection", UVM_MEDIUM)
-        run_phase.raise_objection(this, {`gfn, " objection raised"});
-        objection_raised = 1'b1;
-      end
-
-      // Start the timer only when ok_to_end is asserted.
-      wait (ok_to_end);
-      `uvm_info(`gfn, $sformatf("watchdog_ok_to_end: starting the timer (count: %0d)",
-                                watchdog_restart_count++), UVM_MEDIUM)
-      fork
-        begin: isolation_fork
-          fork
-            begin
-              watchdog_done = 1'b0;
-              #(cfg.ok_to_end_delay_ns * 1ns);
-              watchdog_done = 1'b1;
-            end
-            wait (!ok_to_end);
-          join_any
-          disable fork;
-        end: isolation_fork
-      join
-
-      // If ok_to_end stayed high throughout the watchdog timer expiry, then drop the objection.
-      if (ok_to_end && watchdog_done) begin
-        `uvm_info(`gfn, "watchdog_ok_to_end: dropping objection", UVM_MEDIUM)
-        run_phase.drop_objection(this, {`gfn, " objection dropped"});
-        objection_raised = 1'b0;
-
-        // Wait for ok_to_end to de-assert again in future.
-        wait (!ok_to_end);
-      end
+    if (cfg.watchdog_restart_count_limit_enabled) begin
+      `uvm_info(`gfn, "cfg.watchdog_restart_count_limit_enabled = 1'b1", UVM_MEDIUM)
     end
+
+    fork
+      // Automatically end test if we don't terminate in time.
+      begin
+        uint wote_timeout_ns = 10_000_000; // 10ms
+        #(wote_timeout_ns * 1ns);
+        `uvm_fatal(`gfn,
+                   $sformatf("Test did not end within %0d ns of watchdog_ok_to_end() called.",
+                             wote_timeout_ns))
+      end
+      // Monitor ok_to_end, drop objection when this condition is met
+      forever begin
+        if (!objection_raised) begin
+          `uvm_info(`gfn, "watchdog_ok_to_end: raising objection", UVM_MEDIUM)
+          run_phase.raise_objection(this, {`gfn, " objection raised"});
+          objection_raised = 1'b1;
+        end
+
+        // Start the timer if/when 'ok_to_end' is asserted.
+        wait (ok_to_end);
+        `uvm_info(`gfn, $sformatf("watchdog_ok_to_end(): (re)starting the timer (count: %0d)",
+                                  watchdog_restart_count++), UVM_MEDIUM)
+        fork
+          begin: isolation_fork
+            fork
+              begin
+                watchdog_done = 1'b0;
+                #(cfg.ok_to_end_delay_ns * 1ns);
+                watchdog_done = 1'b1;
+              end
+              wait (!ok_to_end);
+            join_any
+            disable fork;
+          end: isolation_fork
+        join
+
+        // If ok_to_end stayed high throughout the watchdog timer expiry, then drop the objection.
+        if (ok_to_end && watchdog_done) begin
+          `uvm_info(`gfn, "watchdog_ok_to_end: dropping objection", UVM_MEDIUM)
+          run_phase.drop_objection(this, {`gfn, " objection dropped"});
+          objection_raised = 1'b0;
+
+          // Wait for ok_to_end to de-assert again in future.
+          wait (!ok_to_end);
+        end
+
+        if (cfg.watchdog_restart_count_limit_enabled &&
+            (watchdog_restart_count >= cfg.watchdog_restart_count_limit)) begin
+          `uvm_fatal(`gfn, $sformatf("'watchdog_restart_count' exceeded the limit of %0d. Aborting.",
+                                     cfg.watchdog_restart_count_limit))
+        end
+      end
+    join
   endtask
 
   // Asserts/de-asserts ok_to_end to indicate bus activity.
