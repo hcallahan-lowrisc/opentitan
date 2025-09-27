@@ -580,7 +580,7 @@ def parse_args():
                        "-ds",
                        help=('Use user define custom dump script file'
                              'The custom file should be located in {proj_root}'
-                             'Default file is {proj_root}/hw/dv/tools/sim.tcl'))
+                             'Default file is {proj_root}/hw/dv/tools/tcl/sim.tcl'))
 
     covg = parser.add_argument_group('Generating simulation coverage')
 
