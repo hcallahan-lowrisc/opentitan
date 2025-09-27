@@ -105,11 +105,11 @@ class dv_base_monitor #(type ITEM_T = uvm_sequence_item,
     fork
       // Automatically end test if we don't terminate in time.
       begin
-        uint wote_timeout_us = 200;
-        #(wote_timeout_us * 1us);
+        uint wote_timeout_ns = 10_000_000; // 10ms
+        #(wote_timeout_ns * 1ns);
         `uvm_fatal(`gfn,
-                   $sformatf("Test did not end within %0d us of watchdog_ok_to_end() called.",
-                             wote_timeout_us))
+                   $sformatf("Test did not end within %0d ns of watchdog_ok_to_end() called.",
+                             wote_timeout_ns))
       end
       // Monitor ok_to_end, drop objection when this condition is met
       forever begin

@@ -269,7 +269,7 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::body();
         // HOST-side interaction to read it's contents the device software will spin unless it is
         // fully read out and this will cause continuing bus traffic which prevents the test from
         // ending.
-        // cfg.ottf_spi_console_h.host_spi_console_read_wait_for("Finished ");
+        cfg.ottf_spi_console_h.host_spi_console_read_wait_for("PASS!");
         override_test_status_and_finish(.passed(1'b1));
       end
       begin : detect_error_gpio
