@@ -527,7 +527,7 @@ class mem_bkdr_util extends uvm_object;
 
   // Clear the memory to all 0s.
   virtual function void clear_mem();
-    `uvm_info(`gfn, "Clear memory", UVM_LOW)
+    `uvm_info(`gfn, "Clear all memory (to 0).", UVM_LOW)
     for (int i = 0; i < depth; i++) begin
       uvm_hdl_data_t data = '{default:0};
       write(i * bytes_per_word, data);
@@ -536,7 +536,7 @@ class mem_bkdr_util extends uvm_object;
 
   // Set the memory to all 1s.
   virtual function void set_mem();
-    `uvm_info(`gfn, "Set memory", UVM_LOW)
+    `uvm_info(`gfn, "Set all memory (to 1).", UVM_LOW)
     for (int i = 0; i < depth; i++) begin
       uvm_hdl_data_t data = '{default:1};
       write(i * bytes_per_word, data);
@@ -607,20 +607,20 @@ endclass
 //
 // inst is the mem_bkdr_util instance created in the tesbench module.
 // path is the raw path to the memory element in the design.
-`define MEM_BKDR_UTIL_FILE_OP(inst, path) \
+`define MEM_BKDR_UTIL_ENABLE_FILE_OPS(inst, path) \
   fork \
     forever begin \
       string file; \
       @(inst.readmemh_event); \
       file = inst.get_file(); \
-      `uvm_info(inst.`gfn, $sformatf("Loading mem from file:\n%0s", file), UVM_LOW) \
+      `uvm_info(inst.`gfn, $sformatf("Loading mem from file: %0s", file), UVM_LOW) \
       $readmemh(file, path); \
     end \
     forever begin \
       string file; \
       @(inst.writememh_event); \
       file = inst.get_file(); \
-      `uvm_info(inst.`gfn, $sformatf("Writing mem to file:\n%0s", file), UVM_LOW) \
+      `uvm_info(inst.`gfn, $sformatf("Writing mem to file: %0s", file), UVM_LOW) \
       $writememh(file, path); \
     end \
   join_none

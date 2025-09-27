@@ -229,6 +229,8 @@ class tl_monitor extends dv_base_monitor#(
     end
   endfunction
 
+  // This method is called by the base class, and should drive the 'ok_to_end' signal when,
+  // according to this monitor, the simulation is ready to end.
   // update ok_to_end to prevent sim finish when there is any pending item
   virtual task monitor_ready_to_end();
     forever begin
