@@ -395,7 +395,7 @@ def _ecc_encode(k: int,
 
 
 def ecc_encode(config: Dict[str, Any], codetype: str, k: int, dataword: int) -> Tuple[int, int]:
-    log.info(f"Encoding ECC for {hex(dataword)}")
+    log.debug(f"Encoding ECC for {hex(dataword)}")
 
     m, bitmasks, invert = _ecc_pick_code(config, codetype, k)
     codeword = _ecc_encode(k, m, bitmasks, invert, dataword)
@@ -601,7 +601,7 @@ def _hamming_code(data_cnt, parity_cnt):
     ]
     # Final parity bit includes all ECC bits.
     codes += [(last_parity,)] * last_parity
-    log.info("Hamming codes %s", codes)
+    log.debug("Hamming codes %s", codes)
     return codes
 
 
