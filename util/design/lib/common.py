@@ -123,67 +123,133 @@ def pascal_to_snake_case(pascal: str) -> str:
     return snake + ('_' if pascal else '')
 
 
-def blockify(s: str, size: int, limit: int) -> str:
-    """Make sure the output does not exceed a certain size per line.
+def blockify(s: str, limit: int) -> str:
+    """Format an hex-formated string literal in Verilog-style, wrapping into a block.
 
+    Args:
+        s (str):     The intput hex-formatted string literal
+        limit (int): Maximum number of hex chars (i.e. bytes) to display on each line
 
+    Returns:
+        A string
+
+    Examples
+        blockify('0xac80dfa720', 64)
+            = "40'hac_80dfa720"
+
+        blockify('0x6fcbb5b8ab0f1d139e549e6241e82594ab97ae9b1182145062f2f84cc54f327ce5bceee9a0',
+                 16)
+            = "36'h5_55986200,\n  64'h28301201_51396978,\n  64'h36057273_88682340,\n  64'h23190993_36683523,\n  64'h18312650_92020681,\n  64'h55414981_60802208"
+            = "36'h5_55986200,
+               64'h28301201_51396978,
+               64'h36057273_88682340,
+               64'h23190993_36683523,
+               64'h18312650_92020681,
+               64'h55414981_60802208"
     """
+    # First, strip leading '0x' decorator if present
+    s = str(int(s, 16))
+    s_bytes = len(s)  # Total bytes in the input string
+    s_bits = s_bytes * 4  # Total bits in the input string
+
     output_list: list[str] = []
 
-    str_idx = 2
-    remain = size % (limit * 4)
-    numbits = remain if remain else limit * 4
+    l_bits: int # The number of bits to be represented on the current line (e.g 340'hxxxxxx -> 340)
+    l_len: int # The number of bytes to be represented on the current line
 
-    remain = size
-    while remain > 0:
-        s_incr = int(numbits / 4)
-        string = s[str_idx:str_idx + s_incr]
+    # Determine the number of bits in the first line. This may be less than the maximum length,
+    # which can be calculated as the remainder in a modulo-division operation.
+    q, r = divmod(s_bits, (limit * 4))
+    l_bits = r if r else limit * 4
+    l_len: int = int(l_bits / 4)
+    # The number of bits & bytes per line will be constant after the first line
 
-        # Separate 32-bit words for readability.
-        for i in range(s_incr - 1, 0, -1):
-            if (s_incr - i) % 8 == 0:
-                string = string[:i] + "_" + string[i:]
+    # Iterate over the input, splitting it up into lines of the defined maximum length
+    remaining_bits: int = s_bits # Keep iterating until no more remaining bits
+    while remaining_bits > 0:
+        # Extract the bytes we will represent on this line.
+        line, s = s[:l_len], s[l_len:]
 
-        # 
-        output_list.append("{}'h{}".format(numbits, string))
+        # Separate each 32-bit word in the line with underscores ('_') for readability.
+        for i in range(l_len - 1, 0, -1):
+            if (l_len - i) % 8 == 0:
+                line = line[:i] + "_" + line[i:]
 
-        str_idx += s_incr
-        remain -= numbits
-        numbits = limit * 4
+        # Add the line as a Verilog-formatted hex string literal to the output array.
+        line_verilog = f"{l_bits}'h{line}"
+        output_list.append(line_verilog)
+
+        # Update the iteration vars
+        remaining_bits -= l_bits
+        l_bits = limit * 4  # Always the same after the first line (i.e. the max length)
+        l_len = int(l_bits / 4)
 
     return (",\n  ".join(output_list))
 
 
 def get_random_data_hex_literal(num_bits: int) -> str:
-    """Get 'num_bits' random bits and return them as hex-formatted literal.
+    """Get 'num_bits' random bits and return them as a wrapped Verilog-hex-formatted literal.
 
     This function uses the python 'random' library to generate random bits,
     which uses a Mersenne Twister PRNG seeded with the current system time.
 
     The returned literal is 'blockified', which adds 
+
+    Examples:
+         common.get_random_data_hex_literal(40) = "48'h4337_99696293"
+
     """
-    rnd_bits = random.getrandbits(num_bits)
-    hex_literal = blockify(hex(rnd_bits), num_bits, 64)
-    return hex_literal
+    rnd_int: int = random.getrandbits(num_bits)
+
+    rnd_hex_str: str = hex(rnd_int)
+    wrapped_hex_literal = blockify(rnd_hex_str, 64)
+
+    print(f"rnd_int={rnd_int}")
+    print(f"rnd_hex_str={rnd_hex_str}")
+    print(f"wrapped_hex_literal={wrapped_hex_literal}")
+
+    return wrapped_hex_literal
 
 
-def get_random_perm_hex_literal(numel) -> str:
-    """Compute a random permutation of 'numel' elements and return as packed hex literal.
+def get_random_perm_hex_literal(numel: int) -> str:
+    """Compute a random permutation of 'numel' elements and return as a Verilog-hex-formatted literal.
 
     This function uses the python 'random' library to randomize the permutation,
     which uses a Mersenne Twister PRNG seeded with the current system time.
 
+    The permutation is encoded as an array of integers, where the value of the element at
+    each index indicates the relocated position of that index in the new permutation.
+    e.g.
+        [50, 40, 30, 20].appy_perm([1, 0, 3, 2]) = [40, 50, 20, 30]
+    The array of integers is encoded as a single hex-literal, where each integer is represented
+    by the smallest number of bits needed to encoded the largest integer value.
+    For numel = 4, 2-bits are needed to represent the largest integer value (4).
+    e.g.
+        enc([1, 0, 3, 2]) = 0x4e ( == 8'h4e == 8'b01001110 )
+
+    Args:
+        numel (int): The number of elements in the random permutation
+
+    Returns:
+        A Verilog hex-formatted string literal of permutation.
+
+    Example:
+        get_random_perm_hex_literal(10) = "40'h27_06894153"
     """
-    num_elements = int(numel)
-    width = int(ceil(log2(num_elements)))
-    idx = [x for x in range(num_elements)]
-    random.shuffle(idx)
-    literal_str = ""
-    for k in idx:
-        literal_str += format(k, '0' + str(width) + 'b')
-    # convert to hex for space efficiency
-    literal_str = hex(int(literal_str, 2))
-    return blockify(literal_str, width * numel, 64)
+    # Generate the random permutation of indices
+    perm = [x for x in range(numel)]
+    random.shuffle(perm)
+
+    # Get the number of bits needed to represent the largest value, i.e. numel
+    width = int(ceil(log2(numel)))
+
+    # Stringify to a hex-formatted string literal
+    literal_bin_str = "".join([f"{el:0{width}b}" for el in perm])
+    literal_hex_str = hex(int(literal_bin_str, 2))
+    # Wrap the hex literal, and format according the Verilog literals
+    wrapped_hex_literal = blockify(s=literal_hex_str,
+                                   limit=64)
+    return wrapped_hex_literal
 
 
 def hist_to_bars(hist, m) -> str:
