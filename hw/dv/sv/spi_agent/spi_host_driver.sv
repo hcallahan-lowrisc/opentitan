@@ -70,7 +70,7 @@ class spi_host_driver extends spi_driver;
 
       $cast(rsp, req.clone());
       rsp.set_id_info(req);
-      `uvm_info(`gfn, $sformatf("spi_host_driver: rcvd item:\n%0s", req.sprint()), UVM_HIGH)
+      `uvm_info(`gfn, $sformatf("spi_host_driver: rcvd item:\n%0s", req.sprint()), UVM_FULL)
 
       if (cfg.csb_sel_in_cfg) active_csb = cfg.csid;
       else                    active_csb = req.csb_sel;
@@ -162,7 +162,7 @@ class spi_host_driver extends spi_driver;
     bit [7:0] cmd_addr_bytes[$];
     bit [7:0] dummy_return_q[$]; // nothing to return for flash cmd, addr and write
 
-    `uvm_info(`gfn, $sformatf("Driving flash item: \n%s", req.sprint()), UVM_HIGH)
+    `uvm_info(`gfn, $sformatf("Driving flash item: \n%s", req.sprint()), UVM_FULL)
     cfg.vif.csb[active_csb] <= 1'b0;
 
     cmd_addr_bytes = {req.opcode, req.address_q};

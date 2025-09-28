@@ -285,7 +285,7 @@ class chip_base_vseq #(
       uart_item item;
       p_sequencer.uart_tx_fifos[uart_idx].get(item);
       `uvm_info(`gfn, $sformatf("Agent received UART%0d byte: 8'h%0h / %0s",
-        uart_idx, item.data, item.data), UVM_HIGH)
+        uart_idx, item.data, item.data), UVM_FULL)
       byte_q.push_back(item.data);
       if (byte_q[$-1:$] == EOL) begin
         // Print console message, dropping {CR, LF}
