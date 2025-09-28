@@ -385,6 +385,8 @@ package ottf_spi_console_pkg;
       chunk_q = {chunk_q, data_q};
     end while (!findStrRe(wait_for, byte_q_as_str(chunk_q)));
     `uvm_info(`gfn, $sformatf("Got expected string from spi_console : '%0s'", wait_for), UVM_LOW)
+    `uvm_info(`gfn, $sformatf("Expected string found in following bytes : %0s / %0s",
+      byte_q_as_hex(chunk_q), byte_q_as_str(chunk_q)), UVM_MEDIUM)
 
     // (If not already de-asserted) wait for the SPI console TX ready to be cleared by the DEVICE.
     `uvm_info(`gfn, "Waiting for the DEVICE to clear 'tx_ready' (IOA5)", UVM_HIGH)

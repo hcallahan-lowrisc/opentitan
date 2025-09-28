@@ -84,8 +84,8 @@
 
         // If the +perso_start_phase >= 1, then a +load_path must be provided containing memory images
         // from a previous run of this test with the +dump_mems plusarg set.
-        "+perso_start_phase=0",
-        // "+load_path=/home/harry/scratch/jaspernicus/sim19/",
+        "+perso_start_phase=4",
+        "+load_path=/home/harry/scratch/jaspernicus/sim30/",
 
         // Pre-determined OTTF SPI_Console message payloads.
         "+RMA_UNLOCK_TOKEN_HASH_FILE={proj_root}/binaries/ft_personalize_orch_emu_cw340/ujson_RMA_TOKEN_UNLOCK_HASH",
