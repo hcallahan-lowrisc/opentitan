@@ -84,7 +84,7 @@ def check_bool(x: Union[bool, str]) -> bool:
     elif isinstance(x, str) and x.lower() in ["true", "false"]:
         return (x.lower() == "true")
     else:
-        raise RuntimeError(f"{x} is not a boolean value, and cannot be coerced."))
+        raise RuntimeError(f"{x} is not a boolean value, and cannot be coerced.")
 
 
 def check_int(x: Union[int, str]) -> int:
