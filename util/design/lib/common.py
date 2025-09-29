@@ -4,7 +4,7 @@
 """Common utilities used by various util/design scripts."""
 
 import os
-import random
+from random import getrandbits, shuffle
 import re
 import sys
 import textwrap
@@ -162,7 +162,7 @@ def get_random_data_hex_literal(num_bits: int) -> str:
 
     The returned literal is 'blockified', which adds 
     """
-    rnd_bits = random.getrandbits(num_bits)
+    rnd_bits = getrandbits(num_bits)
     hex_literal = blockify(hex(rnd_bits), num_bits, 64)
     return hex_literal
 
@@ -177,7 +177,7 @@ def get_random_perm_hex_literal(numel) -> str:
     num_elements = int(numel)
     width = int(ceil(log2(num_elements)))
     idx = [x for x in range(num_elements)]
-    random.shuffle(idx)
+    shuffle(idx)
     literal_str = ""
     for k in idx:
         literal_str += format(k, '0' + str(width) + 'b')
