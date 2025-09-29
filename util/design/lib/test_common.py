@@ -55,35 +55,36 @@ class TestGetHd:
 # common.blockify() test vectors
 blockify_checks = [
     # Single line output
-    ('0xa', 16, "8'h10"),
-    ('0x12345678', 16, "36'h3_05419896"),
-    ('0x3838383838383838383', 64, "92'h1659309_94849066_74946947"),
+    ('0xa', (1 * 4), 16, "4'ha"),
+    ('0x12345678', (8 * 4), 16, "32'h12345678"),
+    ('0x3838383838383838383', (18 * 4), 64, "72'h38_38383838_38383838"),
 
-    # Input string without the '0x' decorator
-    ('a', 16, "8'h10"),
-    ('12345678', 16, "36'h3_05419896"),
-    ('3838383838383838383', 64, "92'h1659309_94849066_74946947"),
+    # Input strings without the '0x' decorator (added back before the refactor, for now)
+    ('0xa', (1 * 4), 16, "4'ha"),
+    ('0x12345678', (8 * 4), 16, "32'h12345678"),
+    ('0x3838383838383838383', (19 * 4), 64, "76'h383_83838383_83838383"),
 
     # Multi line output (i.e. wrapping due to 'limit')
-    ('0x66666666', 2, "8'h17,\n  8'h17,\n  8'h98,\n  8'h69,\n  8'h18"),
-    ('0x1234567812345678', 8,
-       "12'h131,\n  32'h17684651,\n  32'h73141112"),
-    ('0x4848595960601221233234434554', 32,
-       "8'h14,\n  128'h66065571_37933872_43946778_15166292"),
-    ('0xb5ec66efe1fb7d3393dbaf8596279a7e6150e8d6691960fc1ab0d49fc6820c114bf6560ce605d75416c3db010e962a60ab335d5d375e3021d6702049', 64,
-       "68'h2_21843458_15064031,\n  256'h84668764_94670308_04631812_31953035_70655036_06106877_89376508_08469879,\n  256'h52294239_94815873_05391186_79008623_37774288_68873584_92037217_41279305"),
+    ('0x66666666', (8 * 4), 2, "8'h66,\n  8'h66,\n  8'h66,\n  8'h66"),
+    ('0x1234567812345678', (16 * 4), 8,
+       "32'h12345678,\n  32'h12345678"),
+    ('0x4848595960601221233234434554', (28 * 4), 32,
+       "112'h4848_59596060_12212332_34434554"),
+    ('0xb5ec66efe1fb7d3393dbaf8596279a7e6150e8d6691960fc1ab0d49fc6820c114bf6560ce605d75416c3db010e962a60ab335d5d375e3021d6702049', (120 * 4), 64,
+       "224'hb5ec66ef_e1fb7d33_93dbaf85_96279a7e_6150e8d6_691960fc_1ab0d49f,\n  256'hc6820c11_4bf6560c_e605d754_16c3db01_0e962a60_ab335d5d_375e3021_d6702049"),
 ]
 
 class TestBlockify:
     """Test the method common.blockify()"""
 
     @staticmethod
-    @pytest.mark.parametrize(("s", "limit", "expected"), blockify_checks)
+    @pytest.mark.parametrize(("s", "size", "limit", "expected"), blockify_checks)
     def test_blockify(
         s: str,
+        size: int,
         limit: int,
         expected: str,
     ) -> None:
-        assert_that(common.blockify(s, limit), equal_to(expected))
+        assert_that(common.blockify(s, size, limit), equal_to(expected))
 
 
