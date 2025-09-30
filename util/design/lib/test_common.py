@@ -198,6 +198,32 @@ class TestInversePermuteBits:
             expected: str) -> None:
         assert_that(common.inverse_permute_bits(bit_str, permutation), equal_to(expected))
 
+class TestIdentityPermutationTransforms:
+    """"""
+
+    @staticmethod
+    @pytest.mark.parametrize(("bit_str", "permutation", "expected"), permutebits_checks)
+    def test_identity_permutation_one(
+            bit_str: str,
+            permutation: list[int],
+            expected: str) -> None:
+        """"""
+        assert_that(
+            common.inverse_permute_bits(common.permute_bits(bit_str, permutation), permutation),
+            equal_to(bit_str))
+
+    @staticmethod
+    @pytest.mark.parametrize(("bit_str", "permutation", "expected"), inversepermutebits_checks)
+    def test_identity_permutation_two(
+            bit_str: str,
+            permutation: list[int],
+            expected: str) -> None:
+        """"""
+        assert_that(
+            common.permute_bits(common.inverse_permute_bits(bit_str, permutation), permutation),
+            equal_to(bit_str))
+
+
 class TestCheckBool:
     """"""
 
