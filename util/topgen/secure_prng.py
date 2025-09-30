@@ -207,10 +207,8 @@ class secure_prng():
 
         return self.returned_bits.pop(0)
 
-    def getrandbits(self, n_bits):
-        """Fetches n_bits next bits from a PRNG.
-
-        """
+    def getrandbits(self, n_bits: int) -> int:
+        """Fetches 'n_bits' next bits from a PRNG."""
 
         bitsleft = n_bits
         R = 0

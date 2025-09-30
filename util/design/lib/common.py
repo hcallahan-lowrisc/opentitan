@@ -239,30 +239,36 @@ def hd_histogram(existing_words) -> dict:
     return stats
 
 
-def is_valid_codeword(secded_cfg: dict, codeword) -> bool:
-    """Checks whether the bitstring is a valid ECC codeword."""
+def is_valid_codeword(secded_cfg: dict, codeword: str) -> bool:
+    """Checks whether the bitstring is a valid ECC codeword.
+
+
+    Build a syndrome and check whether it is zero.
+    """
+
+    logger.info(f"is_valid_codeword(): secded_cfg={secded_cfg},codeword={codeword}")
 
     data_width = secded_cfg['data_width']
     ecc_width = secded_cfg['ecc_width']
     if len(codeword) != (data_width + ecc_width):
-        raise RuntimeError("Invalid codeword length {}".format(len(codeword)))
+        raise RuntimeError(
+            f"Invalid codeword length {len(codeword)} (expected {data_width + ecc_width})")
 
-    # Build syndrome and check whether it is zero.
     syndrome = [0 for k in range(ecc_width)]
-
     # The bitstring must be formatted as "data bits[N-1:0]" + "ecc bits[M-1:0]".
     for j, fanin in enumerate(secded_cfg['ecc_matrix']):
         syndrome[j] = int(codeword[ecc_width - 1 - j])
         for k in fanin:
             syndrome[j] ^= int(codeword[ecc_width + data_width - 1 - k])
+    is_valid = sum(syndrome) == 0
 
-    return sum(syndrome) == 0
+    return is_valid
 
 
-def ecc_encode(secded_cfg: dict, dataword) -> str:
+def ecc_encode(secded_cfg: dict, dataword: str) -> str:
     """Calculate and prepend ECC bits."""
     if len(dataword) != secded_cfg['data_width']:
-        raise RuntimeError("Invalid codeword length {}".format(len(dataword)))
+        raise RuntimeError(f"Invalid codeword length {len(dataword)}")
 
     # Note that certain codes like the Hamming code refer to previously
     # calculated parity bits. Hence, we incrementally build the codeword

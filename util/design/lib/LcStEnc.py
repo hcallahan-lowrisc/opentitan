@@ -108,7 +108,7 @@ def _get_new_state_word_pair(config: dict, existing_words: list) -> tuple[int, i
         base = sp.getrandbits(width)
 
         # Apply the ECC
-        base = format(base, '0' + str(width) + 'b')
+        base = f"{base:0{width}b}"  # Bitstring
         base_cand_ecc = ecc_encode(config['secded'], base)
 
         # Enforce a minimum and maximum Hamming weight
