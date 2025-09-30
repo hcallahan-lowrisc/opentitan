@@ -123,6 +123,7 @@ class chip_sw_rom_e2e_ft_perso_base_vseq extends chip_sw_rom_e2e_base_vseq;
   // READS
   bit [7:0] tbs_certs[];
   bit [7:0] final_hash[];
+  bit [7:0] CRLF[];
 
   // Due to fully simulating both UART@115200baud and SPI Console traffic, this test is quite slow,
   // and we can spend quite a long time waiting for salient state changes. Hence the large timeout.
@@ -270,7 +271,7 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::body();
         // fully read out and this will cause continuing bus traffic which prevents the test from
         // ending.
         cfg.ottf_spi_console_h.host_spi_console_read_wait_for("PASS!");
-        cfg.ottf_spi_console_h.host_spi_console_read_wait_for("\r\n");
+        cfg.ottf_spi_console_h.host_spi_console_read_payload(CRLF, 16);
         override_test_status_and_finish(.passed(1'b1));
       end
       begin : detect_error_gpio

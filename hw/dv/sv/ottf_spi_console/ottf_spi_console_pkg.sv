@@ -328,11 +328,10 @@ package ottf_spi_console_pkg;
       header_frame_number = reverse_endianess({>>{header_q[4:7]}});
       header_data_bytes   = reverse_endianess({>>{header_q[8:11]}});
       `uvm_info(`gfn, $sformatf("Got header : 0x%0s", byte_q_as_hex(header_q)), UVM_HIGH)
-      `uvm_info(`gfn,
-                $sformatf("Magic Number : 0x%02x Frame Number : 0x%02x, Num_Data_Bytes : 0x%02x",
-                          header_magic_number, header_frame_number, header_data_bytes),
-                UVM_HIGH)
-      `DV_CHECK_EQ(header_magic_number, SPI_FRAME_MAGIC_NUMBER, "Bad spi_console Header MAGIC_NUM")
+      `uvm_info(`gfn, $sformatf(
+        "Magic Number : 0x%02x Frame Number : 0x%02x, Num_Data_Bytes : 0x%02x",
+        header_magic_number, header_frame_number, header_data_bytes), UVM_HIGH)
+      `DV_CHECK_EQ(header_magic_number, SPI_FRAME_MAGIC_NUMBER, "Bad spi_console Header MAGIC_NUM!")
       `DV_CHECK_LT(header_data_bytes, SPI_MAX_DATA_LENGTH, "Cannot handle this many data bytes!")
     end
 
@@ -380,7 +379,8 @@ package ottf_spi_console_pkg;
     do begin
       bit [7:0] data_q[$] = {};
       host_spi_console_read_frame(.chunk_q(data_q));
-      `uvm_info(`gfn, $sformatf("Got data_bytes : %0s", byte_q_as_str(data_q)), UVM_HIGH)
+      `uvm_info(`gfn, $sformatf("Read data_bytes from frame : %0s", byte_q_as_str(data_q)), UVM_MEDIUM)
+      `uvm_info(`gfn, $sformatf("Read data_bytes from frame : 0x%0s", byte_q_as_hex(data_q)), UVM_MEDIUM)
       // Append the bytes from this read transfer to the overall queue.
       chunk_q = {chunk_q, data_q};
     end while (!findStrRe(wait_for, byte_q_as_str(chunk_q)));
