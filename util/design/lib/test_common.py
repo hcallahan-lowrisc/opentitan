@@ -13,7 +13,6 @@ import common
 #
 # TODO
 #
-# - ecc_encode
 # - scatter_bits
 # - validate_data_perm_option
 # - inverse_permute_bits
@@ -298,6 +297,69 @@ TEST_SECDED_CFG = {
         [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], # Parity bit
     ]
 }
+
+
+class TestEccEncode:
+    """"""
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("dataword", "expected"),
+        [
+            # Basic Checks
+            ("0000000000000000", "0000000000000000000000"),
+            ("1111111111111111", "0111101111111111111111"),
+            # Sample of valid words
+            #                      ECC      dataword
+            #                     <----><-------------->
+            ("0110010010101110", "0010100110010010101110"),
+            ("0000011110110100", "1001010000011110110100"),
+            ("0011000111010010", "0001110011000111010010"),
+            ("0010111001001101", "0010100010111001001101"),
+            ("0100000111111000", "0110100100000111111000"),
+            ("1010110010000101", "1100011010110010000101"),
+            ("1001100110001100", "0101101001100110001100"),
+            ("0101001100001111", "1000100101001100001111"),
+            ("0111000101100000", "1110010111000101100000"),
+            ("0010110001100011", "1010100010110001100011"),
+        ]
+    )
+    def test_ecc_encode(
+        dataword: str,
+        expected: str,
+    ) -> None:
+        """"""
+        assert_that(common.ecc_encode(TEST_SECDED_CFG, dataword), equal_to(expected))
+
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("dataword", "exception", "match"),
+        [
+            # Incorrect Codeword Length as per TEST_SECDED_CFG
+            ("0", RuntimeError, f"Invalid codeword length .*"),
+            ("1", RuntimeError, f"Invalid codeword length .*"),
+            ("0000", RuntimeError, f"Invalid codeword length .*"),
+            ("1111", RuntimeError, f"Invalid codeword length .*"),
+            ("001011000110000", RuntimeError, f"Invalid codeword length .*"),
+            ("00101100011000110", RuntimeError, f"Invalid codeword length .*"),
+        ]
+    )
+    def test_ecc_encode_exceptions(
+        dataword: int,
+        exception: type[Exception],
+        match: str,
+    ) -> None:
+        """"""
+        assert_that(
+            calling(common.ecc_encode).with_args(
+                secded_cfg=TEST_SECDED_CFG,
+                dataword=dataword,
+            ),
+            raises(exception, match),
+        )
+
+
 TEST_SECDED_CODEWORDS = [
     # <-------------->        DATA
     #                 <---->  ECC
