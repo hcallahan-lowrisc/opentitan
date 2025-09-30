@@ -14,7 +14,6 @@ import common
 # TODO
 #
 # - validate_data_perm_option
-# - inverse_permute_bits
 # - _try_convert_hex_str
 # - random_or_hexvalue
 #
@@ -161,6 +160,7 @@ permutebits_checks = [
     ('0011', [1, 2, 3, 0], '1001'),
     ('0110', [0, 1, 2, 3], '0110'), # Identity
     ('001100', [0, 1, 2, 3, 4, 5], '001100'), # Identity
+    ('00110011', [0, 2, 1, 7, 3, 5, 6, 4], '10100101'),
     ('010100111111', range(12), '010100111111'),
     ('010100111111', list(range(12))[::-1] , '111111001010'), # Reverse-range
 ]
@@ -176,6 +176,27 @@ class TestPermuteBits:
             expected: str) -> None:
         assert_that(common.permute_bits(bit_str, permutation), equal_to(expected))
 
+inversepermutebits_checks = [
+    # Basic Checks
+    ('01', [1, 0], '10'),
+    ('0011', [1, 2, 3, 0], '0110'),
+    ('0110', [0, 1, 2, 3], '0110'), # Identity
+    ('001100', [0, 1, 2, 3, 4, 5], '001100'), # Identity
+    ('00110011', [0, 2, 1, 7, 3, 5, 6, 4], '00101101'),
+    ('010100111111', range(12), '010100111111'),
+    ('010100111111', list(range(12))[::-1] , '111111001010'), # Reverse-range
+]
+
+class TestInversePermuteBits:
+    """"""
+
+    @staticmethod
+    @pytest.mark.parametrize(("bit_str", "permutation", "expected"), inversepermutebits_checks)
+    def test_inverse_permute_bits(
+            bit_str: str,
+            permutation: list[int],
+            expected: str) -> None:
+        assert_that(common.inverse_permute_bits(bit_str, permutation), equal_to(expected))
 
 class TestCheckBool:
     """"""
