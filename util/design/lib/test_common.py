@@ -6,7 +6,22 @@ import pytest
 from pytest_mock import MockerFixture
 from hamcrest import assert_that, calling, equal_to, raises
 
+from typing import Union, Any
 import common
+
+################################################################################
+#
+# TODO
+#
+# - is_valid_codeword
+# - ecc_encode
+# - scatter_bits
+# - validate_data_perm_option
+# - inverse_permute_bits
+# - _try_convert_hex_str
+# - random_or_hexvalue
+#
+################################################################################
 
 # common.get_hd() test vectors
 basic_checks = [
@@ -147,7 +162,8 @@ permutebits_checks = [
     # Basic Checks
     ('01', [1, 0], '10'),
     ('0011', [1, 2, 3, 0], '1001'),
-    ('001100', [0, 1, 2, 3, 4, 5], '001100'),
+    ('0110', [0, 1, 2, 3], '0110'), # Identity
+    ('001100', [0, 1, 2, 3, 4, 5], '001100'), # Identity
     ('010100111111', range(12), '010100111111'),
     ('010100111111', list(range(12))[::-1] , '111111001010'), # Reverse-range
 ]
@@ -162,3 +178,110 @@ class TestPermuteBits:
             permutation: list[int],
             expected: str) -> None:
         assert_that(common.permute_bits(bit_str, permutation), equal_to(expected))
+
+
+class TestCheckBool:
+    """"""
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("x", "expected"),
+        [
+            (True, True),
+            (False, False),
+            ("true", True),
+            ("True", True),
+            ("False", False),
+        ]
+    )
+    def test_check_bool(
+            x: Union[bool, str],
+            expected: bool) -> None:
+        assert_that(common.check_bool(x), equal_to(expected))
+
+    def cb_rte_err(x: str) -> str:
+        return f"{x} is not a boolean value, and cannot be coerced."
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("x", "exception", "match"),
+        [
+            ("Puppuccino", RuntimeError, cb_rte_err("Puppuccino")),
+            ("0xbeefca5e", RuntimeError, cb_rte_err("0xbeefca5e")),
+            (1441, RuntimeError, cb_rte_err(1441)),
+            ([1], RuntimeError, ".* is not a boolean value, and cannot be coerced."),
+            ([1, 2, 3], RuntimeError, ".* is not a boolean value, and cannot be coerced."),
+        ]
+    )
+    def test_check_bool_exceptions(
+        x: Union[bool, str],
+        exception: type[Exception],
+        match: str,
+    ) -> None:
+        """"""
+        assert_that(
+            calling(common.check_bool).with_args(
+                x=x,
+            ),
+            raises(exception, match),
+        )
+
+
+class TestCheckInt:
+    """"""
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("x", "expected"),
+        [
+            (0, 0),
+            (1, 1),
+            (1024, 1024),
+            ("0", 0),
+            ("1", 1),
+            ("99", 99),
+            ("999", 999),
+        ]
+    )
+    def test_check_int(
+            x: Union[int, str],
+            expected: int) -> None:
+        assert_that(common.check_int(x), equal_to(expected))
+
+
+    def ci_rte_not_dec(x: str) -> str:
+        return f"{x} is a string but not a decimal number."
+
+    def ci_rte_couldnt_convert(x: str) -> str:
+        return f"Could not convert {x} to a decimal number using int()."
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("x", "exception", "match"),
+        [
+            # Not A Decimal Exception
+            ("a", RuntimeError, ci_rte_not_dec("a")),
+            ("pineapple", RuntimeError, ci_rte_not_dec("pineapple")),
+            ("11a2", RuntimeError, ci_rte_not_dec("11a2")),
+            ("32'habcdef12", RuntimeError, ci_rte_not_dec("32'habcdef12")),
+            # Could Not Convert Exception
+            ([1], RuntimeError, "Could not convert .* to a decimal number using int()."),
+            (["a"], RuntimeError, "Could not convert .* to a decimal number using int()."),
+            ({"a": 1}, RuntimeError, ci_rte_couldnt_convert({"a": 1})),
+            ({"a": 1}, RuntimeError, ci_rte_couldnt_convert({"a": 1})),
+        ]
+    )
+    def test_check_int_exceptions(
+        x: Union[int, str],
+        exception: type[Exception],
+        match: str,
+    ) -> None:
+        """"""
+        assert_that(
+            calling(common.check_int).with_args(
+                x=x,
+            ),
+            raises(exception, match),
+        )
+
+
