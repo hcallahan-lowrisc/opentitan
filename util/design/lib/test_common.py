@@ -13,7 +13,6 @@ import common
 #
 # TODO
 #
-# - is_valid_codeword
 # - ecc_encode
 # - scatter_bits
 # - validate_data_perm_option
@@ -285,3 +284,82 @@ class TestCheckInt:
         )
 
 
+# SECDED matrix used for ECC in OTP
+# (This is a standard extended Hamming code for 16bit)
+TEST_SECDED_CFG = {
+    "data_width" : 16,
+    "ecc_width"  : 6,
+    "ecc_matrix" : [
+        [0, 1, 3, 4, 6, 8, 10, 11, 13, 15], # ECC bit 0
+        [0, 2, 3, 5, 6, 9, 10, 12, 13],     # ECC bit 1
+        [1, 2, 3, 7, 8, 9, 10, 14, 15],     # ECC bit 2
+        [4, 5, 6, 7, 8, 9, 10],             # ECC bit 3
+        [11, 12, 13, 14, 15],               # ECC bit 4
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], # Parity bit
+    ]
+}
+TEST_SECDED_CODEWORDS = [
+    # <-------------->        DATA
+    #                 <---->  ECC
+    # Stuck-At
+    ("0000000000000000000000", True),
+    ("1111111111111111111111", False),
+    ("0000000000000000111111", False),
+    ("1111111111111111000000", False),
+    # Sample of random codewords
+    ("0101010101010101010101", False),
+    ("1010101010101010101010", False),
+    ("1111111111100000000000", False),
+    ("0000000000011111111111", False),
+    ("1111110000000001111111", False),
+    ("0000001111111110000000", False),
+    # Sample of generated codewords
+    ("0010100110010010101110", True),
+    ("1111100111010111101110", True),
+    ("1001010000011110110100", True),
+    ("1111010000111111111110", True),
+    ("0001110011000111010010", True),
+    ("0001110111101111111110", True),
+    ("0010100010111001001101", True),
+    ("1110100011111101101111", True),
+    ("0110100100000111111000", True),
+    ("0111100101111111111100", True),
+]
+
+class TestIsValidCodeword:
+    """"""
+
+    @staticmethod
+    @pytest.mark.parametrize(("codeword", "expected"), TEST_SECDED_CODEWORDS)
+    def test_is_valid_codeword(
+        codeword: int,
+        expected: bool,
+    ) -> None:
+        """"""
+        assert_that(common.is_valid_codeword(TEST_SECDED_CFG, codeword), equal_to(expected))
+
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("codeword", "exception", "match"),
+        [
+            # Incorrect Codeword Length
+            ("0000", RuntimeError, f"Invalid codeword length .*"),
+            ("1111", RuntimeError, f"Invalid codeword length .*"),
+            ("001010011001001010111", RuntimeError, f"Invalid codeword length .*"),
+            ("00101001100100101011101", RuntimeError, f"Invalid codeword length .*"),
+        ]
+    )
+    def test_is_valid_codeword_exceptions(
+        codeword: int,
+        exception: type[Exception],
+        match: str,
+    ) -> None:
+        """"""
+        assert_that(
+            calling(common.is_valid_codeword).with_args(
+                secded_cfg=TEST_SECDED_CFG,
+                codeword=codeword,
+            ),
+            raises(exception, match),
+        )
