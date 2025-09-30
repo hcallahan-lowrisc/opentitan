@@ -284,7 +284,13 @@ def ecc_encode(secded_cfg: dict, dataword: str) -> str:
 
 
 def scatter_bits(mask, bits) -> str:
-    """Scatter the bits into unset positions of mask."""
+    """Scatter the bits into unset positions of mask.
+
+    Starting from the LSB, iterate through mask and if mask[i] == 0 then pop the
+    LSB of bits and replace mask[i] with it.
+    """
+    assert mask.count("0") == len(bits), "Mismatching bits size for given mask."
+
     j = 0
     scatterword = ''
     for b in mask:

@@ -13,7 +13,6 @@ import common
 #
 # TODO
 #
-# - scatter_bits
 # - validate_data_perm_option
 # - inverse_permute_bits
 # - _try_convert_hex_str
@@ -422,6 +421,57 @@ class TestIsValidCodeword:
             calling(common.is_valid_codeword).with_args(
                 secded_cfg=TEST_SECDED_CFG,
                 codeword=codeword,
+            ),
+            raises(exception, match),
+        )
+
+
+class TestScatterBits:
+    """"""
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("mask", "bits", "expected"),
+        [
+            # Representative example mask + bits
+            ("0110010010101110", "00001101", "0110010111101111"),
+            ("0110010010101110", "00011110", "0110011111111110"),
+            ("0110010010101110", "00100111", "0110110011111111"),
+        ]
+    )
+    def test_scatter_bits(
+        mask: str,
+        bits: str,
+        expected: str,
+    ) -> None:
+        """"""
+        assert_that(common.scatter_bits(mask, bits), equal_to(expected))
+
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("mask", "bits", "exception", "match"),
+        [
+            # Too many bits for mask
+            ("01", "11", AssertionError, "Mismatching bits size for given mask."),
+            ("111111", "111", AssertionError, "Mismatching bits size for given mask."),
+            # Too few bits for mask
+            ("01", "", AssertionError, "Mismatching bits size for given mask."),
+            ("0001", "11", AssertionError, "Mismatching bits size for given mask."),
+            ("00011100", "1111", AssertionError, "Mismatching bits size for given mask."),
+        ]
+    )
+    def test_scatter_bits_exceptions(
+        mask: str,
+        bits: str,
+        exception: type[Exception],
+        match: str,
+    ) -> None:
+        """"""
+        assert_that(
+            calling(common.scatter_bits).with_args(
+                mask=mask,
+                bits=bits,
             ),
             raises(exception, match),
         )
