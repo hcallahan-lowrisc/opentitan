@@ -15,7 +15,7 @@ from typing import Union, Any
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
-from topgen import secure_prng as sp  # noqa : E402
+from topgen.secure_prng import getrandbits as sp_getrandbits
 
 import logging
 logger = logging.getLogger(__name__)
@@ -410,7 +410,7 @@ def random_or_hexvalue(dict_obj: dict, key: str, num_bits: int) -> bool:
 
     # If '<random>', draw a new random number of 'num_bits' size.
     elif val == '<random>':
-        dict_obj[key] = sp.getrandbits(num_bits)
+        dict_obj[key] = sp_getrandbits(num_bits)
         return True
 
     # Otherwise attempt to convert this value to an int.

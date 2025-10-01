@@ -11,14 +11,6 @@ import random
 
 import common
 
-################################################################################
-#
-# TODO
-#
-# - random_or_hexvalue
-#
-################################################################################
-
 # common.get_hd() test vectors
 basic_checks = [
     ('0000', '0000', 0),
@@ -624,3 +616,74 @@ class TestTryConvertHexStr:
             ),
             raises(exception, match),
         )
+
+
+def mock_sp_getrandbits(n_bits: int) -> int:
+    """Create a mock for topgen.secure_prng.getrandbits() that is repeatable for testing.
+
+    This mock just uses the builtin random library, but always fixes the PRNG seed.
+    """
+    import random
+    random.seed(0)
+    ret = random.getrandbits(n_bits)
+    return ret
+
+class TestRandomOrHexvalue:
+    """Convert hex value at "key" to an integer or draw a random number.
+
+    If the value is set to '<random>', generate a new randomized value
+    with width 'num_bits'.
+    This assumes the RNG ('sp') has been externally seeded.
+
+    Raises:
+        RuntimeError: if the existing value cannot be converted to an int.
+
+    Returns:
+        True if a new random number was drawn for the value at "key", otherwise False.
+    """
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("dict_obj", "key", "num_bits", "expected", "new_val"),
+        [
+            ({"a": "<random>"}, "a", 8, True, 216),
+            ({"b": "<random>"}, "b", 8, True, 216),
+            ({"a": "0x0000"}, "a", 8, False, 0),
+        ]
+    )
+    def test_random_or_hexvalue(
+        dict_obj: dict,
+        key: str,
+        num_bits: int,
+        expected: int, # return val
+        new_val: int, # value of dict_obj[key] after return
+        mocker: MockerFixture,
+    ) -> None:
+        """"""
+        mocker.patch("common.sp_getrandbits", side_effect = mock_sp_getrandbits)
+        assert_that(common.random_or_hexvalue(dict_obj, key, num_bits), equal_to(expected))
+        assert_that(dict_obj[key], equal_to(new_val))
+
+    # @staticmethod
+    # @pytest.mark.parametrize(
+    #     ("dict_obj", "key", "num_bits", "exception", "match"),
+    #     [
+    #         (),
+    #     ]
+    # )
+    # def test_random_or_hexvalue_exceptions(
+    #     dict_obj: dict,
+    #     key: str,
+    #     num_bits: int,
+    #     exception: type[Exception],
+    #     match: str,
+    # ) -> None:
+    #     """"""
+    #     assert_that(
+    #         calling(common.random_or_hexvalue).with_args(
+    #             dict_obj=dict_obj,
+    #             key=key,
+    #             num_bits=num_bits,
+    #         ),
+    #         raises(exception, match),
+    #     )
