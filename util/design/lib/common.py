@@ -379,7 +379,7 @@ def _try_convert_hex_str(inp: Union[list[str], str], num_bits: int) -> int:
         raise RuntimeError("Input 'inp' is of the incorrect type.")
 
     # Check that the returned integer can fit into 'num_bits'.
-    assert result < (2**num_bits)
+    assert result < (2**num_bits), "Result too large to be encoded by 'num_bits'."
 
     return result
 

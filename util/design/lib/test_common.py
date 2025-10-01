@@ -15,7 +15,6 @@ import common
 #
 # TODO
 #
-# - _try_convert_hex_str
 # - random_or_hexvalue
 #
 ################################################################################
@@ -569,6 +568,59 @@ class TestScatterBits:
             calling(common.scatter_bits).with_args(
                 mask=mask,
                 bits=bits,
+            ),
+            raises(exception, match),
+        )
+
+class TestTryConvertHexStr:
+    """"""
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("inp", "num_bits", "expected"),
+        [
+            ("1", 8, 1),
+            ("0x1", 8, 1),
+            ("a", 4, 10),
+            (["0x10", "0x20"], 64, 137438953488),
+            ("0x10101bb000000a5", 64, 72340971685150885),
+            (["a", "b", "c", "d", "e", "f"], 256, 21922524564727496910978377092138287116531573719050),
+        ]
+    )
+    def test__try_convert_hex_str(
+        inp: Union[list[str], str],
+        num_bits: int,
+        expected: int,
+    ) -> None:
+        """"""
+        assert_that(common._try_convert_hex_str(inp, num_bits), equal_to(expected))
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("inp", "num_bits", "exception", "match"),
+        [
+            # Too few bits for output
+            ("0x2", 1, AssertionError, "Result too large to be encoded by 'num_bits'."),
+            ("4", 2, AssertionError, "Result too large to be encoded by 'num_bits'."),
+            ("0x10", 4, AssertionError, "Result too large to be encoded by 'num_bits'."),
+            (["0x10", "0x20"], 8, AssertionError, "Result too large to be encoded by 'num_bits'."),
+            (["1000000a", "1000000b", "1000000c", "1000000d"], 124, AssertionError, "Result too large to be encoded by 'num_bits'."),
+            # Incorrect input format
+            ("a", "b", TypeError, "unsupported operand type.*"),
+            ({"a", 7}, 8, RuntimeError, "Input 'inp' is of the incorrect type."),
+        ]
+    )
+    def test__try_convert_hex_str_exceptions(
+        inp: Union[list[str], str],
+        num_bits: int,
+        exception: type[Exception],
+        match: str,
+    ) -> None:
+        """"""
+        assert_that(
+            calling(common._try_convert_hex_str).with_args(
+                inp=inp,
+                num_bits=num_bits,
             ),
             raises(exception, match),
         )
