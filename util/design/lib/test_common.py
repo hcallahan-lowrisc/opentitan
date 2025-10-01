@@ -7,13 +7,14 @@ from pytest_mock import MockerFixture
 from hamcrest import assert_that, calling, equal_to, raises
 
 from typing import Union, Any
+import random
+
 import common
 
 ################################################################################
 #
 # TODO
 #
-# - validate_data_perm_option
 # - _try_convert_hex_str
 # - random_or_hexvalue
 #
@@ -153,6 +154,55 @@ class TestGetRandomPermHexLiteral:
             mocker: MockerFixture) -> None:
         mocker.patch("common.shuffle", side_effect = mock_shuffle)
         assert_that(common.get_random_perm_hex_literal(numel), equal_to(expected))
+
+def _shuffle(l: list) -> list:
+    return random.sample(l, len(l))
+
+class TestValidateDataPermOption:
+    """"""
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("word_bit_length", "data_perm"),
+        [
+            (2, [1, 0]),
+            (8, _shuffle([5, 6, 7, 4, 3, 2, 1, 0])),
+            (100, _shuffle(range(100)))
+        ]
+    )
+    def test_validate_data_perm_option(
+            word_bit_length: str,
+            data_perm: list[int]) -> None:
+        common.validate_data_perm_option(word_bit_length, data_perm)
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        ("word_bit_length", "data_perm", "exception", "match"),
+        [
+            # Mismatching Lengths
+            (3, [1, 0], RuntimeError, ".* does not have the same length .* as the data."),
+            (4, [1, 0, 2], RuntimeError,  ".* does not have the same length .* as the data."),
+            (100, range(101), RuntimeError,  ".* does not have the same length .* as the data."),
+            # Permutation index out of bounds
+            (2, [2, 0], RuntimeError, ".* since the index .* is out of bounds."),
+            (6, [5, 4, 3, 2, 1, 10], RuntimeError, ".* since the index .* is out of bounds."),
+            # Permutation duplicate indicies
+            (2, [1, 1], RuntimeError, ".* since it contains duplicated indices."),
+            (5, [0, 0, 1, 2, 3], RuntimeError, ".* since it contains duplicated indices."),
+        ]
+    )
+    def test_validate_data_perm_option_exception(
+            word_bit_length: str,
+            data_perm: list[int],
+            exception: type[Exception],
+            match: str) -> None:
+        assert_that(
+            calling(common.validate_data_perm_option).with_args(
+                word_bit_length=word_bit_length,
+                data_perm=data_perm,
+            ),
+            raises(exception, match),
+        )
 
 permutebits_checks = [
     # Basic Checks
