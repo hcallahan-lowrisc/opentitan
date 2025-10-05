@@ -4,6 +4,7 @@
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("@stardoc//stardoc:stardoc.bzl", "stardoc")
 load(
     "//hw/top:defs.bzl",
     "ALL_IP_NAMES",
@@ -212,6 +213,25 @@ cc_library(
         for ip in ALL_IP_NAMES
     ]),
 )
+
+stardoc(
+    name = "defs-doc",
+    out = "defs.md",
+    input = "defs.bzl",
+    deps = [
+        ":defs",
+    ],
+)
+
+stardoc(
+    name = "extensions-doc",
+    out = "extensions.md",
+    input = "extensions.bzl",
+    deps = [
+        ":extensions",
+    ],
+)
+
 ###########################
 # AUTOGEN GAZELLE TARGETS #
 ###########################

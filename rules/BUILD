@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@stardoc//stardoc:stardoc.bzl", "stardoc")
 load("//rules:autogen.bzl", "autogen_stamp_include")
 load("//rules:stamp.bzl", "stamp_flag")
 load("//rules/opentitan:defs.bzl", "OPENTITAN_PLATFORM")
@@ -33,6 +34,222 @@ stamp_flag(name = "stamp_flag")
 # file should be included in srcs instead of deps.
 autogen_stamp_include(
     name = "autogen_stamp_include",
+)
+
+stardoc(
+    name = "autogen-doc",
+    out = "autogen_doc.md",
+    input = "autogen.bzl",
+    deps = [
+        ":autogen",
+    ],
+)
+
+stardoc(
+    name = "bitstreams-doc",
+    out = "bitstreams.md",
+    input = "bitstreams.bzl",
+    deps = [
+        ":bitstreams",
+    ],
+)
+
+stardoc(
+    name = "certificates-doc",
+    out = "certificates.md",
+    input = "certificates.bzl",
+    deps = [
+        ":certificates",
+    ],
+)
+
+stardoc(
+    name = "const-doc",
+    out = "const.md",
+    input = "const.bzl",
+    deps = [
+        ":const",
+    ],
+)
+
+stardoc(
+    name = "cross_platform-doc",
+    out = "cross_platform.md",
+    input = "cross_platform.bzl",
+    deps = [
+        ":cross_platform",
+    ],
+)
+
+stardoc(
+    name = "doxygen-doc",
+    out = "doxygen.md",
+    input = "doxygen.bzl",
+    deps = [
+        ":doxygen",
+    ],
+)
+
+stardoc(
+    name = "extensions-doc",
+    out = "extensions.md",
+    input = "extensions.bzl",
+    deps = [
+        ":extensions",
+    ],
+)
+
+stardoc(
+    name = "files-doc",
+    out = "files.md",
+    input = "files.bzl",
+    deps = [
+        ":files",
+    ],
+)
+
+stardoc(
+    name = "fusesoc-doc",
+    out = "fusesoc.md",
+    input = "fusesoc.bzl",
+    deps = [
+        ":fusesoc",
+    ],
+)
+
+stardoc(
+    name = "host-doc",
+    out = "host.md",
+    input = "host.bzl",
+    deps = [
+        ":host",
+    ],
+)
+
+stardoc(
+    name = "lc-doc",
+    out = "lc.md",
+    input = "lc.bzl",
+    deps = [
+        ":lc",
+    ],
+)
+
+stardoc(
+    name = "linker-doc",
+    out = "linker.md",
+    input = "linker.bzl",
+    deps = [
+        ":linker",
+    ],
+)
+
+stardoc(
+    name = "manifest-doc",
+    out = "manifest.md",
+    input = "manifest.bzl",
+    deps = [
+        ":manifest",
+    ],
+)
+
+stardoc(
+    name = "nonhermetic-doc",
+    out = "nonhermetic.md",
+    input = "nonhermetic.bzl",
+    deps = [
+        ":nonhermetic",
+    ],
+)
+
+stardoc(
+    name = "otbn-doc",
+    out = "otbn.md",
+    input = "otbn.bzl",
+    deps = [
+        ":otbn",
+    ],
+)
+
+stardoc(
+    name = "quality-doc",
+    out = "quality.md",
+    input = "quality.bzl",
+    deps = [
+        ":quality",
+    ],
+)
+
+stardoc(
+    name = "repo-doc",
+    out = "repo.md",
+    input = "repo.bzl",
+    deps = [
+        ":repo",
+    ],
+)
+
+stardoc(
+    name = "rom_e2e-doc",
+    out = "rom_e2e.md",
+    input = "rom_e2e.bzl",
+    deps = [
+        ":rom_e2e",
+    ],
+)
+
+stardoc(
+    name = "rust-doc",
+    out = "rust.md",
+    input = "rust.bzl",
+    deps = [
+        ":rust",
+    ],
+)
+
+stardoc(
+    name = "rv-doc",
+    out = "rv.md",
+    input = "rv.bzl",
+    deps = [
+        ":rv",
+    ],
+)
+
+stardoc(
+    name = "signing-doc",
+    out = "signing.md",
+    input = "signing.bzl",
+    deps = [
+        ":signing",
+    ],
+)
+
+stardoc(
+    name = "stamp-doc",
+    out = "stamp.md",
+    input = "stamp.bzl",
+    deps = [
+        ":stamp",
+    ],
+)
+
+stardoc(
+    name = "tock-doc",
+    out = "tock.md",
+    input = "tock.bzl",
+    deps = [
+        ":tock",
+    ],
+)
+
+stardoc(
+    name = "ujson-doc",
+    out = "ujson.md",
+    input = "ujson.bzl",
+    deps = [
+        ":ujson",
+    ],
 )
 
 ###########################

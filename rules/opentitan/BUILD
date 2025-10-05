@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@stardoc//stardoc:stardoc.bzl", "stardoc")
 load("//rules/opentitan:toolchain.bzl", "LOCALTOOLS_TOOLCHAIN", "localtools_toolchain")
 
 package(default_visibility = ["//visibility:public"])
@@ -24,6 +25,177 @@ toolchain(
 filegroup(
     name = "doc_files",
     srcs = glob(["**/*.md"]),
+)
+
+stardoc(
+    name = "cc-doc",
+    out = "cc.md",
+    input = "cc.bzl",
+    deps = [
+        ":cc",
+    ],
+)
+
+stardoc(
+    name = "ci-doc",
+    out = "ci.md",
+    input = "ci.bzl",
+    deps = [
+        ":ci",
+    ],
+)
+
+stardoc(
+    name = "defs-doc",
+    out = "defs.md",
+    input = "defs.bzl",
+    deps = [
+        ":defs",
+    ],
+)
+
+stardoc(
+    name = "exec_env-doc",
+    out = "exec_env.md",
+    input = "exec_env.bzl",
+    deps = [
+        ":exec_env",
+    ],
+)
+
+stardoc(
+    name = "fpga-doc",
+    out = "fpga.md",
+    input = "fpga.bzl",
+    deps = [
+        ":fpga",
+    ],
+)
+
+stardoc(
+    name = "hw-doc",
+    out = "hw.md",
+    input = "hw.bzl",
+    deps = [
+        ":hw",
+    ],
+)
+
+stardoc(
+    name = "keyutils-doc",
+    out = "keyutils.md",
+    input = "keyutils.bzl",
+    deps = [
+        ":keyutils",
+    ],
+)
+
+stardoc(
+    name = "legacy-doc",
+    out = "legacy.md",
+    input = "legacy.bzl",
+    deps = [
+        ":legacy",
+    ],
+)
+
+stardoc(
+    name = "manual-doc",
+    out = "manual.md",
+    input = "manual.bzl",
+    deps = [
+        ":manual",
+    ],
+)
+
+stardoc(
+    name = "providers-doc",
+    out = "providers.md",
+    input = "providers.bzl",
+    deps = [
+        ":providers",
+    ],
+)
+
+stardoc(
+    name = "qemu-doc",
+    out = "qemu.md",
+    input = "qemu.bzl",
+    deps = [
+        ":qemu",
+    ],
+)
+
+stardoc(
+    name = "silicon-doc",
+    out = "silicon.md",
+    input = "silicon.bzl",
+    deps = [
+        ":silicon",
+    ],
+)
+
+stardoc(
+    name = "sim_dv-doc",
+    out = "sim_dv.md",
+    input = "sim_dv.bzl",
+    deps = [
+        ":sim_dv",
+    ],
+)
+
+stardoc(
+    name = "sim_verilator-doc",
+    out = "sim_verilator.md",
+    input = "sim_verilator.bzl",
+    deps = [
+        ":sim_verilator",
+    ],
+)
+
+stardoc(
+    name = "splice-doc",
+    out = "splice.md",
+    input = "splice.bzl",
+    deps = [
+        ":splice",
+    ],
+)
+
+stardoc(
+    name = "static_library-doc",
+    out = "static_library.md",
+    input = "static_library.bzl",
+    deps = [
+        ":static_library",
+    ],
+)
+
+stardoc(
+    name = "toolchain-doc",
+    out = "toolchain.md",
+    input = "toolchain.bzl",
+    deps = [
+        ":toolchain",
+    ],
+)
+
+stardoc(
+    name = "transform-doc",
+    out = "transform.md",
+    input = "transform.bzl",
+    deps = [
+        ":transform",
+    ],
+)
+
+stardoc(
+    name = "util-doc",
+    out = "util.md",
+    input = "util.bzl",
+    deps = [
+        ":util",
+    ],
 )
 
 ###########################
