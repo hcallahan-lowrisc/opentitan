@@ -3,20 +3,34 @@
 # SPDX-License-Identifier: Apache-2.0
 
 def _top_desc_repo_impl(rctx):
+    nr_tops = len(rctx.attr.top_vars)
+
+    # defs.bzl
     defs = """
 load("@lowrisc_opentitan//rules/opentitan:hw.bzl", "opentitan_modify_top")
 """
-    nr_tops = len(rctx.attr.top_vars)
     for i in range(nr_tops):
         defs += "load(\"{}\", TOP{} = \"{}\")\n".format(str(rctx.attr.bazel_files[i]), i, rctx.attr.top_vars[i])
-
     defs += "\nALL_TOPS = [\n"
     for i in range(nr_tops):
         defs += "  opentitan_modify_top(TOP{}, name = \"{}\"),\n".format(i, rctx.attr.top_names[i])
     defs += "]\n"
-
     rctx.file("defs.bzl", defs)
-    rctx.file("BUILD.bazel", "exports_files(glob([\"**\"]))\n")
+
+    # BUILD.bazel
+    build = """
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+"""
+    build += "exports_files(glob([\"**\"]))\n"
+    build += """
+bzl_library(
+    name = "defs",
+    srcs = ["defs.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [{}],
+)
+""".format(" ,".join(["\"{}\"".format(str(f).removesuffix(".bzl")) for f in rctx.attr.bazel_files]))
+    rctx.file("BUILD.bazel", build)
 
 top_desc_repo = repository_rule(
     implementation = _top_desc_repo_impl,
