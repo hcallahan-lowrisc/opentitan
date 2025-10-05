@@ -17,11 +17,7 @@ from mdbook import utils as md_utils
 import dvsim.Testplan as Testplan
 
 
-def main() -> None:
-    md_utils.supports_html_only()
-
-    # load both the context and the book from stdin
-    context, book = json.load(sys.stdin)
+def gen_testplan_md(context: dict, book: dict) -> None:
     book_root = Path(context["root"])
 
     try:
@@ -34,26 +30,26 @@ def main() -> None:
         )
 
     testplan_files = set()
-    for chapter in md_utils.chapters(book["sections"]):
-        src_path = chapter["source_path"]
-        if not src_path or not testplan_pattern.search(src_path):
+    for chapter in md_utils.chapters(book):
+        src_path = Path(chapter["source_path"])
+        if not testplan_pattern.search(str(src_path)):
             continue
+
         # Testplan prints to stdout, redirect that to stderr for error messages
         from contextlib import redirect_stdout
         with redirect_stdout(sys.stderr):
             plan = Testplan.Testplan(
-                book_root / chapter["source_path"],
+                book_root / src_path,
                 repo_top = book_root)
             buffer = io.StringIO()
             plan.write_testplan_doc(buffer)
             chapter["content"] = buffer.getvalue()
 
-        testplan_files.add(Path(chapter["source_path"]))
+        testplan_files.add(src_path)
 
-    for chapter in md_utils.chapters(book["sections"]):
-        if not chapter["source_path"]:
-            continue
-        src_dir = Path(chapter["source_path"]).parent
+    for chapter in md_utils.chapters(book):
+        src_path = Path(chapter["source_path"])
+        src_dir = src_path.parent
 
         chapter["content"] = md_utils.change_link_ext(
             testplan_files,
@@ -63,9 +59,10 @@ def main() -> None:
             src_dir,
         )
 
-    # dump the book into stdout
-    print(json.dumps(book))
-
 
 if __name__ == "__main__":
-    main()
+    # First preprocessor invocation - check if renderer is supported
+    md_utils.supports_html_only(sys.argv)
+    # Second preprocessor invocation - book json passed via stdin, updated content output to stdout
+    with md_utils.Mdbook_Context(sys.stdin) as (context, book):
+        gen_testplan_md(context, book)

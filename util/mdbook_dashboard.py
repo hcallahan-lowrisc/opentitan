@@ -86,25 +86,6 @@ DASHBOARD_TEMPLATE = """
 """
 
 
-def main() -> None:
-    md_utils.supports_html_only()
-
-    # Generate the dashboards
-    # gen_dashboards()
-
-    # load both the context and the book from stdin
-    _context, book = json.load(sys.stdin)
-
-    for chapter in md_utils.chapters(book["sections"]):
-        # Add in the generated dashboard html
-        chapter['content'] = DASHBOARD_PATTERN.sub(
-            replace_with_dashboard,
-            chapter['content'])
-
-    # dump the book into stdout
-    print(json.dumps(book))
-
-
 def replace_with_dashboard(m: re.Match) -> str:
     name = m.group(1)
 
@@ -121,5 +102,17 @@ def replace_with_dashboard(m: re.Match) -> str:
     return DASHBOARD_TEMPLATE.format(buffer.getvalue())
 
 
+def gen_dashboard_md(context: dict, book: dict) -> None:
+    # Add in the generated dashboard html to each chapter if required
+    for chapter in md_utils.chapters(book):
+        chapter['content'] = DASHBOARD_PATTERN.sub(
+            replace_with_dashboard,
+            chapter['content'])
+
+
 if __name__ == "__main__":
-    main()
+    # First preprocessor invocation - check if renderer is supported
+    md_utils.supports_html_only(sys.argv)
+    # Second preprocessor invocation - book json passed via stdin, updated content output to stdout
+    with md_utils.Mdbook_Context(sys.stdin) as (context, book):
+        gen_dashboard_md(context, book)

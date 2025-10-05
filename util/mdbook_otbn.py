@@ -31,18 +31,11 @@ OTBN_CFG = REPO_TOP / 'hw/ip/otbn/data/insns.yml'
 OTBN_IMPL = REPO_TOP / 'hw/ip/otbn/dv/otbnsim/sim/insn.py'
 
 
-def main() -> None:
-    md_utils.supports_html_only()
-
+def gen_otbn_md(context: dict, book: dict) -> None:
     (base_content, bignum_content) = get_listings()
 
-    # load both the context and the book from stdin
-    _context, book = json.load(sys.stdin)
-
     isa_book_path = None
-    for chapter in md_utils.chapters(book["sections"]):
-        if chapter["source_path"] is None:
-            continue
+    for chapter in md_utils.chapters(book):
 
         if OTBN_ISA_BASE_PATTERN.search(chapter["content"]) \
                 and OTBN_ISA_BIGNUM_PATTERN.search(chapter["content"]):
@@ -61,15 +54,12 @@ def main() -> None:
         ref = instr.replace(".", "").lower()
         return '<a href="/{}#{}"><code>{}</code></a>)'.format(isa_book_path, ref, instr)
 
-    for chapter in md_utils.chapters(book["sections"]):
+    for chapter in md_utils.chapters(book):
         chapter["content"] = \
             OTBN_INSNREF_PATTERN.sub(
                 ref_to_link,
                 chapter["content"],
         )
-
-    # dump the book into stdout
-    print(json.dumps(book))
 
 
 def get_listings() -> (str, str):
@@ -90,4 +80,8 @@ def get_listings() -> (str, str):
 
 
 if __name__ == "__main__":
-    main()
+    # First preprocessor invocation - check if renderer is supported
+    md_utils.supports_html_only(sys.argv)
+    # Second preprocessor invocation - book json passed via stdin, updated content output to stdout
+    with md_utils.Mdbook_Context(sys.stdin) as (context, book):
+        gen_otbn_md(context, book)

@@ -34,23 +34,15 @@ RM2IDX_PATTERN_NOT_INLINE = re.compile(
 )
 
 
-def main() -> None:
-    if len(sys.argv) > 2:
-        if (sys.argv[1], sys.argv[2]) == ("supports", "html"):
-            sys.exit(0)
-        else:
-            sys.exit(1)
-
-    # load both the context and the book from stdin
-    _context, book = json.load(sys.stdin)
-
-    for chapter in md_utils.chapters(book["sections"]):
+def gen_readme2index_md(context: dict, book: dict) -> None:
+    for chapter in md_utils.chapters(book):
         chapter["content"] = RM2IDX_PATTERN_INLINE.sub(r"\1index\2", chapter["content"])
         chapter["content"] = RM2IDX_PATTERN_NOT_INLINE.sub(r"\1index\2", chapter["content"])
 
-    # dump the book into stdout
-    print(json.dumps(book))
-
 
 if __name__ == "__main__":
-    main()
+    # First preprocessor invocation - check if renderer is supported
+    md_utils.supports_html_only(sys.argv)
+    # Second preprocessor invocation - book json passed via stdin, updated content output to stdout
+    with md_utils.Mdbook_Context(sys.stdin) as (context, book):
+        gen_readme2index_md(context, book)

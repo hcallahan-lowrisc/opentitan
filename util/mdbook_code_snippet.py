@@ -125,19 +125,18 @@ def get_header_snippet(m: re.Match) -> str:
     return ''.join(lines_prefix + lines + lines_suffix)
 
 
-if __name__ == "__main__":
-    md_utils.supports_html_only()
-
-    # Load both the context and the book from stdin.
-    context, book = json.load(sys.stdin)
-
+def gen_codesnippet_md(context: dict, book: dict) -> None:
     # Insert the requested header snippets.
-    for chapter in md_utils.chapters(book["sections"]):
+    for chapter in md_utils.chapters(book):
         chapter["content"] = \
             HEADER_SNIPPET.sub(
                 get_header_snippet,
                 chapter["content"],
-        )
+            )
 
-    # Dump the book into stdout.
-    print(json.dumps(book))
+if __name__ == "__main__":
+    # First preprocessor invocation - check if renderer is supported
+    md_utils.supports_html_only(sys.argv)
+    # Second preprocessor invocation - book json passed via stdin, updated content output to stdout
+    with md_utils.Mdbook_Context(sys.stdin) as (context, book):
+        gen_codesnippet_md(context, book)
