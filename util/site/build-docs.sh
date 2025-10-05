@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 set -e
+set -x
 
 # Get the project directory from the location of this script
 this_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
@@ -90,7 +91,7 @@ book_env+=" MDBOOK_PREPROCESSOR__TESTPLAN__COMMAND=${proj_root}/util/mdbook_test
 book_env+=" MDBOOK_PREPROCESSOR__TOOLVERSION__COMMAND=${proj_root}/util/mdbook_toolversion.py"
 book_env+=" MDBOOK_PREPROCESSOR__OTBN__COMMAND=${proj_root}/util/mdbook_otbn.py"
 book_env+=" MDBOOK_PREPROCESSOR__CODE_SNIPPET__COMMAND=${proj_root}/util/mdbook_code_snippet.py"
-book_env+=" MDBOOK_PREPROCESSOR__DOXYGEN__COMMAND=${proj_root}/util/mdbook_doxygen.py"
+# book_env+=" MDBOOK_PREPROCESSOR__DOXYGEN__COMMAND=${proj_root}/util/mdbook_doxygen.py"
 book_env+=" MDBOOK_PREPROCESSOR__REGGEN__COMMAND=${proj_root}/util/mdbook_reggen.py"
 book_env+=" MDBOOK_PREPROCESSOR__README2INDEX__COMMAND=${proj_root}/util/mdbook_readme2index.py"
 book_env+=" MDBOOK_PREPROCESSOR__DASHBOARD__COMMAND=${proj_root}/util/mdbook_dashboard.py"
@@ -111,15 +112,15 @@ buildSite () {
     mkdir -p "${build_dir}"
     mkdir -p "${build_dir}/gen/doxy"
 
-    echo "Building doxygen..."
-    # shellcheck disable=SC2086
-    ./bazelisk.sh build --verbose_failures //doc:doxygen
-    while read -r line; do
-      cp -rf "$line" "${build_dir}/gen/"
-    done < <(./bazelisk.sh cquery --output=files //doc:doxygen)
-    # The files from bazel-out aren't writable. This ensures those that were copied are.
-    chmod +w -R "${build_dir}/gen/"
-    echo "Doxygen build complete."
+    # echo "Building doxygen..."
+    # # shellcheck disable=SC2086
+    # ./bazelisk.sh build --verbose_failures //doc:doxygen
+    # while read -r line; do
+    #   cp -rf "$line" "${build_dir}/gen/"
+    # done < <(./bazelisk.sh cquery --output=files //doc:doxygen)
+    # # The files from bazel-out aren't writable. This ensures those that were copied are.
+    # chmod +w -R "${build_dir}/gen/"
+    # echo "Doxygen build complete."
 
     # shellcheck disable=SC2086
     ${book_env} ./bazelisk.sh run --experimental_convenience_symlinks=ignore @mdbook_index//:mdbook__mdbook -- ${book_args}
@@ -127,28 +128,28 @@ buildSite () {
     local font="Recursive_wght,CASL@300__800,0_5.woff2"
     cp "${proj_root}/site/book-theme/${font}" "${book_out}/site/book-theme/${font}"
 
-    # Build Rust Documentation
-    local rustdoc_dir="${build_dir}/gen/rustdoc/"
-    mkdir -p "${rustdoc_dir}"
-    local bazel_out target_rustdoc target_rustdoc_output_path
-    bazel_out="$(./bazelisk.sh info output_path 2>/dev/null)"
-    for target_rustdoc in "sw/host/opentitanlib:opentitanlib_doc" "sw/host/hsmtool:hsmlib_doc" "sw/host/ot_certs:ot_certs_doc"
-    do
-      target_rustdoc_output_path="${bazel_out}/k8-fastbuild/bin/$(echo ${target_rustdoc} | tr ':' '/').rustdoc" #TODO : get the target's path using cquery
-      ./bazelisk.sh build --experimental_convenience_symlinks=ignore "${target_rustdoc}"
-      cp -rf "${target_rustdoc_output_path}"/* "${rustdoc_dir}"
-      chown -R "$USER": "${rustdoc_dir}"
-      chmod -R +w "${rustdoc_dir}"
-    done
-    # The files from bazel-out aren't writable. This ensures those that were copied are.
-    chmod +w -R "${rustdoc_dir}"
+    # # Build Rust Documentation
+    # local rustdoc_dir="${build_dir}/gen/rustdoc/"
+    # mkdir -p "${rustdoc_dir}"
+    # local bazel_out target_rustdoc target_rustdoc_output_path
+    # bazel_out="$(./bazelisk.sh info output_path 2>/dev/null)"
+    # for target_rustdoc in "sw/host/opentitanlib:opentitanlib_doc" "sw/host/hsmtool:hsmlib_doc" "sw/host/ot_certs:ot_certs_doc"
+    # do
+    #   target_rustdoc_output_path="${bazel_out}/k8-fastbuild/bin/$(echo ${target_rustdoc} | tr ':' '/').rustdoc" #TODO : get the target's path using cquery
+    #   ./bazelisk.sh build --experimental_convenience_symlinks=ignore "${target_rustdoc}"
+    #   cp -rf "${target_rustdoc_output_path}"/* "${rustdoc_dir}"
+    #   chown -R "$USER": "${rustdoc_dir}"
+    #   chmod -R +w "${rustdoc_dir}"
+    # done
+    # # The files from bazel-out aren't writable. This ensures those that were copied are.
+    # chmod +w -R "${rustdoc_dir}"
 
-    # Block diagram stats
-    mkdir -p "${build_dir}/reports"
-    python3 "${proj_root}/util/site/fetch_block_stats.py" "${build_dir}/reports/earlgrey-stats.json"
+    # # Block diagram stats
+    # mkdir -p "${build_dir}/reports"
+    # python3 "${proj_root}/util/site/fetch_block_stats.py" "${build_dir}/reports/earlgrey-stats.json"
 
-    rm -rf "${build_dir}/gen/api-xml" # Remove the intermediate XML that doxygen uses to generate HTML.
-    # -------
+    # rm -rf "${build_dir}/gen/api-xml" # Remove the intermediate XML that doxygen uses to generate HTML.
+    # # -------
 }
 buildSite
 
