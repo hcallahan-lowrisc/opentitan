@@ -86,8 +86,8 @@ opentitan_ip_c_header_rule = rule(
 )
 
 def opentitan_ip_c_header(name, ip, target_compatible_with = [], **kwargs):
-    """
-    Macro around `opentitan_ip_c_header_rule` that automatically sets `hjson` for the current top.
+    """Macro around `opentitan_ip_c_header_rule` that automatically sets `hjson` for the current top.
+
     The target will also be marked as compatible only with tops containing this IP.
     """
     opentitan_ip_c_header_rule(
@@ -141,8 +141,8 @@ opentitan_ip_rust_header_rule = rule(
 )
 
 def opentitan_ip_rust_header(name, ip, target_compatible_with = [], **kwargs):
-    """
-    Macro around `opentitan_ip_rust_header_rule` that automatically sets `hjson` for the current top.
+    """Macro around `opentitan_ip_rust_header_rule` that automatically sets `hjson` for the current top.
+
     The target will also be marked as compatible only with tops containing this IP.
     """
     opentitan_ip_rust_header_rule(
@@ -207,9 +207,9 @@ opentitan_autogen_dif_gen = rule(
 )
 
 def opentitan_autogen_dif(name, ip, deps = [], target_compatible_with = []):
-    """
-    Macro around `opentitan_autogen_dif_gen` that automatically sets `hjson` for the current top
-    and `output_groups` to the default ones.
+    """Macro around `opentitan_autogen_dif_gen` that automatically sets `hjson` and `output_groups`.
+
+    `hjson` is set for the current top, and `output_groups` is set to the default ones.
     The target will also be marked as compatible only with tops containing this IP.
 
     This macro also creates some filegroups to extract the sources, headers and unittests, as
@@ -349,8 +349,8 @@ def opentitan_top_dt_gen(name, gen_ips = [], gen_top = False, output_groups = {}
     )
 
 def opentitan_ip_dt(name, ip, target_compatible_with = []):
-    """
-    Generate the C header/source for an IP block as used in the current top.
+    """Generate the C header/source for an IP block as used in the current top.
+
     The target will also be marked as compatible only with tops containing this IP.
     Specifically, three targets will be created:
     - <name>_gen: rule generating all files
@@ -378,8 +378,8 @@ def opentitan_ip_dt(name, ip, target_compatible_with = []):
         )
 
 def opentitan_top_dt_api(name, deps = None):
-    """
-    Create a library that exports the "dt_api.h" header.
+    """Create a library that exports the "dt_api.h" header.
+
     The target will also be marked as compatible only with tops containing this IP.
     Additionally, a `cc_library` will be created from this header with additional
     dependencies on `deps`.
@@ -475,10 +475,10 @@ opentitan_autogen_testutils_gen = rule(
 )
 
 def opentitan_autogen_isr_testutils(name, ips = [], deps = [], target_compatible_with = []):
-    """
-    Macro around `opentitan_autogen_testutils_gen` that automatically sets `top_hjson` for the current top,
-    `ips_hjson` to the list of all IPs listed in `ips` for the top and `output_groups` to the expected value for the
-    `irs_testutils`.
+    """Macro around `opentitan_autogen_testutils_gen` that sets `top_hjson`, `ips_hjson` and `output_groups`.
+
+    `top_hjson` is set for the current top, `ips_hjson` to the list of all IPs listed in `ips` for the top
+    and `output_groups` to the expected value for the `irs_testutils`.
 
     This macro also creates some filegroups to extract the sources, headers and unittests, as
     well as a `cc_library` for the testutil code which will depend on `deps`.
@@ -577,8 +577,7 @@ def autogen_chip_info(name):
     )
 
 def _cryptotest_hjson_external(ctx):
-    """
-    Implementation of the Bazel rule for parsing externally-sourced test vectors.
+    """Implementation of the Bazel rule for parsing externally-sourced test vectors.
 
     Crypto test vectors are represented in a standard HJSON format; for
     externally-sourced vectors, we need to parse the original data into the
@@ -623,8 +622,7 @@ autogen_cryptotest_hjson_external = rule(
 )
 
 def _cryptotest_header(ctx):
-    """
-    Implementation of the Bazel rule for generating crypto test vector headers.
+    """Implementation of the Bazel rule for generating crypto test vector headers.
 
     Crypto tests are all represented in a standard HJSON format. This rule runs
     an algorithm-specific script (the `test_setter` attribute) that reads an
@@ -685,8 +683,7 @@ autogen_cryptotest_header = rule(
 )
 
 def _autogen_stamp_include(ctx):
-    """
-    Bazel rule for generating C header containing all stamping variables.
+    """Bazel rule for generating C header containing all stamping variables.
 
     This rule is instantiated as //rules:autogen_stamp_include.
     Please see the entry in rules/BUILD for explanation.

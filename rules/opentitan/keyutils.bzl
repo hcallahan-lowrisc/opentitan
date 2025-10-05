@@ -11,6 +11,7 @@ def _build_key_info_handler(id):
 
     Args:
         id: Identifier used by the consumers of the provider to determine the key algorithm.
+
     Returns:
         A handler that creates a KeyInfo provider.
     """
@@ -91,8 +92,9 @@ key_ecdsa = rule(
 )
 
 def ecdsa_key_for_lc_state(key_structs, hw_lc_state):
-    """Return a dictionary containing a single key that can be used in the given
-    LC state. The format of the dictionary is compatible with opentitan_test.
+    """Return a dictionary containing a single key that can be used in the given LC state.
+
+    The format of the dictionary is compatible with opentitan_test.
     """
     keys = [k for k in key_structs if (k.ecdsa != None and key_allowed_in_lc_state(k.ecdsa, hw_lc_state))]
     if len(keys) == 0:
@@ -102,8 +104,9 @@ def ecdsa_key_for_lc_state(key_structs, hw_lc_state):
     }
 
 def rsa_key_for_lc_state(key_structs, hw_lc_state):
-    """Return a dictionary containing a single key that can be used in the given
-    LC state. The format of the dictionary is compatible with opentitan_test.
+    """Return a dictionary containing a single key that can be used in the given LC state.
+
+    The format of the dictionary is compatible with opentitan_test.
     """
     keys = [k for k in key_structs if (k.rsa != None and key_allowed_in_lc_state(k.rsa, hw_lc_state))]
     if len(keys) == 0:
@@ -120,6 +123,7 @@ def ecdsa_key_by_name(key_structs, nickname):
     Args:
         key_structs: List of key structs.
         nickname: Name of the key to search for.
+
     Returns:
         A dictionary containing the key.
     """
@@ -132,6 +136,7 @@ def ecdsa_key_by_name(key_structs, nickname):
 
 def rsa_key_by_name(key_structs, nickname):
     """Return a dictionary containing a single key that matches the name given.
+
     The format of the dictionary is compatible with opentitan_test.
     """
     keys = [k for k in key_structs if (k.rsa != None and k.rsa.name == nickname)]
@@ -142,8 +147,9 @@ def rsa_key_by_name(key_structs, nickname):
     }
 
 def spx_key_for_lc_state(key_structs, hw_lc_state):
-    """Return a dictionary containing a single key that can be used in the given
-    LC state. The format of the dictionary is compatible with opentitan_test.
+    """Return a dictionary containing a single key that can be used in the given LC state.
+
+    The format of the dictionary is compatible with opentitan_test.
     """
     keys = [k for k in key_structs if (k.spx != None and key_allowed_in_lc_state(k.spx, hw_lc_state))]
     if len(keys) == 0:
@@ -154,6 +160,7 @@ def spx_key_for_lc_state(key_structs, hw_lc_state):
 
 def spx_key_by_name(key_structs, nickname):
     """Return a dictionary containing a single key that matches the name given.
+
     The format of the dictionary is compatible with opentitan_test.
     """
     keys = [k for k in key_structs if (k.spx != None and k.spx.name == nickname)]

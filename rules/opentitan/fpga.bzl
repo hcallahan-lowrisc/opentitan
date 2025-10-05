@@ -59,6 +59,7 @@ def _transform(ctx, exec_env, name, elf, binary, signed_bin, disassembly, mapfil
       signed_bin: The signed binary (if available).
       disassembly: A disassembly listing.
       mapfile: The linker-created mapfile.
+
     Returns:
       dict: A dict of fields to create in the provider.
     """
@@ -113,6 +114,7 @@ def _test_dispatch(ctx, exec_env, firmware):
       ctx: The rule context.
       exec_env: The ExecEnvInfo for this environment.
       firmware: A label with a Cw3{05,10,40}BinaryInfo provider attached.
+
     Returns:
       (File, List[File]) The test script and needed runfiles.
     """
@@ -249,6 +251,7 @@ def fpga_params(
       test_cmd: Use an alternate test_cmd for this test.
       data: Additional files needed by this test.
       kwargs: Additional key-value pairs to override in the test `param` dict.
+
     Returns:
       struct of test parameters.
     """

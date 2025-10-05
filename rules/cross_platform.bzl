@@ -9,10 +9,9 @@ def dual_inputs(shared = [], device = [], host = []):
     return struct(shared = shared, device = device, host = host)
 
 def dual_cc_device_library_of(label):
-    """
-    Given the label of a dual_cc_library, returns the label for the
-    on-device library. This library is private to the Bazel package that
-    defines it.
+    """Given the label of a dual_cc_library, returns the label for the on-device library.
+
+    This library is private to the Bazel package that defines it.
     """
     return "{}_on_device_do_not_use_directly".format(label)
 
@@ -30,9 +29,7 @@ def dual_cc_library(
         visibility = ["//visibility:private"],
         target_compatible_with = [],
         **kwargs):
-    """
-    Defines a cc_library whose contents are dependent on whether it is
-    depended on in an on-device or on-host setting.
+    """Define a cc_library that contains either on-device or on-host content.
 
     The macro takes the same arguments as cc_library, but has special
     behavior for `hdrs`, `srcs`, and `deps`, which may either be a list of
@@ -46,21 +43,20 @@ def dual_cc_library(
     use the host-side versions of its dependencies. This is useful for testing
     the on-device version using mocked dependencies.
 
-    Args:
-      @param name: The name of this rule.
-      @param on_device_config_setting: A config_setting rule for determining what
-             "on device" means.
-      @param srcs: `cc_library()` sources; may be a list or a `dual_inputs()`.
-      @param hdrs: `cc_library()` headers; may be a list or a `dual_inputs()`.
-      @params copts: `cc_library() copts; may be a list or a `dual_inputs()`.
-      @param deps: `cc_library()` dependencies; may be a list or a `dual_inputs()`.
-      @param visibility: The visibility to be used for the targets.
-      @param **kwargs: Arguments to forward to each `cc_library()`.
-
     Emits rules:
       cc_library    named: dual_cc_device_library_of(<name>)
-      cc_library    named: <unspecified>  # Host-only library.
+      cc_library    named: <unspecified> Host-only library.
       alias         named: <name>
+
+    Args:
+      name: The name of this rule.
+      on_device_config_setting: A config_setting rule for determining what "on device" means.
+      srcs: `cc_library()` sources; may be a list or a `dual_inputs()`.
+      hdrs: `cc_library()` headers; may be a list or a `dual_inputs()`.
+      copts: `cc_library() copts; may be a list or a `dual_inputs()`.
+      deps: `cc_library()` dependencies; may be a list or a `dual_inputs()`.
+      visibility: The visibility to be used for the targets.
+      **kwargs: Arguments to forward to each `cc_library()`.
     """
 
     hdrs_d, hdrs_h = _merge_and_split_inputs(hdrs)

@@ -85,6 +85,7 @@ def crate_build(
         deps: list[str]; The dependencies needed by this library (optional).
         additional_build_file_content: str; Additional content to place in the build
             file after the automatic rules.
+
     Returns:
         str: The BUILD file content.
     """

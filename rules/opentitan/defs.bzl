@@ -204,9 +204,7 @@ def _hacky_tags(env):
     return tags
 
 def exec_env_to_top_map(exec_env):
-    """
-    Given a list of execution environments, return a map that indicates for
-    each one which top it corresponds to.
+    """Map each exec_env in a list to the top they correspond to.
 
     For this to work, this macros expects that all executions environments satisfy
     one of the two following requirements:

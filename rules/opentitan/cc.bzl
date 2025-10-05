@@ -51,6 +51,7 @@ def ot_binary(ctx, **kwargs):
         deps: Dependencies for this binary.
         linker_script: Linker script for this binary.
         linkopts: Extra linker options for this binary.
+
     Returns:
       (elf_file, map_file) File objects.
     """

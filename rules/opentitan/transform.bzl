@@ -19,6 +19,7 @@ def obj_transform(ctx, **kwargs):
                  if not specified.
         src: The src File object.
         format: The objcopy output-format.
+
     Returns:
       The transformed File.
     """
@@ -66,6 +67,7 @@ def obj_disassemble(ctx, **kwargs):
         output: The name of the output file.  Constructed from `name` if not
                 specified.
         src: The src File object.
+
     Returns:
       The disassembled File.
     """
@@ -111,6 +113,7 @@ def convert_to_vmem(ctx, **kwargs):
                  if not specified.
         src: The src File object.
         format: The objcopy output-format.
+
     Returns:
       The transformed File.
     """
@@ -265,6 +268,7 @@ def convert_to_scrambled_rom_vmem(ctx, **kwargs):
         rom_scramble_tool: The scrambling tool.
         rom_scramble_mode: The scrambling mode.
         top_secret_cfg: The secrets configuration of the top.
+
     Returns:
       (The transformed File, The hashfile)
     """

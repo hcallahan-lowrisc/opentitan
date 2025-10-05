@@ -36,6 +36,7 @@ def key_from_dict(key, attr_name):
     Args:
         key: dict; A signing key and nickname or a keyset and key nickname.
         attr_name: The attribute name (used for error reporting).
+
     Returns:
         A struct with the key label, the key file and key nickname.
     """
@@ -112,6 +113,7 @@ def key_ext(ecdsa, rsa, spx):
         ecdsa: struct; The ECDSA key.
         rsa: struct; The RSA key.
         spx: struct; The SPX+ key.
+
     Returns:
         str: The key extension.
     """
@@ -720,6 +722,7 @@ def sign_binary(ctx, opentitantool, **kwargs):
         bin: The input binary.
         manifest: The manifest header.
         _tool: The signing tool (opentitantool).
+
     Returns:
         A dict of all of the signing artifacts:
           pre: The pre-signing binary (input binary with manifest changes applied).

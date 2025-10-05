@@ -3,9 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 def flatten(list_of_list):
-    """
-    Flatten a list of list. This function will work even if some of the
-    elements are select() that evaluate to a list.
+    """Flatten a list of lists.
+
+    This function will work even if some of the elements are select() that evaluate to a list.
 
     Example:
       flatten([[a], [b,c]]) = [a,b,c]
@@ -58,6 +58,7 @@ def get_files(attrs):
 
     Args:
       attrs: a list of labels with DefaultInfo providers.
+
     Returns:
       List[File]: the files associated with the labels.
     """
@@ -79,6 +80,7 @@ def assemble_for_test(ctx, name, spec, data_files, opentitantool):
             e.g.: ["rom_ext_path@0x0", "test_path@0x10000"].
       data_files: A list of files needed by the spec.
       opentitantool: The opentitantool executable.
+
     Returns:
       File: the assembled image.
     """
@@ -103,7 +105,6 @@ def recursive_format(spec, variables, max_depth = 10):
     This function repeatedly applies `str.format()` using the provided
     `variables` until all placeholders are resolved or `max_depth` is
     reached. This is useful for handling nested variable substitutions.
-
     All `format` placeholders like `{something}` are recursively resolved,
     and escaped sequences `{{` are unescaped only once to `{`.
 
@@ -114,6 +115,9 @@ def recursive_format(spec, variables, max_depth = 10):
       "{  blah  }",  blah="{  blah  }"  =>  error
       "{"                               =>  error
 
+    Raises:
+      If the spec cannot be fully evaluated within `max_depth` iterations.
+
     Args:
       spec: The string to be formatted.
       variables: A dictionary of variables to use for formatting.
@@ -121,9 +125,6 @@ def recursive_format(spec, variables, max_depth = 10):
 
     Returns:
       The fully formatted string.
-
-    Raises:
-      If the spec cannot be fully evaluated within `max_depth` iterations.
     """
     for _ in range(max_depth):
         spec = spec.replace("{{", "{{{{").replace("}}", "}}}}")

@@ -47,10 +47,7 @@ opentitan_transition = transition(
 )
 
 def rv_rule(**kwargs):
-    """
-    A wrapper over rule() for painlessly creating rules that trigger the
-    opentitan transition.
-    """
+    """A wrapper over rule() for painlessly creating rules that trigger the opentitan transition."""
 
     attrs = kwargs.pop("attrs", {})
     if "platform" not in attrs:

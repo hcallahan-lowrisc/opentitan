@@ -53,6 +53,7 @@ def getattr_path(obj, path, defval = _unbound):
       obj: The root of an object hierarchy.
       path: An object path to the desired attribute (e.g. attr.srcs).
       defval: An optional default value if the item is not found.
+
     Returns:
       The requested object or defval.
     """
@@ -73,6 +74,7 @@ def exec_env_as_dict(ctx):
 
     Args:
       ctx: The rule context.
+
     Returns:
       dict: A dict of items to initialize in the ExecEnvInfo provider.
     """
@@ -269,6 +271,7 @@ def update_file_provider(name, provider, data_files, param, action_param = None,
       param: A mapping of item names to file short_paths.
       action_param: A mapping of item names to full file paths.
       default: The element of the provider to consider as the default item.
+
     Returns:
       None
     """
@@ -300,6 +303,7 @@ def update_file_attr(ctx, name, attr, exec_env, data_files, param, action_param 
       param: A mapping of item names to file short_paths.
       action_param: A mapping of item names to full file paths.
       default: The element of the exec_env to consider as the default item.
+
     Returns:
       None
     """
@@ -353,6 +357,7 @@ def common_test_setup(ctx, exec_env, firmware):
       ctx: The rule context for this test.
       exec_env: The execution environment for this test.
       firmware: The firmware for this test.
+
     Returns:
       (test_harness, data_labels, data_files, param, action_param)
     """

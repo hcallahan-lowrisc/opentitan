@@ -55,6 +55,7 @@ def get_binary_files(attrs, field = "binary", providers = ALL_BINARY_PROVIDERS):
       attrs: a list of labels with BinaryInfo or DefaultInfo providers.
       field: the name of the provider field contaning files.
       providers: the set of providers to inspect.
+
     Returns:
       List[File]: the files associated with the labels.
     """
@@ -80,6 +81,7 @@ def get_one_binary_file(attr, field = "binary", providers = ALL_BINARY_PROVIDERS
       attr: a label with BinaryInfo or DefaultInfo providers.
       field: the name of the provider field contaning files.
       providers: the set of providers to inspect.
+
     Returns:
       File: the files associated with the label.
     """

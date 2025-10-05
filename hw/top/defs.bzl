@@ -26,9 +26,7 @@ def _all_seed_names():
 ALL_SEED_NAMES = _all_seed_names()
 
 def opentitan_if_ip(ip, obj, default):
-    """
-    Return a select expression that evaluate to `obj` if the ip is
-    supported by the active top, and `default` otherwose.
+    """Return a select() expr choosing `obj` if 'ip' is supported by the active top, otherwise `default`.
 
     Example:
     ```python
@@ -55,9 +53,9 @@ def opentitan_if_ip(ip, obj, default):
     })
 
 def opentitan_require_ip(ip):
-    """
-    Return a value that can be used with `target_compatible_with` to
-    express that this target only works on top with the requested IP.
+    """Return a value expressing that this target only works on a top where 'ip' is present.
+
+    This is intended to be used in tandem with `target_compatible_with`.
 
     Example:
     ```python
@@ -70,10 +68,10 @@ def opentitan_require_ip(ip):
     return opentitan_if_ip(ip, [], ["@platforms//:incompatible"])
 
 def opentitan_select_top(values, default):
-    """
-    Select a value based on the top. If no top matches, a default
-    value is returned. The values must be a dictionary where each key
-    is either a string, or an array of string.
+    """Select a value based on the top.
+
+    If no top matches, a default value is returned.
+    The values must be a dictionary where each key is either a string, or an array of string.
 
     Example:
     ```python
@@ -96,11 +94,10 @@ def opentitan_select_top(values, default):
     return select(branches)
 
 def opentitan_require_top(top):
-    """
-    Return a value that can be used with `target_compatible_with` to
-    express that this target only works on the requested top.
-    The argument can either be a string ("earlgrey") or a list of strings
-    (["earlgrey", "darjeeling"]).
+    """Return a value expressing that this target only works on the top 'top'.
+
+    This is intended to be used in tandem with `target_compatible_with`.
+    The argument can either be a string ("earlgrey") or a list of strings (["earlgrey", "darjeeling"]).
 
     Example:
     ```python
@@ -113,9 +110,9 @@ def opentitan_require_top(top):
     return opentitan_select_top({top: []}, ["@platforms//:incompatible"])
 
 def opentitan_select_top_attr(attr_name, required = True, default = None, fn = None):
-    """
-    Return a select expression that gives access to a chosen top attribute. Specifically,
-    `fn` will be called for each top that has this attribute and the returned value will be
+    """Return a select expression that gives access to a chosen top attribute.
+
+    Specifically, `fn` will be called for each top that has this attribute and the returned value will be
     inserted into the select expression. `fn` defaults to the identity function if not
     provided, returning the attribute itself.
 
@@ -159,9 +156,9 @@ def opentitan_select_top_attr(attr_name, required = True, default = None, fn = N
     return select(branches, no_match_error = no_match_error)
 
 def opentitan_if_top_attr(attr_name, obj, default):
-    """
-    Return a select expression evaluating to `obj` if the top has the requested attribute
-    and to `default` if it does not. Informally, this expression looks like:
+    """Return a select() expr choosing `obj` if the top has the requested attribute 'attr_name', otherwise `default`.
+
+    Informally, this expression looks like:
     ```py
     select({
       <if top has attribute>: obj,
@@ -172,17 +169,18 @@ def opentitan_if_top_attr(attr_name, obj, default):
     return opentitan_select_top_attr(attr_name, fn = lambda x: obj, required = False, default = default)
 
 def opentitan_require_top_attr(attr_name):
-    """
-    Return a select expression which can be used together with `target_compatible_with`
-    to express the requirement that the top must have the required attribute.
+    """Return a select() expressing the requirement that the top must have attribute 'attr_name'.
+
+    This is intended to be used in tandem with `target_compatible_with`.
     """
     return opentitan_if_top_attr(attr_name, [], ["@platforms//:incompatible"])
 
 def opentitan_alias_top_attr(name, attr_name, required = True, default = None, fn = None):
-    """
-    Create an alias to a top specific top attribute.  `fn` will be called for each top that
-    has this attribute and the returned value will be interpreted as a label string.
-    `fn` defaults to the identity function if not provided, returning the attribute itself.
+    """Create an alias to a top specific top attribute.
+
+    `fn` will be called for each top that has this attribute and the returned value will be
+    interpreted as a label string. `fn` defaults to the identity function if not provided,
+    returning the attribute itself.
 
     If `required` is set to `True`, the alias will be marked as compatible only with tops
     containing the requested attribute.
@@ -201,11 +199,11 @@ def opentitan_alias_top_attr(name, attr_name, required = True, default = None, f
     )
 
 def opentitan_select_ip_attr(ipname, attr_name, required = True, default = None, fn = None):
-    """
-    Return a select expression that gives access to a chosen IP attribute. Specifically,
-    `fn` will be called for each top that has this IP's attribute and the returned value will be
-    inserted into the select expression. `fn` defaults to the identity function if not
-    provided, returning the attribute itself.
+    """Return a select expression that gives access to a chosen IP attribute.
+
+    Specifically, `fn` will be called for each top that has this IP's attribute and the
+    returned value will be inserted into the select expression. `fn` defaults to the identity
+    function if not provided, returning the attribute itself.
 
     If `required` is set to `True`, the selection expression will only contain branches
     for tops containing the (IP and the) IP attribute and an error message will be set in
@@ -231,16 +229,14 @@ def opentitan_select_ip_attr(ipname, attr_name, required = True, default = None,
     return select(branches, no_match_error = no_match_error)
 
 def opentitan_if_ip_attr(ipname, attr_name, obj, default):
-    """
-    Return a select expression evaluating to `obj` if the top has the requested IP and
-    the IP has the requested attribute, and to `default` if it does not.
-    """
+    """Return a select() expr choosing `obj` if both the top has 'ipname' and the ip has the attr 'attr_name', otherwise `default`."""
+
     return opentitan_select_ip_attr(ipname, attr_name, fn = lambda x: obj, required = False, default = default)
 
 def opentitan_require_ip_attr(ipname, attr_name):
+    """Return a select() expressing the requirement the top contains 'ipname' and the ip has the attr 'attr_name'.
+
+    This is intended to be used in tandem with `target_compatible_with`.
     """
-    Return a select expression which can be used together with `target_compatible_with`
-    to express the requirement that the top must have the required IP and the IP has
-    the required attribute.
-    """
+
     return opentitan_if_ip_attr(ipname, attr_name, [], ["@platforms//:incompatible"])

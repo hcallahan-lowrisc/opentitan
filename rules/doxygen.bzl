@@ -20,7 +20,8 @@ def _merge_doxygen_cc_input_infos(infos):
     Args:
       infos: List of DoxygenCcInputInfo.
 
-    Returns: a DoxygenCcInputInfo.
+    Returns:
+      a DoxygenCcInputInfo.
     """
     return DoxygenCcInputInfo(
         files = depset(transitive = [getattr(info, "files", depset()) for info in infos]),
@@ -29,10 +30,7 @@ def _merge_doxygen_cc_input_infos(infos):
     )
 
 def doxygen_gather_all_package_cc(name):
-    """
-    Create a `cc_library` targets which depends on all `cc_library` targets
-    previously defined in the same BUILD file.
-    """
+    """Create a `cc_library` targets which depends on all `cc_library` targets previously defined in the same BUILD file."""
 
     # We use a somewhat obscure feature of bazel that provides limited introspection.
     deps = [

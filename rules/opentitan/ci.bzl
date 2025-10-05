@@ -24,10 +24,7 @@ _ONLY_RUN_ONE_IN_CI_SORTED = [
 ]
 
 def ci_orchestrator(test_name, exec_envs):
-    """
-    Given a list of execution environments, return the subset of this list
-    that should be skipped in CI.
-    """
+    """Return the subset of a list of exec_envs which should be skipped in CI."""
     exec_env_sets = sets.make(exec_envs)
     found_one = False
     skip_in_ci = []
