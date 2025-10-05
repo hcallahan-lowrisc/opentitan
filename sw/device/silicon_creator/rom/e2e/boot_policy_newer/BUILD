@@ -3,13 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load(
-    "//rules/opentitan:defs.bzl",
-    "cw310_params",
-    "fpga_params",
-    "opentitan_binary",
-    "opentitan_test",
-)
-load(
     "//rules:const.bzl",
     "CONST",
     "get_lc_items",
@@ -29,6 +22,13 @@ load(
 load(
     "//rules:rom_e2e.bzl",
     "maybe_skip_in_ci",
+)
+load(
+    "//rules/opentitan:defs.bzl",
+    "cw310_params",
+    "fpga_params",
+    "opentitan_binary",
+    "opentitan_test",
 )
 load(
     "//sw/device/silicon_creator/rom/e2e:defs.bzl",

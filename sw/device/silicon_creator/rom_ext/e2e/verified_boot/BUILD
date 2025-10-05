@@ -5,19 +5,19 @@
 load("//rules:const.bzl", "CONST", "hex")
 load("//rules:manifest.bzl", "manifest")
 load(
-    "//rules/opentitan:defs.bzl",
-    "DEFAULT_TEST_FAILURE_MSG",
-    "DEFAULT_TEST_SUCCESS_MSG",
-    "fpga_params",
-    "opentitan_test",
-)
-load(
     "//rules:otp.bzl",
     "STD_OTP_OVERLAYS",
     "otp_hex",
     "otp_image",
     "otp_json_immutable_rom_ext",
     "otp_partition",
+)
+load(
+    "//rules/opentitan:defs.bzl",
+    "DEFAULT_TEST_FAILURE_MSG",
+    "DEFAULT_TEST_SUCCESS_MSG",
+    "fpga_params",
+    "opentitan_test",
 )
 load(
     "//sw/device/silicon_creator/rom_ext/imm_section:defs.bzl",

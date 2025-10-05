@@ -2,8 +2,8 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
-load("//rules/opentitan:defs.bzl", "OPENTITAN_CPU", "opentitan_test")
 load("//hw/top:defs.bzl", "opentitan_select_top")
+load("//rules/opentitan:defs.bzl", "OPENTITAN_CPU", "opentitan_test")
 
 opentitan_test(
     name = "i2c_host_tx_rx_test",

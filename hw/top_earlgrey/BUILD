@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("//hw/top_earlgrey:defs.bzl", "EARLGREY_SLOTS")
 load(
     "//rules:manifest.bzl",
@@ -538,4 +539,14 @@ sim_dv(
     base = ":sim_dv_base",
     exec_env = "sim_dv",
     rom = "//sw/device/lib/testing/test_rom:test_rom",
+)
+
+bzl_library(
+    name = "defs",
+    srcs = ["defs.bzl"],
+    deps = [
+        "//hw/top_earlgrey/data/autogen:defs",
+        "//hw/top_earlgrey/data/otp:defs",
+        "//rules/opentitan:hw",
+    ],
 )

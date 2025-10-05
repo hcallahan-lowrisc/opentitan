@@ -2,9 +2,10 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
-load("@rules_rust_bindgen//:defs.bzl", "rust_bindgen_toolchain")
 load("@rules_cc//cc:defs.bzl", "cc_import")
+load("@rules_rust_bindgen//:defs.bzl", "rust_bindgen_toolchain")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -45,4 +46,10 @@ toolchain(
     name = "bindgen_toolchain",
     toolchain = "bindgen_toolchain_impl",
     toolchain_type = "@rules_rust_bindgen//:toolchain_type",
+)
+
+bzl_library(
+    name = "extensions",
+    srcs = ["extensions.bzl"],
+    deps = ["@bazel_tools//tools/build_defs/repo:http.bzl"],
 )

@@ -2,16 +2,15 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
-load("//rules:fusesoc.bzl", "fusesoc_build")
-load("@rules_python//python:defs.bzl", "py_library")
-
 # This configuration exposes fusesoc's "verilator_options" option to the
 # command line. This is intended to allow CI to specifically build a single
 # -threaded Verilated model to suit it's resource constraints.
 # By default, the Verilated model should be built to
 # run with 4 threads.
 load("@bazel_skylib//rules:common_settings.bzl", "string_list_flag")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_python//python:defs.bzl", "py_library")
+load("//rules:fusesoc.bzl", "fusesoc_build")
 
 package(default_visibility = ["//visibility:public"])
 

@@ -2,7 +2,9 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("//hw/top:defs.bzl", "opentitan_require_top")
 load("//hw/top_earlgrey/data/autogen:defs.bzl", "EARLGREY_ALERTS")
 load("//rules:const.bzl", "CONST", "EARLGREY_LOC_ALERTS")
 load(
@@ -19,7 +21,6 @@ load(
     "otp_per_class_ints",
     "otp_per_class_lists",
 )
-load("//hw/top:defs.bzl", "opentitan_require_top")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -583,4 +584,9 @@ pkg_files(
 # FIXME: This needs to be removed since seeds are provided through HJSON seed config files now.
 otp_json(
     name = "otp_json_baseline",
+)
+
+bzl_library(
+    name = "defs",
+    srcs = ["defs.bzl"],
 )

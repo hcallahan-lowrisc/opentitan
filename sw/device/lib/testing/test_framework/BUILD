@@ -3,18 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
+load("//hw/top:defs.bzl", "opentitan_if_ip")
 load("//rules:cross_platform.bzl", "dual_cc_library", "dual_inputs")
 load("//rules:linker.bzl", "ld_library")
-load("//rules/opentitan:defs.bzl", "OPENTITAN_CPU")
-load(
-    "//rules/opentitan:defs.bzl",
-    "EARLGREY_TEST_ENVS",
-    "fpga_params",
-    "opentitan_test",
-    "verilator_params",
-)
+load("//rules/opentitan:defs.bzl", "EARLGREY_TEST_ENVS", "OPENTITAN_CPU", "fpga_params", "opentitan_test", "verilator_params")
 load("//rules/opentitan:util.bzl", "flatten")
-load("//hw/top:defs.bzl", "opentitan_if_ip")
 
 package(default_visibility = ["//visibility:public"])
 

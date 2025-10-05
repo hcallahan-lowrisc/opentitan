@@ -6,6 +6,7 @@ load(
     "@bazel_skylib//lib:dicts.bzl",
     "dicts",
 )
+load("@ot_python_deps//:requirements.bzl", "requirement")
 load("//rules:autogen.bzl", "autogen_cryptotest_header")
 load(
     "//rules/opentitan:defs.bzl",
@@ -19,11 +20,6 @@ load(
     "silicon_params",
     "verilator_params",
 )
-load(
-    "@bazel_skylib//lib:dicts.bzl",
-    "dicts",
-)
-load("@ot_python_deps//:requirements.bzl", "requirement")
 
 package(default_visibility = ["//visibility:public"])
 

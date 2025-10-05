@@ -2,17 +2,8 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
-load(
-    "//rules/opentitan:defs.bzl",
-    "cw310_params",
-    "ecdsa_key_for_lc_state",
-    "fpga_params",
-    "opentitan_binary",
-    "opentitan_test",
-    "spx_key_for_lc_state",
-)
+load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("//rules:const.bzl", "CONST", "get_lc_items")
-load("//rules/opentitan:keyutils.bzl", "ECDSA_SPX_KEY_STRUCTS")
 load(
     "//rules:otp.bzl",
     "STD_OTP_OVERLAYS",
@@ -22,7 +13,16 @@ load(
     "otp_partition",
 )
 load("//rules:rom_e2e.bzl", "maybe_skip_in_ci")
-load("@bazel_skylib//lib:dicts.bzl", "dicts")
+load(
+    "//rules/opentitan:defs.bzl",
+    "cw310_params",
+    "ecdsa_key_for_lc_state",
+    "fpga_params",
+    "opentitan_binary",
+    "opentitan_test",
+    "spx_key_for_lc_state",
+)
+load("//rules/opentitan:keyutils.bzl", "ECDSA_SPX_KEY_STRUCTS")
 
 package(default_visibility = ["//visibility:public"])
 

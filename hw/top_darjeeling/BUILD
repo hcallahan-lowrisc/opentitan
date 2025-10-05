@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load(
     "//rules/opentitan:defs.bzl",
     "DEFAULT_TEST_FAILURE_MSG",
@@ -56,5 +57,15 @@ filegroup(
         "//hw/top_darjeeling/ip_autogen/rstmgr:doc_files",
         "//hw/top_darjeeling/ip_autogen/rv_core_ibex:doc_files",
         "//hw/top_darjeeling/ip_autogen/rv_plic:doc_files",
+    ],
+)
+
+bzl_library(
+    name = "defs",
+    srcs = ["defs.bzl"],
+    deps = [
+        "//hw/top_darjeeling/data/autogen:defs",
+        "//hw/top_darjeeling/data/otp:defs",
+        "//rules/opentitan:hw",
     ],
 )

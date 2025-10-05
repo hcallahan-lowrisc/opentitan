@@ -3,6 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load(
+    "@bazel_skylib//lib:dicts.bzl",
+    "dicts",
+)
+load(
     "//rules:cross_platform.bzl",
     "dual_cc_device_library_of",
     "dual_cc_library",
@@ -15,10 +19,6 @@ load(
     "opentitan_test",
     "qemu_params",
     "verilator_params",
-)
-load(
-    "@bazel_skylib//lib:dicts.bzl",
-    "dicts",
 )
 
 package(default_visibility = ["//visibility:public"])

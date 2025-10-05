@@ -4,8 +4,8 @@
 
 load("@rules_rust//rust:defs.bzl", "rust_binary")
 load("//rules:linker.bzl", "ld_library")
-load("//rules/opentitan:legacy.bzl", "obj_transform")
 load("//rules/opentitan:defs.bzl", "OPENTITAN_CPU")
+load("//rules/opentitan:legacy.bzl", "obj_transform")
 
 package(default_visibility = ["//visibility:public"])
 

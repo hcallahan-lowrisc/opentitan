@@ -2,10 +2,11 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
-package(default_visibility = ["//visibility:public"])
-
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@ot_python_deps//:requirements.bzl", "requirement")
 load("@rules_python//python:defs.bzl", "py_binary", "py_library")
+
+package(default_visibility = ["//visibility:public"])
 
 py_binary(
     name = "cfggen",
@@ -44,4 +45,10 @@ alias(
 alias(
     name = "qemu-img",
     actual = "@qemu_opentitan//:build/qemu-img",
+)
+
+bzl_library(
+    name = "extensions",
+    srcs = ["extensions.bzl"],
+    deps = ["@bazel_tools//tools/build_defs/repo:http.bzl"],
 )

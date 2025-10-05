@@ -3,13 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load(
-    "//rules/opentitan:defs.bzl",
-    "opentitan_test",
-)
-load(
     "//rules:cross_platform.bzl",
     "dual_cc_library",
     "dual_inputs",
+)
+load(
+    "//rules/opentitan:defs.bzl",
+    "opentitan_test",
 )
 
 package(default_visibility = ["//visibility:public"])

@@ -3,10 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load(
-    "//rules/opentitan:defs.bzl",
-    "cw310_params",
-    "fpga_params",
-    "opentitan_test",
+    "@bazel_skylib//lib:structs.bzl",
+    "structs",
 )
 load(
     "//rules:const.bzl",
@@ -28,8 +26,10 @@ load(
     "maybe_skip_in_ci",
 )
 load(
-    "@bazel_skylib//lib:structs.bzl",
-    "structs",
+    "//rules/opentitan:defs.bzl",
+    "cw310_params",
+    "fpga_params",
+    "opentitan_test",
 )
 load(
     "//sw/device/silicon_creator/rom/e2e:defs.bzl",

@@ -2,14 +2,9 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("//rules:const.bzl", "CONST", "get_lc_items")
-load("//rules/opentitan:keyutils.bzl", "ECDSA_SPX_KEY_STRUCTS")
-load(
-    "//rules/opentitan:defs.bzl",
-    "cw310_params",
-    "fpga_params",
-    "opentitan_test",
-)
 load(
     "//rules:otp.bzl",
     "STD_OTP_OVERLAYS",
@@ -19,7 +14,13 @@ load(
     "otp_partition",
 )
 load("//rules:rom_e2e.bzl", "maybe_skip_in_ci")
-load("@bazel_skylib//lib:dicts.bzl", "dicts")
+load(
+    "//rules/opentitan:defs.bzl",
+    "cw310_params",
+    "fpga_params",
+    "opentitan_test",
+)
+load("//rules/opentitan:keyutils.bzl", "ECDSA_SPX_KEY_STRUCTS")
 load(
     ":key_type.bzl",
     "ecdsa_exit_failure",
@@ -173,5 +174,16 @@ test_suite(
         )
         for test in KEY_TYPE_TESTS
         for lc_state, _ in get_lc_items()
+    ],
+)
+
+bzl_library(
+    name = "key_type",
+    srcs = ["key_type.bzl"],
+    deps = [
+        "//rules:const",
+        "//rules/opentitan:defs",
+        "//rules/opentitan:keyutils",
+        "//sw/device/silicon_creator/rom/e2e:defs",
     ],
 )

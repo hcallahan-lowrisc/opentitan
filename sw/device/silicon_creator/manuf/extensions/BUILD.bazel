@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@rules_rust//rust:defs.bzl", "rust_library")
 
 package(default_visibility = ["//visibility:public"])
@@ -28,4 +29,9 @@ rust_library(
         "@crate_index//:anyhow",
         "@crate_index//:arrayvec",
     ],
+)
+
+bzl_library(
+    name = "cfg",
+    srcs = ["cfg.bzl"],
 )

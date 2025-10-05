@@ -5,13 +5,13 @@
 # This file contains the build rules for the OTP data for pre-silicon and
 # post-silicon simulation and emulation targets.
 
+load("//hw/top_earlgrey/data/autogen:defs.bzl", "EARLGREY_ALERTS")
 load(
     "//rules:const.bzl",
     "CONST",
     "EARLGREY_LOC_ALERTS",
     "get_lc_items",
 )
-load("//hw/top_earlgrey/data/autogen:defs.bzl", "EARLGREY_ALERTS")
 load(
     "//rules:otp.bzl",
     "OTP_SIGVERIFY_FAKE_KEYS",

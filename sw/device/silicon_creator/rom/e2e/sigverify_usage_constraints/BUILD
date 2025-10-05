@@ -2,14 +2,7 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
-load(
-    "//rules/opentitan:defs.bzl",
-    "DEFAULT_TEST_SUCCESS_MSG",
-    "cw310_params",
-    "ecdsa_key_for_lc_state",
-    "fpga_params",
-    "opentitan_test",
-)
+load("@bazel_skylib//lib:structs.bzl", "structs")
 load(
     "//rules:const.bzl",
     "CONST",
@@ -18,7 +11,6 @@ load(
     "hex_digits",
     "lcv_hw_to_sw",
 )
-load("//rules/opentitan:keyutils.bzl", "ECDSA_ONLY_KEY_STRUCTS")
 load("//rules:manifest.bzl", "manifest")
 load(
     "//rules:otp.bzl",
@@ -28,7 +20,15 @@ load(
     "otp_partition",
 )
 load("//rules:rom_e2e.bzl", "maybe_skip_in_ci")
-load("@bazel_skylib//lib:structs.bzl", "structs")
+load(
+    "//rules/opentitan:defs.bzl",
+    "DEFAULT_TEST_SUCCESS_MSG",
+    "cw310_params",
+    "ecdsa_key_for_lc_state",
+    "fpga_params",
+    "opentitan_test",
+)
+load("//rules/opentitan:keyutils.bzl", "ECDSA_ONLY_KEY_STRUCTS")
 load(
     "//sw/device/silicon_creator/rom/e2e:defs.bzl",
     "MSG_TEMPLATE_BFV",

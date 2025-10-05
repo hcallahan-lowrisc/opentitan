@@ -3,12 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load(
-    "//rules/opentitan:defs.bzl",
-    "cw310_params",
-    "fpga_params",
-    "opentitan_test",
-)
-load(
     "//rules:const.bzl",
     "CONST",
     "get_lc_items",
@@ -17,6 +11,12 @@ load(
     "//rules:otp.bzl",
     "STD_OTP_OVERLAYS",
     "otp_image",
+)
+load(
+    "//rules/opentitan:defs.bzl",
+    "cw310_params",
+    "fpga_params",
+    "opentitan_test",
 )
 
 package(default_visibility = ["//visibility:public"])

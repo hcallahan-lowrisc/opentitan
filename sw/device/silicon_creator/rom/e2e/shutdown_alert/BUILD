@@ -2,20 +2,12 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
-load("//rules/opentitan:keyutils.bzl", "ECDSA_ONLY_KEY_STRUCTS")
+load("//hw/top_earlgrey/data/autogen:defs.bzl", "EARLGREY_ALERTS")
 load(
     "//rules:const.bzl",
     "CONST",
     "EARLGREY_LOC_ALERTS",
     "get_lc_items",
-)
-load("//hw/top_earlgrey/data/autogen:defs.bzl", "EARLGREY_ALERTS")
-load(
-    "//rules/opentitan:defs.bzl",
-    "cw310_params",
-    "ecdsa_key_for_lc_state",
-    "fpga_params",
-    "opentitan_test",
 )
 load(
     "//rules:otp.bzl",
@@ -31,6 +23,14 @@ load(
     "otp_per_class_lists",
 )
 load("//rules:rom_e2e.bzl", "maybe_skip_in_ci")
+load(
+    "//rules/opentitan:defs.bzl",
+    "cw310_params",
+    "ecdsa_key_for_lc_state",
+    "fpga_params",
+    "opentitan_test",
+)
+load("//rules/opentitan:keyutils.bzl", "ECDSA_ONLY_KEY_STRUCTS")
 
 package(default_visibility = ["//visibility:public"])
 

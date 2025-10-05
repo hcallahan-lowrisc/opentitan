@@ -2,19 +2,20 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@lowrisc_opentitan//rules/opentitan:transform.bzl", "obj_transform")
-load("//rules/opentitan:defs.bzl", "OPENTITAN_CPU", "opentitan_binary")
 load("//rules:linker.bzl", "ld_library")
+load("//rules/opentitan:defs.bzl", "OPENTITAN_CPU", "opentitan_binary")
+load(
+    "//sw/device/silicon_creator/rom_ext:defs.bzl",
+    "ROM_EXT_VARIATIONS",
+    "SLOTS",
+)
 load(
     "//sw/device/silicon_creator/rom_ext/imm_section:defs.bzl",
     "DEFAULT_EXEC_ENV",
     "IMM_SECTION_MAJOR_VERSION",
     "IMM_SECTION_MINOR_VERSION",
-)
-load(
-    "//sw/device/silicon_creator/rom_ext:defs.bzl",
-    "ROM_EXT_VARIATIONS",
-    "SLOTS",
 )
 load(
     "//sw/device/silicon_creator/rom_ext/imm_section:utils.bzl",
@@ -152,4 +153,22 @@ imm_section_bundle(
         variation_name: ":main_binaries_{}_slot_virtual".format(variation_name)
         for variation_name, _ in ROM_EXT_VARIATIONS.items()
     },
+)
+
+bzl_library(
+    name = "utils",
+    srcs = ["utils.bzl"],
+    deps = [
+        ":defs",
+        "//rules/opentitan:providers",
+        "@lowrisc_opentitan//rules:rv",
+        "@rules_cc//cc:action_names",
+        "@rules_cc//cc:find_cc_toolchain",
+        "@rules_pkg//pkg:tar",
+    ],
+)
+
+bzl_library(
+    name = "defs",
+    srcs = ["defs.bzl"],
 )

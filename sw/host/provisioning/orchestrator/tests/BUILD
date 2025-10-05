@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@ot_python_deps//:requirements.bzl", "requirement")
 load("@rules_python//python:defs.bzl", "py_test")
 load("//sw/host/provisioning/orchestrator/tests:transition.bzl", "orchestrator_test_settings_transition")
@@ -69,4 +70,9 @@ sh_test(
         "cw310",
         "manuf",
     ],
+)
+
+bzl_library(
+    name = "transition",
+    srcs = ["transition.bzl"],
 )

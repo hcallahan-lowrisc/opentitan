@@ -2,28 +2,19 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
-package(default_visibility = ["//visibility:public"])
-
-load("//rules/opentitan:defs.bzl", "OPENTITAN_CPU")
+load(
+    "@bazel_skylib//lib:dicts.bzl",
+    "dicts",
+)
 load(
     "//rules:cross_platform.bzl",
     "dual_cc_device_library_of",
     "dual_cc_library",
     "dual_inputs",
 )
-load(
-    "//rules/opentitan:defs.bzl",
-    "EARLGREY_TEST_ENVS",
-    "cw310_params",
-    "fpga_params",
-    "opentitan_test",
-    "qemu_params",
-    "verilator_params",
-)
-load(
-    "@bazel_skylib//lib:dicts.bzl",
-    "dicts",
-)
+load("//rules/opentitan:defs.bzl", "EARLGREY_TEST_ENVS", "OPENTITAN_CPU", "cw310_params", "fpga_params", "opentitan_test", "qemu_params", "verilator_params")
+
+package(default_visibility = ["//visibility:public"])
 
 cc_library(
     name = "aes",

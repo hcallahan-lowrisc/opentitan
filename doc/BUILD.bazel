@@ -2,13 +2,13 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+load("@rules_rust_mdbook//:defs.bzl", "mdbook", "mdbook_server")
 load(
     "//rules:doxygen.bzl",
     "doxygen",
     "doxygen_gather_cc",
     "doxygen_multitop",
 )
-load("@rules_rust_mdbook//:defs.bzl", "mdbook", "mdbook_server")
 
 package(default_visibility = ["//visibility:public"])
 

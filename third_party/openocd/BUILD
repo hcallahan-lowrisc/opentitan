@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@rules_foreign_cc//foreign_cc:configure.bzl", "configure_make")
 
 package(default_visibility = ["//visibility:private"])
@@ -66,4 +67,10 @@ configure_make(
     env = {"CCACHE": "none"},
     lib_source = "@openocd//:all_srcs",
     out_binaries = ["openocd"],
+)
+
+bzl_library(
+    name = "extensions",
+    srcs = ["extensions.bzl"],
+    deps = ["@bazel_tools//tools/build_defs/repo:http.bzl"],
 )

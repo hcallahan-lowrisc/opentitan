@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load(
     "//rules:otp.bzl",
     "STD_OTP_OVERLAYS",
@@ -42,4 +43,9 @@ otp_image(
     overlays = STD_OTP_OVERLAYS + [
         ":otp_json_secret2_locked",
     ],
+)
+
+bzl_library(
+    name = "defs",
+    srcs = ["defs.bzl"],
 )

@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load("//rules:const.bzl", "CONST", "hex")
+load("//rules:manifest.bzl", "manifest")
 load(
     "//rules/opentitan:defs.bzl",
     "DEFAULT_TEST_FAILURE_MSG",
@@ -12,7 +13,6 @@ load(
     "opentitan_binary",
     "opentitan_test",
 )
-load("//rules:manifest.bzl", "manifest")
 
 package(default_visibility = ["//visibility:public"])
 

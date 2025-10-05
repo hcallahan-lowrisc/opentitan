@@ -2,8 +2,8 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
-load("//rules:doxygen.bzl", "doxygen_gather_all_package_cc")
 load("//hw/top:defs.bzl", "opentitan_if_ip", "opentitan_require_ip")
+load("//rules:doxygen.bzl", "doxygen_gather_all_package_cc")
 
 package(default_visibility = ["//visibility:public"])
 

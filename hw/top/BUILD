@@ -2,16 +2,8 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
-load("//rules/opentitan:util.bzl", "flatten")
-load(
-    "//rules:autogen.bzl",
-    "opentitan_ip_c_header",
-    "opentitan_ip_dt",
-    "opentitan_ip_rust_header",
-    "opentitan_top_dt_api",
-)
-load("//rules/opentitan:hw.bzl", "get_top_attr")
 load(
     "//hw/top:defs.bzl",
     "ALL_IP_NAMES",
@@ -23,6 +15,15 @@ load(
     "opentitan_require_ip",
     "opentitan_select_ip_attr",
 )
+load(
+    "//rules:autogen.bzl",
+    "opentitan_ip_c_header",
+    "opentitan_ip_dt",
+    "opentitan_ip_rust_header",
+    "opentitan_top_dt_api",
+)
+load("//rules/opentitan:hw.bzl", "get_top_attr")
+load("//rules/opentitan:util.bzl", "flatten")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -210,4 +211,21 @@ cc_library(
         )
         for ip in ALL_IP_NAMES
     ]),
+)
+###########################
+# AUTOGEN GAZELLE TARGETS #
+###########################
+
+bzl_library(
+    name = "defs",
+    srcs = ["defs.bzl"],
+    deps = [
+        "//rules/opentitan:hw",
+        "@tops_desc//:defs",
+    ],
+)
+
+bzl_library(
+    name = "extensions",
+    srcs = ["extensions.bzl"],
 )

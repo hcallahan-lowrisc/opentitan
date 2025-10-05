@@ -2,11 +2,11 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
-load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
-load("//rules:otp.bzl", "get_otp_images")
-load("//rules:const.bzl", "KEY_AUTHENTICITY")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("//rules:bitstreams.bzl", "bitstream_fragment_from_manifest")
+load("//rules:const.bzl", "KEY_AUTHENTICITY")
+load("//rules:otp.bzl", "get_otp_images")
 
 package(default_visibility = ["//visibility:public"])
 

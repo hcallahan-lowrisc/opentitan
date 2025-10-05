@@ -3,22 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load(
-    "//rules/opentitan:defs.bzl",
-    "DEFAULT_TEST_FAILURE_MSG",
-    "cw310_params",
-    "fpga_params",
-    "opentitan_test",
+    "@bazel_skylib//lib:dicts.bzl",
+    "dicts",
 )
 load(
     "//rules:const.bzl",
     "CONST",
     "get_lc_items",
     "hex_digits",
-)
-load(
-    "//rules/opentitan:keyutils.bzl",
-    "ECDSA_SPX_KEY_STRUCTS",
-    "filter_key_structs_for_lc_state",
 )
 load(
     "//rules:otp.bzl",
@@ -33,13 +25,21 @@ load(
     "maybe_skip_in_ci",
 )
 load(
+    "//rules/opentitan:defs.bzl",
+    "DEFAULT_TEST_FAILURE_MSG",
+    "cw310_params",
+    "fpga_params",
+    "opentitan_test",
+)
+load(
+    "//rules/opentitan:keyutils.bzl",
+    "ECDSA_SPX_KEY_STRUCTS",
+    "filter_key_structs_for_lc_state",
+)
+load(
     "//sw/device/silicon_creator/rom/e2e:defs.bzl",
     "MSG_PASS",
     "MSG_TEMPLATE_BFV_LCV",
-)
-load(
-    "@bazel_skylib//lib:dicts.bzl",
-    "dicts",
 )
 
 package(default_visibility = ["//visibility:public"])

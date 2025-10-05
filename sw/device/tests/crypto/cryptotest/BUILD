@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load(":cryptotest.bzl", "cryptotest")
 
 package(default_visibility = ["//visibility:public"])
@@ -476,4 +477,10 @@ test_suite(
         ":shake256_kat",
         ":sphincsplus_kat",
     ],
+)
+
+bzl_library(
+    name = "cryptotest",
+    srcs = ["cryptotest.bzl"],
+    deps = ["//rules/opentitan:defs"],
 )

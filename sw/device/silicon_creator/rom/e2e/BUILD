@@ -2,10 +2,9 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("//rules:const.bzl", "CONST", "hex_digits")
-load("//rules/opentitan:legacy.bzl", "scramble_flash_vmem", "vmem_file")
-load("//rules/opentitan:keyutils.bzl", "ECDSA_ONLY_KEY_STRUCTS")
 load(
     "//rules:otp.bzl",
     "OTP_SIGVERIFY_FAKE_KEYS",
@@ -14,13 +13,6 @@ load(
     "otp_partition",
 )
 load("//rules:rom_e2e.bzl", "maybe_skip_in_ci")
-load(
-    "//sw/device/silicon_creator/rom/e2e:defs.bzl",
-    "MSG_PASS",
-    "MSG_TEMPLATE_BFV",
-    "SIGVERIFY_LC_KEYS",
-    "SLOTS",
-)
 load(
     "//rules/opentitan:defs.bzl",
     "EARLGREY_SILICON_OWNER_ROM_EXT_ENVS",
@@ -31,6 +23,15 @@ load(
     "opentitan_binary",
     "opentitan_test",
     "verilator_params",
+)
+load("//rules/opentitan:keyutils.bzl", "ECDSA_ONLY_KEY_STRUCTS")
+load("//rules/opentitan:legacy.bzl", "scramble_flash_vmem", "vmem_file")
+load(
+    "//sw/device/silicon_creator/rom/e2e:defs.bzl",
+    "MSG_PASS",
+    "MSG_TEMPLATE_BFV",
+    "SIGVERIFY_LC_KEYS",
+    "SLOTS",
 )
 
 package(default_visibility = ["//visibility:public"])
@@ -470,5 +471,14 @@ opentitan_test(
         "//sw/device/silicon_creator/lib/drivers:lifecycle",
         "//sw/device/silicon_creator/lib/drivers:otp",
         "//sw/device/silicon_creator/lib/drivers:rstmgr",
+    ],
+)
+
+bzl_library(
+    name = "defs",
+    srcs = ["defs.bzl"],
+    deps = [
+        "//rules:const",
+        "//rules/opentitan:keyutils",
     ],
 )

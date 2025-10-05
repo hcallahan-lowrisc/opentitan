@@ -2,7 +2,10 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 load("//hw/top:defs.bzl", "opentitan_if_ip", "opentitan_require_top", "opentitan_select_top")
+load("//rules:files.bzl", "output_groups")
+load("//rules:linker.bzl", "ld_library")
 load(
     "//rules/opentitan:defs.bzl",
     "OPENTITAN_CPU",
@@ -10,9 +13,6 @@ load(
     "opentitan_test",
 )
 load("//rules/opentitan:legacy.bzl", "legacy_rom_targets")
-load("//rules:files.bzl", "output_groups")
-load("//rules:linker.bzl", "ld_library")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 package(default_visibility = ["//visibility:public"])
 

@@ -2,13 +2,13 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load(
     "//rules:signing.bzl",
     "offline_fake_ecdsa_sign",
     "offline_presigning_artifacts",
     "offline_signature_attach",
 )
-load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 
 package(default_visibility = ["//visibility:public"])
 

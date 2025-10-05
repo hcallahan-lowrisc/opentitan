@@ -4,7 +4,6 @@
 
 load("//rules:const.bzl", "CONST", "get_lc_items")
 load("//rules:lc.bzl", "lc_raw_unlock_token")
-load("//rules/opentitan:keyutils.bzl", "ECDSA_SPX_KEY_STRUCTS")
 load(
     "//rules:otp.bzl",
     "OTP_SIGVERIFY_FAKE_KEYS",
@@ -19,6 +18,7 @@ load(
     "silicon_params",
     "spx_key_for_lc_state",
 )
+load("//rules/opentitan:keyutils.bzl", "ECDSA_SPX_KEY_STRUCTS")
 
 package(default_visibility = ["//visibility:public"])
 

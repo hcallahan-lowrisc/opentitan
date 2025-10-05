@@ -2,10 +2,10 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
-load("//rules/opentitan:util.bzl", "flatten")
 load("//hw/top:defs.bzl", "ALL_IP_NAMES", "opentitan_if_ip")
-load("//rules/opentitan:defs.bzl", "OPENTITAN_CPU")
 load("//rules:autogen.bzl", "opentitan_autogen_isr_testutils")
+load("//rules/opentitan:defs.bzl", "OPENTITAN_CPU")
+load("//rules/opentitan:util.bzl", "flatten")
 
 package(default_visibility = ["//visibility:public"])
 

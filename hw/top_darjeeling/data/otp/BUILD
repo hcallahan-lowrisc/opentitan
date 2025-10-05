@@ -2,9 +2,11 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
-load("//rules:const.bzl", "CONST", "DARJEELING_LOC_ALERTS")
+load("//hw/top:defs.bzl", "opentitan_require_top")
 load("//hw/top_darjeeling/data/autogen:defs.bzl", "DARJEELING_ALERTS")
+load("//rules:const.bzl", "CONST", "DARJEELING_LOC_ALERTS")
 load(
     "//rules:otp.bzl",
     "OTP_SIGVERIFY_FAKE_KEYS",
@@ -19,7 +21,6 @@ load(
     "otp_per_class_ints",
     "otp_per_class_lists",
 )
-load("//hw/top:defs.bzl", "opentitan_require_top")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -533,4 +534,9 @@ pkg_files(
 # Partition used to set a fixed seed value in `otp_image_consts` targets.
 otp_json(
     name = "otp_json_baseline",
+)
+
+bzl_library(
+    name = "defs",
+    srcs = ["defs.bzl"],
 )

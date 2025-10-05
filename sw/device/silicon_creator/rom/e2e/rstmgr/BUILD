@@ -2,7 +2,6 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
-load("//rules/opentitan:defs.bzl", "fpga_params", "opentitan_test")
 load(
     "//rules:const.bzl",
     "CONST",
@@ -15,6 +14,7 @@ load(
     "otp_json",
     "otp_partition",
 )
+load("//rules/opentitan:defs.bzl", "fpga_params", "opentitan_test")
 
 package(default_visibility = ["//visibility:public"])
 

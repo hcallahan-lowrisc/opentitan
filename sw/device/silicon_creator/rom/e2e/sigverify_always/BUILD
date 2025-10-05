@@ -3,21 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load(
-    "//rules/opentitan:defs.bzl",
-    "cw310_params",
-    "fpga_params",
-    "opentitan_test",
-)
-load(
     "//rules:const.bzl",
     "CONST",
     "get_lc_items",
     "hex_digits",
-)
-load(
-    "//rules/opentitan:keyutils.bzl",
-    "ECDSA_ONLY_KEY_STRUCTS",
-    "filter_key_structs_for_lc_state",
 )
 load(
     "//rules:otp.bzl",
@@ -27,6 +16,17 @@ load(
 load(
     "//rules:rom_e2e.bzl",
     "maybe_skip_in_ci",
+)
+load(
+    "//rules/opentitan:defs.bzl",
+    "cw310_params",
+    "fpga_params",
+    "opentitan_test",
+)
+load(
+    "//rules/opentitan:keyutils.bzl",
+    "ECDSA_ONLY_KEY_STRUCTS",
+    "filter_key_structs_for_lc_state",
 )
 load(
     "//sw/device/silicon_creator/rom/e2e:defs.bzl",

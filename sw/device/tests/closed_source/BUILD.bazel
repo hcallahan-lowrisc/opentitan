@@ -3,13 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load("@lowrisc_opentitan//rules:const.bzl", "CONST")
-load("@lowrisc_opentitan//rules/opentitan:keyutils.bzl", "ECDSA_ONLY_KEY_STRUCTS")
 load(
     "@lowrisc_opentitan//rules/opentitan:defs.bzl",
     "dv_params",
     "ecdsa_key_for_lc_state",
     "opentitan_test",
 )
+load("@lowrisc_opentitan//rules/opentitan:keyutils.bzl", "ECDSA_ONLY_KEY_STRUCTS")
 
 package(default_visibility = ["//visibility:public"])
 

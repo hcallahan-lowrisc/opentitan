@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load("@rules_rust//rust:defs.bzl", "rust_binary")
-load("//rules/opentitan:defs.bzl", "OPENTITAN_CPU")
 load("//rules:tock.bzl", "tock_elf2tab", "tock_image")
+load("//rules/opentitan:defs.bzl", "OPENTITAN_CPU")
 
 package(default_visibility = ["//visibility:public"])
 

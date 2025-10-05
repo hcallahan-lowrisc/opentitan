@@ -3,10 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load(
-    "//rules/opentitan:defs.bzl",
-    "opentitan_test",
-)
-load(
     "//rules:const.bzl",
     "CONST",
 )

@@ -1,6 +1,8 @@
 # Copyright lowRISC contributors (OpenTitan project).
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
+
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load(
     "//rules/opentitan:defs.bzl",
     "CLEAR_TEST_CMD",
@@ -89,4 +91,10 @@ opentitan_test(
         "//sw/device/lib/testing/test_framework:ujson_ottf",
         "//sw/device/lib/ujson",
     ],
+)
+
+bzl_library(
+    name = "gpio",
+    srcs = ["gpio.bzl"],
+    deps = ["//rules/opentitan:defs"],
 )

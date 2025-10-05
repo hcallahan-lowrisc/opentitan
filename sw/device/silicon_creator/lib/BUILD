@@ -9,14 +9,7 @@ load(
 load("//hw/top:defs.bzl", "ALL_IP_NAMES", "opentitan_if_ip", "opentitan_select_top")
 load("//rules:autogen.bzl", "autogen_chip_info")
 load("//rules:cross_platform.bzl", "dual_cc_device_library_of", "dual_cc_library", "dual_inputs")
-load("//rules/opentitan:defs.bzl", "OPENTITAN_CPU")
-load(
-    "//rules/opentitan:defs.bzl",
-    "EARLGREY_TEST_ENVS",
-    "fpga_params",
-    "opentitan_test",
-    "verilator_params",
-)
+load("//rules/opentitan:defs.bzl", "EARLGREY_TEST_ENVS", "OPENTITAN_CPU", "fpga_params", "opentitan_test", "verilator_params")
 load("//rules/opentitan:util.bzl", "flatten")
 
 package(default_visibility = ["//visibility:public"])

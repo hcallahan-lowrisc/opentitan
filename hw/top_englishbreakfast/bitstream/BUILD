@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
-load("//rules:fusesoc.bzl", "fusesoc_build")
 load("//rules:bitstreams.bzl", "bitstream_manifest_fragment")
+load("//rules:fusesoc.bzl", "fusesoc_build")
 
 _FPGA_PATH_TMPL = "lowrisc_systems_{}_0.1/synth-vivado/{}"
 

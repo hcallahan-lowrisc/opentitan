@@ -3,13 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load(
-    "//rules/opentitan:defs.bzl",
-    "DEFAULT_TEST_FAILURE_MSG",
-    "DEFAULT_TEST_SUCCESS_MSG",
-    "fpga_params",
-    "opentitan_test",
-)
-load(
     "//rules:const.bzl",
     "CONST",
 )
@@ -20,6 +13,13 @@ load(
     "otp_image",
     "otp_json",
     "otp_partition",
+)
+load(
+    "//rules/opentitan:defs.bzl",
+    "DEFAULT_TEST_FAILURE_MSG",
+    "DEFAULT_TEST_SUCCESS_MSG",
+    "fpga_params",
+    "opentitan_test",
 )
 
 package(default_visibility = ["//visibility:public"])

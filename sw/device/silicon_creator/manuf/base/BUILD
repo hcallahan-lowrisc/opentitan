@@ -2,10 +2,13 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
+load("@//rules:signing.bzl", "offline_presigning_artifacts", "offline_signature_attach")
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load(
     "@provisioning_exts//:cfg.bzl",
     "EXT_SIGNED_PERSO_BINS",
 )
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("//rules:const.bzl", "CONST", "hex")
 load("//rules:manifest.bzl", "manifest")
 load("//rules/opentitan:cc.bzl", "opentitan_binary_assemble")
@@ -35,8 +38,6 @@ load(
     "//sw/device/silicon_creator/rom_ext/e2e:defs.bzl",
     "OWNER_SLOTS",
 )
-load("@//rules:signing.bzl", "offline_presigning_artifacts", "offline_signature_attach")
-load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -549,4 +550,10 @@ offline_signature_attach(
         "//sw/device/silicon_creator/manuf/base/signatures:ecdsa_signatures",
     ],
     tags = ["manual"],
+)
+
+bzl_library(
+    name = "provisioning_inputs",
+    srcs = ["provisioning_inputs.bzl"],
+    deps = ["@provisioning_exts//:cfg"],
 )

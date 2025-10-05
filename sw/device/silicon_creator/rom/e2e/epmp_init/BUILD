@@ -3,6 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load(
+    "//rules:const.bzl",
+    "CONST",
+    "get_lc_items",
+)
+load("//rules:rom_e2e.bzl", "maybe_skip_in_ci")
+load(
     "//rules/opentitan:defs.bzl",
     "cw310_params",
     "ecdsa_key_for_lc_state",
@@ -10,13 +16,7 @@ load(
     "opentitan_test",
     "verilator_params",
 )
-load(
-    "//rules:const.bzl",
-    "CONST",
-    "get_lc_items",
-)
 load("//rules/opentitan:keyutils.bzl", "ECDSA_ONLY_KEY_STRUCTS")
-load("//rules:rom_e2e.bzl", "maybe_skip_in_ci")
 
 package(default_visibility = ["//visibility:public"])
 

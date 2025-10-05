@@ -3,15 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 load(
-    "//rules/opentitan:defs.bzl",
-    "DEFAULT_TEST_FAILURE_MSG",
-    "cw310_params",
-    "ecdsa_key_for_lc_state",
-    "fpga_params",
-    "opentitan_test",
-)
-load("//rules/opentitan:keyutils.bzl", "ECDSA_ONLY_KEY_STRUCTS")
-load(
     "//rules:const.bzl",
     "CONST",
     "hex",
@@ -27,6 +18,15 @@ load(
     "otp_partition",
 )
 load("//rules:rom_e2e.bzl", "maybe_skip_in_ci")
+load(
+    "//rules/opentitan:defs.bzl",
+    "DEFAULT_TEST_FAILURE_MSG",
+    "cw310_params",
+    "ecdsa_key_for_lc_state",
+    "fpga_params",
+    "opentitan_test",
+)
+load("//rules/opentitan:keyutils.bzl", "ECDSA_ONLY_KEY_STRUCTS")
 load(
     "//sw/device/silicon_creator/rom/e2e:defs.bzl",
     "MSG_PASS",
