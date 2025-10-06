@@ -35,7 +35,7 @@ archive_override(
 # Dependencies:
 bazel_dep(name = "rules_rust", version = "0.59.2")
 bazel_dep(name = "rules_rust_bindgen", version = "0.59.2")
-bazel_dep(name = "toolchains_llvm", version = "1.1.2")
+bazel_dep(name = "toolchains_llvm", version = "1.5.0")
 
 # Overrides and patches:
 single_version_override(
