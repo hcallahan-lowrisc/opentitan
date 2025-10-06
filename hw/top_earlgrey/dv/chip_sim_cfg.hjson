@@ -140,13 +140,16 @@
   reseed: 3
 
   // exports: [
+  //
   //   Uncomment if using manufacturer tests / test hooks that live somewhere
   //   else on your system, outside of $REPO_TOP. See
   //   sw/device/tests/closed_source/README.md for more details.
   //   {MANUFACTURER_HOOKS_DIR: "/path/to/manufacturer_hooks_dir"},
+  //
   //   Uncomment if you are using the `--data-perm` OTP image generation flag,
   //   when building OTP images with Bazel.
   //   {BAZEL_OTP_DATA_PERM_FLAG: "[15:0],[23:16]"},
+  //
   // ]
 
   // Default UVM test and seq class name.
@@ -171,8 +174,7 @@
       build_opts: ["+define+PADTEST"]
       is_sim_mode: 1
     }
-    // Sim mode that enables build randomization. See the `build_seed` mode
-    // defined in `hw/dv/tools/dvsim/common_modes.hjson` for more details.
+    // build/sim_mode that enables build randomization.
     {
       name: build_seed
       pre_build_cmds: [
