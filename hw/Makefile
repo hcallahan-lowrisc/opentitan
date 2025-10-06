@@ -86,7 +86,7 @@ endif
 
 .PHONY: $(ips_reg) $(tops_gen)
 
-all: $(ips_reg) $(tops_gen) cmdgen
+all: $(ips_reg) $(tops_gen) cmdgen gazelle
 
 regs: $(ips_reg)
 
@@ -130,5 +130,9 @@ cmdgen:
 	 xargs -0 -P 8 $(XARGS_REPLACE) ./util/cmdgen.py -u {})
 
 top_and_cmdgen: top cmdgen
+
+# Invoke gazelle to format and auto-populate generated/templated BUILD files after generation
+gazelle: $(tops_gen)
+	${PRJ_DIR}/bazelisk.sh run //:gazelle
 
 .PHONY: all
