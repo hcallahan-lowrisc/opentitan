@@ -22,3 +22,9 @@ filegroup(
     name = "doc_files",
     srcs = glob(["**/*.md"]) + ["//hw/top_englishbreakfast/ip_autogen/rv_core_ibex/data:doc_files"],
 )
+
+bzl_library(
+    name = "defs",
+    srcs = ["defs.bzl"],
+    deps = ["//rules/opentitan:hw"],
+)

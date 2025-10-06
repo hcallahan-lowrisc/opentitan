@@ -25,3 +25,9 @@ filegroup(
         "**/*.svg",
     ]) + ["//hw/top_englishbreakfast/ip_autogen/rstmgr/data:doc_files"],
 )
+
+bzl_library(
+    name = "defs",
+    srcs = ["defs.bzl"],
+    deps = ["//rules/opentitan:hw"],
+)

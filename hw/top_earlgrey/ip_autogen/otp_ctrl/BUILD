@@ -25,3 +25,9 @@ filegroup(
         "**/*.svg",
     ]) + ["//hw/top_earlgrey/ip_autogen/otp_ctrl/data:doc_files"],
 )
+
+bzl_library(
+    name = "defs",
+    srcs = ["defs.bzl"],
+    deps = ["//rules/opentitan:hw"],
+)
