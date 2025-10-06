@@ -7,6 +7,7 @@
 # util/topgen.py -t hw/top_englishbreakfast/data/top_englishbreakfast.hjson \
 #                -o hw/top_englishbreakfast/
 
+load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load(
     "//rules/opentitan:defs.bzl",
     "cw310_params",
@@ -15,7 +16,6 @@ load(
     "silicon_params",
     "verilator_params",
 )
-load("@bazel_skylib//lib:dicts.bzl", "dicts")
 
 package(default_visibility = ["//visibility:public"])
 

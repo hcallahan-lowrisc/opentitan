@@ -7,6 +7,7 @@
 # util/topgen.py -t hw/top_earlgrey/data/top_earlgrey.hjson \
 #                -o hw/top_earlgrey/
 
+load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load(
     "//rules/opentitan:defs.bzl",
     "EARLGREY_SILICON_OWNER_ROM_EXT_ENVS",
@@ -17,7 +18,6 @@ load(
     "silicon_params",
     "verilator_params",
 )
-load("@bazel_skylib//lib:dicts.bzl", "dicts")
 
 package(default_visibility = ["//visibility:public"])
 

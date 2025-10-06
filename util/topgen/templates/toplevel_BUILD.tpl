@@ -6,8 +6,8 @@ ${gencmd}
 <%
 top_name = "top_" + top["name"]
 %>\
-load("//rules:linker.bzl", "ld_library")
 load("//hw/top:defs.bzl", "opentitan_require_top")
+load("//rules:linker.bzl", "ld_library")
 
 package(default_visibility = ["//visibility:public"])
 

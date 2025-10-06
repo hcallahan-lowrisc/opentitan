@@ -7,4 +7,6 @@
 # util/topgen.py -t hw/top_englishbreakfast/data/top_englishbreakfast.hjson \
 #                -o hw/top_englishbreakfast/
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+
 exports_files(glob(["*.hjson"]))

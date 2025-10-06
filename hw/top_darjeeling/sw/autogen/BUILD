@@ -7,8 +7,8 @@
 # util/topgen.py -t hw/top_darjeeling/data/top_darjeeling.hjson \
 #                -o hw/top_darjeeling/
 
-load("//rules:linker.bzl", "ld_library")
 load("//hw/top:defs.bzl", "opentitan_require_top")
+load("//rules:linker.bzl", "ld_library")
 
 package(default_visibility = ["//visibility:public"])
 

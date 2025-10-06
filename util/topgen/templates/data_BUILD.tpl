@@ -3,4 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 ${gencmd}
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+
 exports_files(glob(["*.hjson"]))

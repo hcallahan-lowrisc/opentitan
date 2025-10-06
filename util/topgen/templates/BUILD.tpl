@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 ${gencmd.replace("//", "#")}
 
+load("@bazel_skylib//lib:dicts.bzl", "dicts")
 <%
 import topgen.lib as lib
 
@@ -72,7 +73,6 @@ load(
     "${imp}",
 % endfor
 )
-load("@bazel_skylib//lib:dicts.bzl", "dicts")
 
 package(default_visibility = ["//visibility:public"])
 

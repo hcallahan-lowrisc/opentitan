@@ -7,4 +7,6 @@
 # util/topgen.py -t hw/top_earlgrey/data/top_earlgrey.hjson \
 #                -o hw/top_earlgrey/
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+
 exports_files(glob(["*.hjson"]))

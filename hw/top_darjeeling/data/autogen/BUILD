@@ -7,4 +7,6 @@
 # util/topgen.py -t hw/top_darjeeling/data/top_darjeeling.hjson \
 #                -o hw/top_darjeeling/
 
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+
 exports_files(glob(["*.hjson"]))
