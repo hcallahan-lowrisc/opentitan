@@ -129,7 +129,7 @@ cmdgen:
 	(cd ${PRJ_DIR}; find . -name "*.md" -print0 | \
 	 xargs -0 -P 8 $(XARGS_REPLACE) ./util/cmdgen.py -u {})
 
-top_and_cmdgen: top cmdgen
+top_and_cmdgen: top cmdgen gazelle
 
 # Invoke gazelle to format and auto-populate generated/templated BUILD files after generation
 gazelle: $(tops_gen)
