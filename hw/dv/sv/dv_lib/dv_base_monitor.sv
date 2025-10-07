@@ -98,10 +98,6 @@ class dv_base_monitor #(type ITEM_T = uvm_sequence_item,
     bit watchdog_done;
     uint watchdog_restart_count = 1;
 
-    if (cfg.watchdog_restart_count_limit_enabled) begin
-      `uvm_info(`gfn, "cfg.watchdog_restart_count_limit_enabled = 1'b1", UVM_MEDIUM)
-    end
-
     fork
       // Automatically end test if we don't terminate in time.
       begin
@@ -145,12 +141,6 @@ class dv_base_monitor #(type ITEM_T = uvm_sequence_item,
 
           // Wait for ok_to_end to de-assert again in future.
           wait (!ok_to_end);
-        end
-
-        if (cfg.watchdog_restart_count_limit_enabled &&
-            (watchdog_restart_count >= cfg.watchdog_restart_count_limit)) begin
-          `uvm_fatal(`gfn, $sformatf("'watchdog_restart_count' exceeded the limit of %0d. Aborting.",
-                                     cfg.watchdog_restart_count_limit))
         end
       end
     join

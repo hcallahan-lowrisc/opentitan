@@ -229,19 +229,6 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::pre_start();
     `uvm_fatal(`gfn, "Cannot dump memories when perso_start_phase >= 0.")
   end
 
-  // Enable the 'chip_reg_block' tl_agent to end the simulation if the 'ok_to_end' watchdog
-  // resets too many times. This ends the simulation swiftly if something has gone wrong.
-  cfg.m_tl_agent_cfg.watchdog_restart_count_limit_enabled = 1'b0;
-
-  // Set CSB inactive times to reasonable values. sys_clk is at 24 MHz, and
-  // it needs to capture CSB pulses.
-  cfg.m_spi_host_agent_cfg.min_idle_ns_after_csb_drop = 50;
-  cfg.m_spi_host_agent_cfg.max_idle_ns_after_csb_drop = 200;
-
-  // Configure and enable the spi-host agent.
-  spi_agent_configure_flash_cmds(cfg.m_spi_host_agent_cfg);
-  cfg.chip_vif.enable_spi_host = 1;
-
   // Enable the UART agent to receive messages on the dbg console (e.g. via dbg_printf())
   // The 'silicon_creator' environment uses the follow baud rate...
   cfg.uart_baud_rate = BaudRate115200;
