@@ -428,7 +428,6 @@ class chip_env_cfg #(type RAL_T = chip_ral_pkg::chip_reg_block) extends cip_base
         sw_image_flags[sw_type] = sw_image_fields[2:$];
       end
     end
-    resolve_sw_image_paths();
   endfunction
 
   // Finalize the SW image paths, once all SW image settings are done.
