@@ -170,7 +170,7 @@ package chip_env_pkg;
     SpiFlashEx4B         = 8'hE9
   } spi_flash_cmd_e;
 
-  typedef enum int {
+  typedef enum int unsigned {
     ottf_spi_console_flow_ctrl_mio_idx_rx_ready = top_earlgrey_pkg::MioPadIoa6,
     ottf_spi_console_flow_ctrl_mio_idx_tx_ready = top_earlgrey_pkg::MioPadIoa5
   } ottf_spi_console_flow_ctrl_mio_idx_e;

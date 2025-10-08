@@ -10,8 +10,14 @@
 class ottf_spi_console extends uvm_component;
   `uvm_component_utils(ottf_spi_console)
 
+  uvm_event read_ev;
+  bit [7:0] read_buf[$] = {};
+
+  bit enable_read_polling = 1'b0;
+
   function new(string name = "", uvm_component parent = null);
     super.new(name, parent);
+    read_ev = new("read_ev");
   endfunction : new
 
   virtual clk_rst_if clk_rst_vif;
@@ -149,6 +155,13 @@ class ottf_spi_console extends uvm_component;
                                               output bit [7:0] chunk_q[$]);
   // Read a single frame from the DEVICE spi console.
   extern protected task host_spi_console_read_frame(ref bit [7:0] chunk_q[$]);
+  // Await the DEVICE signalling tx_ready, and continually read back all content into the read
+  // buffer 'buf'. This buffer just stores bytes, so all notion of frames/headers is discarded.
+  extern task host_spi_console_poll_reads();
+  // Wait until the buffer for polled read data contains the expected string.
+  extern task host_spi_console_read_wait_for_polled_str(input string wait_for);
+  // Flush the read buffer
+  extern task host_spi_console_flush();
   // Await the DEVICE signalling a read, and check the payload contains the given string.
   extern task host_spi_console_read_wait_for(input string wait_for);
   // Await the DEVICE signalling a read, and return the payload as an array of bytes.
@@ -319,6 +332,63 @@ task ottf_spi_console::host_spi_console_read_frame(ref bit [7:0] chunk_q[$]);
   #(min_interval_ns);
 
 endtask : host_spi_console_read_frame
+
+task ottf_spi_console::host_spi_console_poll_reads();
+  forever begin
+    // Each time around the loop, check the value of this bit to enable/disable the polling process.
+    wait (enable_read_polling == 1'b1);
+
+    await_flow_ctrl_signal(tx_ready, 1'b1);
+    // If software disabled read polling while blocked awaiting tx_ready, then just go back to the
+    // top and wait for it to be re-enabled. The tx_ready request will still be there when we come
+    // back.
+    if (enable_read_polling == 1'b0) continue;
+
+    fork
+      // Capture a single spi_console frame. Return as soon as the data transfer has completed.
+      begin : capture_frame
+        bit [7:0] frame_byte_q[$] = {};
+        host_spi_console_read_frame(.chunk_q(frame_byte_q));
+        read_buf = {read_buf, frame_byte_q};
+        `uvm_info(`gfn, $sformatf("Polling: Got %0d data bytes in frame : %0s", frame_byte_q.size(),
+          byte_q_as_str(frame_byte_q)), UVM_MEDIUM)
+      end
+      // The DEVICE will de-assert tx_ready after the first CSB edge, knowing that both sides
+      // understand that two full spi transfers are needed to complete the frame (header + data).
+      // It won't be reasserted for another frame until after the 4th CSB edge (the end of the
+      // second transfer)
+      await_flow_ctrl_signal(tx_ready, 1'b0);
+    join
+
+    // After a frame, check if the last entry into the read_buffer was a CRLF
+    // If so, print out the buffer contents...
+    begin
+      bit [7:0] CR = 8'hd;
+      bit [7:0] LF = 8'ha;
+      bit [7:0] EOL[$] = {CR, LF};
+      if (read_buf[$-1:$] == EOL) begin
+        read_ev.trigger();
+        `uvm_info(`gfn, $sformatf("Frame ended with CRLF, printing read buffer contents:\n%0s",
+          byte_q_as_str(read_buf)), UVM_MEDIUM)
+      end
+    end
+
+  end
+endtask : host_spi_console_poll_reads
+
+task ottf_spi_console::host_spi_console_read_wait_for_polled_str(input string wait_for);
+  `uvm_info(`gfn, $sformatf("Waiting to see msg in polled spi_console buffer : %0s",  wait_for), UVM_LOW)
+  do begin
+    read_ev.wait_trigger();
+  end while (!findStrRe(wait_for, byte_q_as_str(read_buf)));
+  `uvm_info(`gfn, $sformatf("Got expected msg in polled spi_console buffer : %0s",  wait_for), UVM_LOW)
+  `uvm_info(`gfn, "Flushing spi_console buffer.", UVM_LOW)
+  host_spi_console_flush();
+endtask : host_spi_console_read_wait_for_polled_str
+
+task ottf_spi_console::host_spi_console_flush();
+  read_buf = {};
+endtask : host_spi_console_flush
 
 task ottf_spi_console::host_spi_console_read_wait_for(input string wait_for);
   bit [7:0] chunk_q[$];

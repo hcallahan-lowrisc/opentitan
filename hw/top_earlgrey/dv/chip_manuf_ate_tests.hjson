@@ -77,9 +77,13 @@
         "+sw_test_timeout_ns=1_000_000_000", // 1s
         "+use_otp_image=OtpTypeCustom",
 
+        // TEMP: Force backdoor-load of initial bootstrap
+        "+skip_flash_bkdr_load=0",
+        "+use_spi_load_bootstrap=0",
+
         // Dump simulation memory model images between phases, to allow re-loading of these images in
         // subsequent simulations to skip past test phases that are idempotent.
-        "+dump_mems=0",
+        "+dump_mems=1",
 
         // If the +perso_start_phase >= 1, then a +load_path must be provided containing memory images
         // from a previous run of this test with the +dump_mems plusarg set.

@@ -218,9 +218,9 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::pre_start();
     perso_start_phase.name), UVM_LOW)
 
   // Don't allow the first-boot dut_init() routine to load flash with an initial image.
-  cfg.skip_flash_bkdr_load = 1;
+  // cfg.skip_flash_bkdr_load = 1;
   // Don't use the ROM SPI Bootstrap in cpu_init(). We manage everything from the leaf vseq.
-  cfg.use_spi_load_bootstrap = 0;
+  // cfg.use_spi_load_bootstrap = 0;
 
   if ((perso_start_phase > Phase0) && dump_mems) begin
     // TODO: Calling load_mem_from_file() and write_mem_to_file() at the same time may not give a
@@ -235,6 +235,14 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::pre_start();
   configure_uart_agent(.uart_idx(ROM_CONSOLE_UART), .enable(1));
   // Monitor the CONSOLE UART throught the test for informational purposes
   fork print_uart_console_items(ROM_CONSOLE_UART); join_none
+
+  // Spawn the spi_console polling process in the background.
+  // The polling is still mediated by enabling/disabling the control bit
+  // cfg.ottf_spi_console_h.enable_read_polling.
+  // Polling begins disabled.
+  fork cfg.ottf_spi_console_h.host_spi_console_poll_reads(); join_none
+  // Enable polling to capture the OTTF messages printed before starting the test.
+  cfg.ottf_spi_console_h.enable_read_polling = 1'b1;
 endtask
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::body();
@@ -415,7 +423,7 @@ endtask : do_ft_personalize
 task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_0();
   // Perform the first ROM Bootstrap
   fork
-    spi_device_load_bootstrap({cfg.sw_images[SwTypeTestSlotA], ".64.vmem"});
+    // spi_device_load_bootstrap({cfg.sw_images[SwTypeTestSlotA], ".64.vmem"});
 
     // POR must be asserted externally at the end of the bootstrap process.
     // This is handled by the load_bootstrap() routine above.
