@@ -179,7 +179,7 @@ class cip_base_scoreboard #(type RAL_T = dv_base_reg_block,
   endtask
 
   task process_tl_a_item(string ral_name, tl_seq_item item);
-    `uvm_info(`gfn, $sformatf("received tl a_chan item: %0s", item.convert2string()), UVM_HIGH)
+    `uvm_info(`gfn, $sformatf("received tl a_chan item: %0s", item.convert2string()), UVM_FULL)
 
     if (cfg.en_scb_tl_err_chk) begin
       if (predict_tl_err(item, AddrChannel, ral_name)) return;
@@ -190,7 +190,7 @@ class cip_base_scoreboard #(type RAL_T = dv_base_reg_block,
   endtask
 
   task process_tl_d_item(string ral_name, tl_seq_item item);
-    `uvm_info(`gfn, $sformatf("received tl d_chan item: %0s", item.convert2string()), UVM_HIGH)
+    `uvm_info(`gfn, $sformatf("received tl d_chan item: %0s", item.convert2string()), UVM_FULL)
 
     if (cfg.en_scb_tl_err_chk) begin
       // check tl packet integrity

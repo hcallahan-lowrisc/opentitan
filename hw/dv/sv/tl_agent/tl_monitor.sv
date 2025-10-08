@@ -163,7 +163,7 @@ class tl_monitor extends dv_base_monitor#(
       req.a_user   = h2d.a_user;
       `uvm_info("tl_logging",
                 $sformatf("[%0s][a_chan] : %0s", agent_name, req.convert2string()),
-                UVM_HIGH)
+                UVM_FULL)
 
       if (cfg.en_cov) sample_outstanding_cov(req);
 
@@ -220,7 +220,7 @@ class tl_monitor extends dv_base_monitor#(
       rsp.d_user   = cfg.vif.mon_cb.d2h.d_user;
 
       `uvm_info("tl_logging",
-                $sformatf("[%0s][d_chan] : %0s", agent_name, rsp.convert2string()), UVM_HIGH)
+                $sformatf("[%0s][d_chan] : %0s", agent_name, rsp.convert2string()), UVM_FULL)
 
       d_chan_port.write(rsp);
       if (cfg.synchronise_ports) channel_dir_port.write(DataChannel);
