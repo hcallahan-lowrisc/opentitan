@@ -147,11 +147,16 @@ class chip_sw_base_vseq extends chip_base_vseq;
         `uvm_info(`gfn, "SPI-Bootstrapping Flash SlotA complete.", UVM_MEDIUM)
 
       end else begin
-        // bkdr-load both slots if images are provided to the simulation.
+        // Backdoor-load both slots if images are provided to the simulation.
         `uvm_info(`gfn, "Backdoor-loading FLASH slots now.", UVM_MEDIUM)
-        if (cfg.sw_images.exists(SwTypeTestSlotA)) cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file({cfg.sw_images[SwTypeTestSlotA], ".64.scr.vmem"});
-        if (cfg.sw_images.exists(SwTypeTestSlotB)) cfg.mem_bkdr_util_h[FlashBank1Data].load_mem_from_file({cfg.sw_images[SwTypeTestSlotB], ".64.scr.vmem"});
-
+        if (cfg.sw_images.exists(SwTypeTestSlotA)) begin
+          cfg.mem_bkdr_util_h[FlashBank0Data].load_mem_from_file(
+            {cfg.sw_images[SwTypeTestSlotA], ".64.scr.vmem"});
+        end
+        if (cfg.sw_images.exists(SwTypeTestSlotB)) begin
+          cfg.mem_bkdr_util_h[FlashBank1Data].load_mem_from_file(
+            {cfg.sw_images[SwTypeTestSlotB], ".64.scr.vmem"});
+        end
       end
     end
 
