@@ -246,12 +246,12 @@ endfunction
 task ottf_spi_console::await_flow_ctrl_signal(flow_ctrl_idx_e idx,
                                               bit val = 1'b1,
                                               uint timeout_ns = await_flow_ctrl_timeout_ns);
-  `uvm_info(`gfn, $sformatf("Waiting for pin:%0d to be %0d now...", idx, val), UVM_HIGH)
+  `uvm_info(`gfn, $sformatf("Waiting for pin:'%0s' to be %0d now...", idx.name(), val), UVM_MEDIUM)
   `DV_WAIT(
     /*WAIT_COND_*/  flow_ctrl_vif.pins[idx] == val,
-    /*MSG_*/        $sformatf("Timed out waiting for pin '%0s' to be 1'b%0b.", idx.name(), val),
+    /*MSG_*/        $sformatf("Timed out waiting for pin:'%0s' to be 1'b%0b.", idx.name(), val),
     /*TIMEOUT_NS_*/ timeout_ns)
-  `uvm_info(`gfn, $sformatf("Saw idx:%0d as %0d now!", idx, val), UVM_HIGH)
+  `uvm_info(`gfn, $sformatf("Saw pin:'%0s' as %0d now!", idx.name(), val), UVM_MEDIUM)
 endtask: await_flow_ctrl_signal
 
 //////////////////
@@ -359,6 +359,7 @@ task ottf_spi_console::host_spi_console_poll_reads();
       // second transfer)
       await_flow_ctrl_signal(tx_ready, 1'b0);
     join
+    `uvm_info(`gfn, "TEMP: ", UVM_MEDIUM)
 
     // After a frame, check if the last entry into the read_buffer was a CRLF
     // If so, print out the buffer contents...
@@ -380,6 +381,7 @@ task ottf_spi_console::host_spi_console_read_wait_for_polled_str(input string wa
   `uvm_info(`gfn, $sformatf("Waiting to see msg in polled spi_console buffer : %0s",  wait_for), UVM_LOW)
   do begin
     read_ev.wait_trigger();
+    `uvm_info(`gfn, "host_spi_console_read_wait_for_polled_str() : Got read_ev.", UVM_MEDIUM)
   end while (!findStrRe(wait_for, byte_q_as_str(read_buf)));
   `uvm_info(`gfn, $sformatf("Got expected msg in polled spi_console buffer : %0s",  wait_for), UVM_LOW)
   `uvm_info(`gfn, "Flushing spi_console buffer.", UVM_LOW)
