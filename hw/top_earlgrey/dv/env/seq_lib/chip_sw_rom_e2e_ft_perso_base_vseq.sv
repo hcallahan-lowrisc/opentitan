@@ -217,22 +217,17 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::pre_start();
   `uvm_info(`gfn, $sformatf("perso_start_phase = %0d (%0s)", perso_start_phase,
     perso_start_phase.name), UVM_LOW)
 
-  // Don't allow the first-boot dut_init() routine to load flash with an initial image.
-  // cfg.skip_flash_bkdr_load = 1;
-  // Don't use the ROM SPI Bootstrap in cpu_init(). We manage everything from the leaf vseq.
-  // cfg.use_spi_load_bootstrap = 0;
-
-  if (!spi_agent_is_configured) begin
-    spi_agent_configure_flash_cmds(cfg.m_spi_host_agent_cfg);
-    spi_agent_is_configured = 1'b1;
-  end
-
   if ((perso_start_phase > Phase0) && dump_mems) begin
     // TODO: Calling load_mem_from_file() and write_mem_to_file() at the same time may not give a
     // repeatable result, and so for the moment we do not allow dumping and loading at the same
     // time. This could probably be fixed with some careful investigation.
     `uvm_fatal(`gfn, "Cannot dump memories when perso_start_phase >= 0.")
   end
+
+  // Don't allow the first-boot dut_init() routine to load flash with an initial image.
+  // cfg.skip_flash_bkdr_load = 1;
+  // Don't use the ROM SPI Bootstrap in cpu_init(). We manage everything from the leaf vseq.
+  // cfg.use_spi_load_bootstrap = 0;
 
   // Enable the UART agent to receive messages on the dbg console (e.g. via dbg_printf())
   // The 'silicon_creator' environment uses the follow baud rate...
@@ -241,6 +236,11 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::pre_start();
   // Monitor the CONSOLE UART throught the test for informational purposes
   fork print_uart_console_items(ROM_CONSOLE_UART); join_none
 
+  if (!spi_agent_is_configured) begin
+    spi_agent_configure_flash_cmds(cfg.m_spi_host_agent_cfg);
+    spi_agent_is_configured = 1'b1;
+  end
+
   // Spawn the spi_console polling process in the background.
   // The polling is still mediated by enabling/disabling the control bit
   // cfg.ottf_spi_console_h.enable_read_polling.
@@ -248,6 +248,7 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::pre_start();
   fork cfg.ottf_spi_console_h.host_spi_console_poll_reads(); join_none
   // Enable polling to capture the OTTF messages printed before starting the test.
   cfg.ottf_spi_console_h.enable_read_polling = 1'b1;
+
 endtask
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::body();
@@ -260,12 +261,10 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::body();
         do_ft_personalize();
         // After the completion of all stimulus, the device should raise the test done gpio
         await_ioa("IOA1", 1'b1, cfg.sw_test_timeout_ns);
-        // Wait for the OTTF to send the 'Finished %s' message, as the spi_console requires
-        // HOST-side interaction to read it's contents the device software will spin unless it is
-        // fully read out and this will cause continuing bus traffic which prevents the test from
-        // ending.
-        cfg.ottf_spi_console_h.host_spi_console_read_wait_for("PASS!");
-        cfg.ottf_spi_console_h.host_spi_console_read_payload(CRLF, 16);
+        // Wait for the OTTF to send the 'Finished %s' message, and don't disconnect the
+        // spi_console since software will block awaiting console traffic to be sent, which will
+        // prevent SW reaching wfi and allowing the tilelink monitors to signal ok_to_end.
+        cfg.ottf_spi_console_h.host_spi_console_read_wait_for_polled_str("PASS!");
         override_test_status_and_finish(.passed(1'b1));
       end
       begin : detect_error_gpio
@@ -428,16 +427,12 @@ endtask : do_ft_personalize
 task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_0();
   // Perform the first ROM Bootstrap
   fork
-    // spi_device_load_bootstrap({cfg.sw_images[SwTypeTestSlotA], ".64.vmem"});
-
-    // Wait for initial OTTF message
-    string msg = "I00001 ottf_main.c:186] Enabling OTTF alert catcher";
-    cfg.ottf_spi_console_h.host_spi_console_read_wait_for_polled_str(msg);
+    spi_device_load_bootstrap({cfg.sw_images[SwTypeTestSlotA], ".64.vmem"});
 
     // POR must be asserted externally at the end of the bootstrap process.
     // This is handled by the load_bootstrap() routine above.
     // Wait for the chip to restart, and the ROM to complete loading the bootstrapped Flash image.
-    // await_test_start_after_reset();
+    await_test_start_after_reset();
   join
 endtask
 
@@ -454,8 +449,6 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_1();
 endtask
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_2();
-
-  `uvm_fatal(`gfn, "STOP!")
 
   // Perform the second ROM Bootstrap of Flash
   // > (the multi-slot binary of perso + ROM_EXT + Owner FW binaries)
@@ -476,10 +469,12 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_3();
   // request for provisioning of the RMA Unlock Token.
   //
   // Wait for the DEVICE to request the RMA Unlock Token (personalize_otp_and_flash_secrets()).
-  cfg.ottf_spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_RMA_TOKEN);
+  cfg.ottf_spi_console_h.host_spi_console_read_wait_for_polled_str(SYNC_STR_READ_RMA_TOKEN);
+  cfg.ottf_spi_console_h.enable_read_polling = 1'b0;
   // The device has now requested the Unlock Token. Write it over the spi console.
   cfg.ottf_spi_console_h.host_spi_console_write_when_ready('{RMA_UNLOCK_TOKEN_HASH,
                                                              RMA_UNLOCK_TOKEN_HASH_CRC});
+  cfg.ottf_spi_console_h.enable_read_polling = 1'b1;
 
   // After the OTP SECRET2 partition is programmed, the chip performs a SW reset.
   // At this point, personalize_otp_and_flash_secrets() has completed.
@@ -494,28 +489,36 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_4();
 
   // Next, we provision all device certificates.
   `uvm_info(`gfn, "Awaiting sync-str to start write of certificate provisioning data...", UVM_LOW)
-  cfg.ottf_spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_PERSO_DICE_CERTS);
+  cfg.ottf_spi_console_h.host_spi_console_read_wait_for_polled_str(SYNC_STR_READ_PERSO_DICE_CERTS);
+  cfg.ottf_spi_console_h.enable_read_polling = 1'b0;
   cfg.ottf_spi_console_h.host_spi_console_write_when_ready('{PERSO_CERTGEN_INPUTS});
+  cfg.ottf_spi_console_h.enable_read_polling = 1'b1;
 
   // Wait until the device exports the TBS certificates.
   `uvm_info(`gfn, "Awaiting sync-str to start read of exported certificate payload...", UVM_LOW)
-  cfg.ottf_spi_console_h.host_spi_console_read_wait_for(SYNC_STR_WRITE_TBS_CERTS);
+  cfg.ottf_spi_console_h.host_spi_console_read_wait_for_polled_str(SYNC_STR_WRITE_TBS_CERTS);
+  cfg.ottf_spi_console_h.enable_read_polling = 1'b0;
 
   // Read the TBS certificate payload from the console.
   cfg.ottf_spi_console_h.host_spi_console_read_payload(tbs_certs, kPersoBlobSerializedMaxSize);
   dump_byte_array_to_file(tbs_certs, TBS_CERTS_FILE);
+
+  cfg.ottf_spi_console_h.enable_read_polling = 1'b1;
 
   // Process the certificate payload...
   // > Nothing to do, we cheat and already have the response in a file.
 
   // Wait until the device indicates it can import the endorsed certificate files.
   `uvm_info(`gfn, "Awaiting sync-str to start write of endorsed certificates...", UVM_LOW)
-  cfg.ottf_spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_ENDORSED_CERTS);
+  cfg.ottf_spi_console_h.host_spi_console_read_wait_for_polled_str(SYNC_STR_READ_ENDORSED_CERTS);
+  cfg.ottf_spi_console_h.enable_read_polling = 1'b0;
   cfg.ottf_spi_console_h.host_spi_console_write_when_ready('{MANUF_PERSO_DATA_BACK});
+  cfg.ottf_spi_console_h.enable_read_polling = 1'b1;
 
   // Wait until the device indicates it has successfully imported the endorsed certificate files.
   `uvm_info(`gfn, "Awaiting sync-str for completion of endorsed certificate import...", UVM_LOW)
-  cfg.ottf_spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_FINISHED_CERT_IMPORTS);
+  cfg.ottf_spi_console_h.host_spi_console_read_wait_for_polled_str(SYNC_STR_READ_FINISHED_CERT_IMPORTS);
+  cfg.ottf_spi_console_h.enable_read_polling = 1'b0;
 
   // The device now checks the imported certificate package.
 
@@ -525,9 +528,11 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_4();
                                                        kSerdesSha256HashSerializedMaxSize);
   dump_byte_array_to_file(final_hash, FINAL_HASH_FILE);
 
+  cfg.ottf_spi_console_h.enable_read_polling = 1'b1;
+
   // Wait until the device indicates it has successfully completed perso!
   `uvm_info(`gfn, "Awaiting sync-str for completion of personalization...", UVM_LOW)
-  cfg.ottf_spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_PERSO_DONE);
+  cfg.ottf_spi_console_h.host_spi_console_read_wait_for_polled_str(SYNC_STR_READ_PERSO_DONE);
 endtask
 
 function string chip_sw_rom_e2e_ft_perso_base_vseq::byte_array_as_str(bit [7:0] q[]);
