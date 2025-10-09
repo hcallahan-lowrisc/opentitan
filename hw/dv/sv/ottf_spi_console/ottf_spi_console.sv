@@ -10,8 +10,8 @@
 class ottf_spi_console extends uvm_component;
   `uvm_component_utils(ottf_spi_console)
 
-  uvm_event read_ev;
-  bit [7:0] read_buf[$] = {};
+  protected uvm_event read_ev;
+  protected bit [7:0] read_buf[$] = {};
 
   bit enable_read_polling = 1'b0;
 
@@ -359,7 +359,7 @@ task ottf_spi_console::host_spi_console_poll_reads();
       // second transfer)
       await_flow_ctrl_signal(tx_ready, 1'b0);
     join
-    `uvm_info(`gfn, "TEMP: ", UVM_MEDIUM)
+    `uvm_info(`gfn, $sformatf("Polling(read_buf): 0x%0s", byte_q_as_hex(read_buf)), UVM_MEDIUM)
 
     // After a frame, check if the last entry into the read_buffer was a CRLF
     // If so, print out the buffer contents...
@@ -367,9 +367,10 @@ task ottf_spi_console::host_spi_console_poll_reads();
       bit [7:0] CR = 8'hd;
       bit [7:0] LF = 8'ha;
       bit [7:0] EOL[$] = {CR, LF};
-      if (read_buf[$-1:$] == EOL) begin
+      if (read_buf[$] == LF) begin
         read_ev.trigger();
-        `uvm_info(`gfn, $sformatf("Frame ended with CRLF, printing read buffer contents:\n%0s",
+        read_ev.reset();
+        `uvm_info(`gfn, $sformatf("Frame ended with (CR)LF, printing read buffer contents:\n%0s",
           byte_q_as_str(read_buf)), UVM_MEDIUM)
       end
     end
