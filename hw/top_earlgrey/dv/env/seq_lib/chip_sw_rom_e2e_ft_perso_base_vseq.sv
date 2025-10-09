@@ -243,8 +243,7 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::pre_start();
 
   // Spawn the spi_console polling process in the background.
   // The polling is still mediated by enabling/disabling the control bit
-  // cfg.ottf_spi_console_h.enable_read_polling.
-  // Polling begins disabled.
+  // cfg.ottf_spi_console_h.enable_read_polling. Polling begins disabled.
   fork cfg.ottf_spi_console_h.host_spi_console_poll_reads(); join_none
   // Enable polling to capture the OTTF messages printed before starting the test.
   cfg.ottf_spi_console_h.enable_read_polling = 1'b1;
@@ -470,11 +469,9 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_3();
   //
   // Wait for the DEVICE to request the RMA Unlock Token (personalize_otp_and_flash_secrets()).
   cfg.ottf_spi_console_h.host_spi_console_read_wait_for_polled_str(SYNC_STR_READ_RMA_TOKEN);
-  cfg.ottf_spi_console_h.enable_read_polling = 1'b0;
   // The device has now requested the Unlock Token. Write it over the spi console.
   cfg.ottf_spi_console_h.host_spi_console_write_when_ready('{RMA_UNLOCK_TOKEN_HASH,
                                                              RMA_UNLOCK_TOKEN_HASH_CRC});
-  cfg.ottf_spi_console_h.enable_read_polling = 1'b1;
 
   // After the OTP SECRET2 partition is programmed, the chip performs a SW reset.
   // At this point, personalize_otp_and_flash_secrets() has completed.
@@ -490,19 +487,16 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_4();
   // Next, we provision all device certificates.
   `uvm_info(`gfn, "Awaiting sync-str to start write of certificate provisioning data...", UVM_LOW)
   cfg.ottf_spi_console_h.host_spi_console_read_wait_for_polled_str(SYNC_STR_READ_PERSO_DICE_CERTS);
-  cfg.ottf_spi_console_h.enable_read_polling = 1'b0;
   cfg.ottf_spi_console_h.host_spi_console_write_when_ready('{PERSO_CERTGEN_INPUTS});
-  cfg.ottf_spi_console_h.enable_read_polling = 1'b1;
 
   // Wait until the device exports the TBS certificates.
   `uvm_info(`gfn, "Awaiting sync-str to start read of exported certificate payload...", UVM_LOW)
   cfg.ottf_spi_console_h.host_spi_console_read_wait_for_polled_str(SYNC_STR_WRITE_TBS_CERTS);
-  cfg.ottf_spi_console_h.enable_read_polling = 1'b0;
 
   // Read the TBS certificate payload from the console.
+  cfg.ottf_spi_console_h.enable_read_polling = 1'b0;
   cfg.ottf_spi_console_h.host_spi_console_read_payload(tbs_certs, kPersoBlobSerializedMaxSize);
   dump_byte_array_to_file(tbs_certs, TBS_CERTS_FILE);
-
   cfg.ottf_spi_console_h.enable_read_polling = 1'b1;
 
   // Process the certificate payload...
@@ -511,23 +505,20 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_4();
   // Wait until the device indicates it can import the endorsed certificate files.
   `uvm_info(`gfn, "Awaiting sync-str to start write of endorsed certificates...", UVM_LOW)
   cfg.ottf_spi_console_h.host_spi_console_read_wait_for_polled_str(SYNC_STR_READ_ENDORSED_CERTS);
-  cfg.ottf_spi_console_h.enable_read_polling = 1'b0;
   cfg.ottf_spi_console_h.host_spi_console_write_when_ready('{MANUF_PERSO_DATA_BACK});
-  cfg.ottf_spi_console_h.enable_read_polling = 1'b1;
 
   // Wait until the device indicates it has successfully imported the endorsed certificate files.
   `uvm_info(`gfn, "Awaiting sync-str for completion of endorsed certificate import...", UVM_LOW)
   cfg.ottf_spi_console_h.host_spi_console_read_wait_for_polled_str(SYNC_STR_READ_FINISHED_CERT_IMPORTS);
-  cfg.ottf_spi_console_h.enable_read_polling = 1'b0;
 
   // The device now checks the imported certificate package.
 
   // Read out the final hash sent from the device
   `uvm_info(`gfn, "Awaiting export of the final hash...", UVM_LOW)
+  cfg.ottf_spi_console_h.enable_read_polling = 1'b0;
   cfg.ottf_spi_console_h.host_spi_console_read_payload(final_hash,
                                                        kSerdesSha256HashSerializedMaxSize);
   dump_byte_array_to_file(final_hash, FINAL_HASH_FILE);
-
   cfg.ottf_spi_console_h.enable_read_polling = 1'b1;
 
   // Wait until the device indicates it has successfully completed perso!
