@@ -430,10 +430,14 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_0();
   fork
     // spi_device_load_bootstrap({cfg.sw_images[SwTypeTestSlotA], ".64.vmem"});
 
+    // Wait for initial OTTF message
+    string msg = "I00001 ottf_main.c:186] Enabling OTTF alert catcher";
+    cfg.ottf_spi_console_h.host_spi_console_read_wait_for_polled_str(msg);
+
     // POR must be asserted externally at the end of the bootstrap process.
     // This is handled by the load_bootstrap() routine above.
     // Wait for the chip to restart, and the ROM to complete loading the bootstrapped Flash image.
-    await_test_start_after_reset();
+    // await_test_start_after_reset();
   join
 endtask
 
@@ -443,13 +447,16 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_1();
   // and re-scrambled with the new scrambling key (aka. the final transport image)
   //
   // The test requests this second bootstrap over the console.
-  cfg.ottf_spi_console_h.host_spi_console_read_wait_for(SYNC_STR_READ_BOOTSTRAP_REQ);
+  cfg.ottf_spi_console_h.host_spi_console_read_wait_for_polled_str(SYNC_STR_READ_BOOTSTRAP_REQ);
 
   `uvm_info(`gfn, "Resetting chip for second bootstrap now.", UVM_LOW)
   assert_por_reset();
 endtask
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_2();
+
+  `uvm_fatal(`gfn, "STOP!")
+
   // Perform the second ROM Bootstrap of Flash
   // > (the multi-slot binary of perso + ROM_EXT + Owner FW binaries)
   fork

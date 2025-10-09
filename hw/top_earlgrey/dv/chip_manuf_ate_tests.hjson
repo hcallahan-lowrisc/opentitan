@@ -75,6 +75,7 @@
       run_opts: [
         "+disable_assert_final_checks",
         "+sw_test_timeout_ns=1_000_000_000", // 1s
+        // "+test_timeout_ns=5_000_000", // 5000us
         "+use_otp_image=OtpTypeCustom",
 
         // TEMP: Force backdoor-load of initial bootstrap
