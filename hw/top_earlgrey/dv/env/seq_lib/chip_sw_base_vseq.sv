@@ -7,7 +7,7 @@ class chip_sw_base_vseq extends chip_base_vseq;
 
   // Track if the spi_agent has been configured to drive the ROM bootstrap procedure in
   // spi_host_drive_bootstrap(). Once configured for this, it should not be re-applied.
-  bit spi_agent_is_bootstrap_configured = 1'b0;
+  bit spi_agent_is_configured = 1'b0;
 
   // Default only iterate through SW code once.
   constraint num_trans_c {
@@ -547,9 +547,9 @@ class chip_sw_base_vseq extends chip_base_vseq;
 
     // Configuring the agent flash_cmds is not idempotent, so just do it once if bootstrapping
     // multiple times.
-    if (!spi_agent_is_bootstrap_configured) begin
+    if (!spi_agent_is_configured) begin
       spi_agent_configure_flash_cmds(cfg.m_spi_host_agent_cfg);
-      spi_agent_is_bootstrap_configured = 1'b1;
+      spi_agent_is_configured = 1'b1;
     end
 
     `uvm_info(`gfn, "Waiting for DUT ROM to configure spi_device ready for bootstrap...", UVM_LOW)

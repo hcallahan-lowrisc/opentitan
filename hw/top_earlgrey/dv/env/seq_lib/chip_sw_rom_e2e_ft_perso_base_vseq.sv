@@ -222,6 +222,11 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::pre_start();
   // Don't use the ROM SPI Bootstrap in cpu_init(). We manage everything from the leaf vseq.
   // cfg.use_spi_load_bootstrap = 0;
 
+  if (!spi_agent_is_configured) begin
+    spi_agent_configure_flash_cmds(cfg.m_spi_host_agent_cfg);
+    spi_agent_is_configured = 1'b1;
+  end
+
   if ((perso_start_phase > Phase0) && dump_mems) begin
     // TODO: Calling load_mem_from_file() and write_mem_to_file() at the same time may not give a
     // repeatable result, and so for the moment we do not allow dumping and loading at the same
