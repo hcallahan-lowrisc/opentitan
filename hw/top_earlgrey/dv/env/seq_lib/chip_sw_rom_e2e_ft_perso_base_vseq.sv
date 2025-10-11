@@ -35,11 +35,11 @@
 //
 // The appropriate places to dump/load memories are as follows:
 // - dut_init()         Before the chip boots for the first time (normally managed by chip_env_cfg)
-// - Phase0             This is after the initial bootstrap. The test binary is now scrambled
+// - Phase0             This is after the initial bootstrap. The perso binary is now scrambled
 //                      according to any default scrambling keys / configuration.
 // - Phase1             After the new scrambling seeds / configuration has been deployed to OTP.
-// - Phase2             After the second bootstrap, and the binary has been reloaded/rescrambled
-//                      with the new seeds.
+// - Phase2             After the second bootstrap, and the multi-slot binary has been
+//                      reloaded/rescrambled with the new seeds.
 // - Phase3             After sw_reset following provisioning of SECRET2 and flash info pages 1, 2,
 //                      and 4 (keymgr / DICE keygen seeds).
 // - Phase4             After personalization has completed.
@@ -57,10 +57,6 @@
 // - As this test communicates over the OTTF SPI console, the test binary cannot be built for the
 //   'sim_dv' execution environment, as the console is only initialized when
 //   kDeviceType != kDeviceSimDV (see _ottf_main())
-// - This sequence requires the DUT to be using the test_rom, as the sw_test_status_vif is used for
-//   synchronization purposes, however this could be refactored out in the future.
-//
-//
 
 class chip_sw_rom_e2e_ft_perso_base_vseq extends chip_sw_base_vseq;
   `uvm_object_utils(chip_sw_rom_e2e_ft_perso_base_vseq)
@@ -69,15 +65,15 @@ class chip_sw_rom_e2e_ft_perso_base_vseq extends chip_sw_base_vseq;
   bit dump_mems = 0; // Should memories be dumped mid-simulation?
   string load_path = ""; // Assumes working directory, but can be overridden by plusarg.
 
-  typedef enum int {  /* -- DUT MEMORY CONTENTS AFTER PHASE COMPLETION -- */
-    // dut_int()      // Base OTP image + no flash image
-    Phase0       = 0, // Base OTP image + base flash image scrambled w. base seeds
-    Phase1       = 1, // OTP image w. new seeds + base flash image scrambled w. base seeds
-    Phase2       = 2, // OTP image w. new seeds + base flash image scrambled w. new seeds
-    Phase3       = 3, // OTP image w. new seeds w. SECRET2 w. flash info 1,2,4 +
-                      // base flash image scrambled w. new seeds
-    Phase4       = 4  // OTP image w. full personalization +
-                      // base flash image scrambled w. new seeds
+  typedef enum int {/* -- DUT MEMORY STATE AFTER PHASE COMPLETION -- */
+    // dut_int() // Base OTP image + no flash image
+    Phase0  = 0, // Base OTP image + perso slotA image scrambled w. base seeds
+    Phase1  = 1, // OTP image w. new seeds + perso slotA image scrambled w. base seeds
+    Phase2  = 2, // OTP image w. new seeds + multi-slot image (perso+rom_ext) scrambled w. new seeds
+    Phase3  = 3, // OTP image w. new seeds w. SECRET2 w. flash info 1,2,4 +
+                 //   multi-slot image (perso+rom_ext) scrambled w. new seeds
+    Phase4  = 4  // OTP image w. full personalization +
+                 //   multi-slot image (perso+rom_ext) scrambled w. new seeds
   } perso_phase_e;
 
   // Set the first perso phase to be executed in the simulation
@@ -87,7 +83,7 @@ class chip_sw_rom_e2e_ft_perso_base_vseq extends chip_sw_base_vseq;
   // SYNCHRONIZATION STRINGS
   //
   // N.B. these strings are sent with trailing newlines, but are dropped here just for clarity
-  // and since we match via a loose regex, it makes no difference to drop a trailing character.
+  // and since we match via a loose regex, it makes no difference to drop trailing symbols.
   string SYNC_STR_READ_BOOTSTRAP_REQ         = "Bootstrap requested.";
   string SYNC_STR_READ_RMA_TOKEN             = "Waiting For RMA Unlock Token Hash ...";
   string SYNC_STR_READ_PERSO_DICE_CERTS      = "Waiting for certificate inputs ...";
@@ -100,7 +96,7 @@ class chip_sw_rom_e2e_ft_perso_base_vseq extends chip_sw_base_vseq;
   // Files containing personalization spi_console message payloads.
   //
   // WRITES
-  // (These files are passed as inputs to the simulation, via )
+  // (These files are passed as inputs to the simulation via plusargs)
   string RMA_UNLOCK_TOKEN_HASH_FILE;
   string RMA_UNLOCK_TOKEN_HASH_CRC_FILE;
   string PERSO_CERTGEN_INPUTS_FILE;
@@ -131,12 +127,14 @@ class chip_sw_rom_e2e_ft_perso_base_vseq extends chip_sw_base_vseq;
 
   extern virtual task get_plusarg_file_contents();
   extern virtual task await_ioa(string name, bit val = 1'b1, uint timeout_ns = 10_000_000);
+  extern function string byte_array_as_str(bit [7:0] q[]);
+  extern function void dump_byte_array_to_file(bit [7:0] array[], string filename);
   extern virtual task pre_start();
   extern virtual task body();
   extern task load_dut_memories(perso_phase_e perso_phase);
   extern task dump_dut_memories(perso_phase_e perso_phase);
   extern task await_test_start_after_reset(uint timeout_ns = 200_000_000);
-  // This task sequences the three sub-phases of the personalization flow. (See the header comment
+  // This task sequences the sub-phases of the personalization flow. (See the header comment
   // for more context about the breakdown.)
   extern task do_ft_personalize();
   extern task do_ft_personalize_phase_0();
@@ -144,8 +142,6 @@ class chip_sw_rom_e2e_ft_perso_base_vseq extends chip_sw_base_vseq;
   extern task do_ft_personalize_phase_2();
   extern task do_ft_personalize_phase_3();
   extern task do_ft_personalize_phase_4();
-  extern function string byte_array_as_str(bit [7:0] q[]);
-  extern function void dump_byte_array_to_file(bit [7:0] array[], string filename);
 
 endclass : chip_sw_rom_e2e_ft_perso_base_vseq
 
@@ -177,27 +173,39 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::get_plusarg_file_contents();
   `uvm_info(`gfn, $sformatf("MANUF_PERSO_DATA_BACK_FILE     :: len=%0d", len), UVM_LOW)
 endtask : get_plusarg_file_contents
 
+function string chip_sw_rom_e2e_ft_perso_base_vseq::byte_array_as_str(bit [7:0] q[]);
+  string str = "";
+  foreach (q[i]) $sformat(str, "%s%0s", str, q[i]);
+  return str;
+endfunction
+
+function void chip_sw_rom_e2e_ft_perso_base_vseq::dump_byte_array_to_file(bit [7:0] array[],
+                                                                          string    filename);
+  integer fd = $fopen(filename, "w");
+  $fwrite(fd, "%0s", byte_array_as_str(array));
+  $fclose(fd);
+endfunction
 
 task chip_sw_rom_e2e_ft_perso_base_vseq::await_ioa(
   string name,
   bit    val = 1'b1,
   uint   timeout_ns = 10_000_000 /* 10ms */
 );
-  string timeout_msg = $sformatf("Timed out waiting for %0s to be %0d.", name, val);
+  string timeout_m = $sformatf("Timed out waiting for %0s to be %0d.", name, val);
 
-  // IOA6 (GPIO4) is for SPI console RX ready signal. (HOST->DEVICE flow control)
-  // IOA5 (GPIO3) is for SPI console TX ready signal. (DEVICE->HOST flow control)
+  // IOA6 (GPIO4) is the SPI console RX ready signal. (HOST->DEVICE flow control)
+  // IOA5 (GPIO3) is the SPI console TX ready signal. (DEVICE->HOST flow control)
   // IOA4 (GPIO0) is for test start reporting.
   // IOA1 (GPIO1) is for test done reporting.
-  // IOA0 (GPIO2) is for error reporting.
+  // IOA0 (GPIO2) indicates an error has occurred.
 
   `uvm_info(`gfn, $sformatf("Waiting for %0s to be %0d now...", name, val), UVM_LOW)
   case (name)
-    "IOA6": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa6] == val, timeout_msg, timeout_ns)
-    "IOA5": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa5] == val, timeout_msg, timeout_ns)
-    "IOA4": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa4] == val, timeout_msg, timeout_ns)
-    "IOA1": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa1] == val, timeout_msg, timeout_ns)
-    "IOA0": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa0] == val, timeout_msg, timeout_ns)
+    "IOA6": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa6] == val, timeout_m, timeout_ns)
+    "IOA5": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa5] == val, timeout_m, timeout_ns)
+    "IOA4": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa4] == val, timeout_m, timeout_ns)
+    "IOA1": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa1] == val, timeout_m, timeout_ns)
+    "IOA0": `DV_WAIT(cfg.chip_vif.mios[top_earlgrey_pkg::MioPadIoa0] == val, timeout_m, timeout_ns)
     default : `uvm_fatal(`gfn, "Given name of IOAx pad is not supported by await!")
   endcase
 
@@ -225,9 +233,9 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::pre_start();
   end
 
   // Don't allow the first-boot dut_init() routine to load flash with an initial image.
-  // cfg.skip_flash_bkdr_load = 1;
+  cfg.skip_flash_bkdr_load = 1'b1;
   // Don't use the ROM SPI Bootstrap in cpu_init(). We manage everything from the leaf vseq.
-  // cfg.use_spi_load_bootstrap = 0;
+  cfg.use_spi_load_bootstrap = 1'b0;
 
   // Enable the UART agent to receive messages on the dbg console (e.g. via dbg_printf())
   // The 'silicon_creator' environment uses the follow baud rate...
@@ -457,6 +465,7 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_2();
     // POR must be asserted externally at the end of the bootstrap process.
     // This is handled by the load_bootstrap() routine above.
     // Wait for the chip to restart, and the ROM to complete loading the bootstrapped Flash image.
+    // This time we are bootstrapping a multi-slot image, so a large timeout is necessary.
     await_test_start_after_reset(.timeout_ns(1_000_000_000 /* 1s */));
   join
 endtask
@@ -525,16 +534,3 @@ task chip_sw_rom_e2e_ft_perso_base_vseq::do_ft_personalize_phase_4();
   `uvm_info(`gfn, "Awaiting sync-str for completion of personalization...", UVM_LOW)
   cfg.ottf_spi_console_h.host_spi_console_read_wait_for_polled_str(SYNC_STR_READ_PERSO_DONE);
 endtask
-
-function string chip_sw_rom_e2e_ft_perso_base_vseq::byte_array_as_str(bit [7:0] q[]);
-  string str = "";
-  foreach (q[i]) $sformat(str, "%s%0s", str, q[i]);
-  return str;
-endfunction
-
-function void chip_sw_rom_e2e_ft_perso_base_vseq::dump_byte_array_to_file(bit [7:0] array[],
-                                                                          string    filename);
-  integer fd = $fopen(filename, "w");
-  $fwrite(fd, "%0s", byte_array_as_str(array));
-  $fclose(fd);
-endfunction

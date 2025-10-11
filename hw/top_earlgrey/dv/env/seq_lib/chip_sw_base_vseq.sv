@@ -6,7 +6,7 @@ class chip_sw_base_vseq extends chip_base_vseq;
   `uvm_object_utils(chip_sw_base_vseq)
 
   // Track if the spi_agent has been configured to drive the ROM bootstrap procedure in
-  // spi_host_drive_bootstrap(). Once configured for this, it should not be re-applied.
+  // spi_agent_drive_bootstrap(). Once configured for this, it should not be re-applied.
   bit spi_agent_is_configured = 1'b0;
 
   // Default only iterate through SW code once.
@@ -527,18 +527,12 @@ class chip_sw_base_vseq extends chip_base_vseq;
 
   // Drive the spi_host agent connected to the DUT spi_device according to the ROM Bootstrap
   // procedure.
-  virtual task spi_host_drive_bootstrap(byte byte_q[$]);
+  virtual task spi_agent_drive_bootstrap(byte byte_q[$]);
     spi_host_flash_seq m_spi_host_seq;
     uint byte_cnt = 0;
     uint SPI_FLASH_PAGE_SIZE = 256;
 
-    // We determine when the ROM is awaiting external SPI traffic for bootstrap by backdoor-reading
-    // the spi_device HWIP registers to detect it being configured to receive the bootstrap sequence.
-    // The initial delay for this to progress could be quite long if UART logging for debug takes
-    // place. Add a lengthy delay here before timing out.
-    uint spinwait_timeout_ns = 100_000_000; // 100ms
-
-    `uvm_info(`gfn, "Initializing spi_host agent for ROM bootstrap procedure.", UVM_LOW)
+    `uvm_info(`gfn, "(bootstrap) Initializing spi_host agent.", UVM_LOW)
 
     // Set CSB inactive times to reasonable values. sys_clk is at 24 MHz, and
     // it needs to capture CSB pulses.
@@ -551,6 +545,63 @@ class chip_sw_base_vseq extends chip_base_vseq;
       spi_agent_configure_flash_cmds(cfg.m_spi_host_agent_cfg);
       spi_agent_is_configured = 1'b1;
     end
+
+    `uvm_info(`gfn, "(bootstrap) Sending flash erase command ...", UVM_LOW)
+    `uvm_create_on(m_spi_host_seq, p_sequencer.spi_host_sequencer_h)
+    m_spi_host_seq.opcode = SpiFlashChipErase;
+    spi_host_flash_issue_write_cmd(
+      .write_command(m_spi_host_seq),
+      .busy_timeout_ns(200_000_000),
+      .busy_poll_interval_ns(1_000_000));
+
+    `uvm_info(`gfn, "(bootstrap) Sending page program commands ...", UVM_LOW)
+    while (byte_q.size > byte_cnt) begin
+      uint bytes_to_write;
+      `uvm_create_on(m_spi_host_seq, p_sequencer.spi_host_sequencer_h)
+      m_spi_host_seq.opcode = SpiFlashPageProgram;
+      m_spi_host_seq.address_q = {byte_cnt[23:16], byte_cnt[15:8], byte_cnt[7:0]};
+      if (SPI_FLASH_PAGE_SIZE < (byte_q.size() - byte_cnt)) begin
+        bytes_to_write = SPI_FLASH_PAGE_SIZE;
+      end else begin
+        bytes_to_write = byte_q.size() - byte_cnt;
+      end
+      for (int i = 0; i < bytes_to_write; i++) begin
+        m_spi_host_seq.payload_q.push_back(byte_q[byte_cnt + i]);
+      end
+      spi_host_flash_issue_write_cmd(m_spi_host_seq);
+      byte_cnt += bytes_to_write;
+    end
+
+    `uvm_info(`gfn, "(bootstrap) Complete.", UVM_LOW)
+  endtask
+
+  // Load the flash binary specified by the `sw_image` path by sending a chip
+  // erase, then programming pages in sequence via the SPI flash interface
+  // presented by the ROM. Afterwards, bring the software straps back to 0,
+  // and issue a power-on reset.
+  // The `sw_image` path should point to an image usable by the `read_sw_frames` task.
+  virtual task spi_device_load_bootstrap(string sw_image);
+    byte sw_byte_q[$];
+
+    // We determine when the ROM is awaiting external SPI traffic for bootstrap by backdoor-reading
+    // the spi_device HWIP registers to detect it being configured to receive the bootstrap sequence.
+    // The initial delay for this to progress could be quite long if UART logging for debug takes
+    // place. Add a lengthy delay here before timing out.
+    uint spinwait_timeout_ns = 100_000_000; // 100ms
+
+    `uvm_info(`gfn, "Start of spi_device_load_bootstrap() now.", UVM_LOW)
+    `uvm_info(`gfn, $sformatf("Bootstrapping image file '%0s'.", sw_image), UVM_LOW)
+
+    read_sw_frames(sw_image, sw_byte_q);
+
+    // If this task is called early, before the ROM reads the SW straps to determine if
+    // the bootstrap procedure should be used, then we can set the SW straps here to ensure this
+    // execution path is followed.
+    // If this task is called later, after the ROM has read the SW straps, then we are relying on
+    // the assumption that the straps were already set by an external actor and the ROM has
+    // proceeded down the bootstrapping codepath already. If this is not the case, this task will
+    // fatally timeout waiting for the spi_device HWIP block to be configured for bootstrapping.
+    cfg.chip_vif.sw_straps_if.drive(3'h7);
 
     `uvm_info(`gfn, "Waiting for DUT ROM to configure spi_device ready for bootstrap...", UVM_LOW)
     csr_spinwait(
@@ -573,57 +624,10 @@ class chip_sw_base_vseq extends chip_base_vseq;
       .backdoor(1),
       .spinwait_delay_ns(5000),
       .timeout_ns(spinwait_timeout_ns));
-    `uvm_info(`gfn, "DUT fully configured spi_device, and is now ready for bootstrap.", UVM_LOW)
+    `uvm_info(`gfn, "WrEn cmd_info configured for bootstrap.", UVM_HIGH)
 
-    `uvm_info(`gfn, "Sending SPI flash erase command ...", UVM_LOW)
-    `uvm_create_on(m_spi_host_seq, p_sequencer.spi_host_sequencer_h)
-    m_spi_host_seq.opcode = SpiFlashChipErase;
-    spi_host_flash_issue_write_cmd(
-      .write_command(m_spi_host_seq),
-      .busy_timeout_ns(200_000_000),
-      .busy_poll_interval_ns(1_000_000));
-
-    `uvm_info(`gfn, "Sending page program commands ...", UVM_LOW)
-    while (byte_q.size > byte_cnt) begin
-      uint bytes_to_write;
-      `uvm_create_on(m_spi_host_seq, p_sequencer.spi_host_sequencer_h)
-      m_spi_host_seq.opcode = SpiFlashPageProgram;
-      m_spi_host_seq.address_q = {byte_cnt[23:16], byte_cnt[15:8], byte_cnt[7:0]};
-      if (SPI_FLASH_PAGE_SIZE < (byte_q.size() - byte_cnt)) begin
-        bytes_to_write = SPI_FLASH_PAGE_SIZE;
-      end else begin
-        bytes_to_write = byte_q.size() - byte_cnt;
-      end
-      for (int i = 0; i < bytes_to_write; i++) begin
-        m_spi_host_seq.payload_q.push_back(byte_q[byte_cnt + i]);
-      end
-      spi_host_flash_issue_write_cmd(m_spi_host_seq);
-      byte_cnt += bytes_to_write;
-    end
-  endtask
-
-  // Load the flash binary specified by the `sw_image` path by sending a chip
-  // erase, then programming pages in sequence via the SPI flash interface
-  // presented by the ROM. Afterwards, bring the software straps back to 0,
-  // and issue a power-on reset.
-  // The `sw_image` path should point to an image usable by the `read_sw_frames` task.
-  virtual task spi_device_load_bootstrap(string sw_image);
-    byte sw_byte_q[$];
-
-    `uvm_info(`gfn, "Start of spi_device_load_bootstrap() now.", UVM_LOW)
-    `uvm_info(`gfn, $sformatf("Bootstrapping image file '%0s'.", sw_image), UVM_LOW)
-
-    read_sw_frames(sw_image, sw_byte_q);
-
-    // If this task is called early, before the ROM reads the SW straps to determine if
-    // the bootstrap procedure should be used, then we can set the SW straps here to ensure this
-    // execution path is followed.
-    // If this task is called later, after the ROM has read the SW straps, then we are relying on
-    // the assumption that the straps were already set by an external actor and the ROM has
-    // proceeded down the bootstrapping codepath already. If this is not the case, this task will
-    // fatally timeout waiting for the spi_device HWIP block to be configured for bootstrapping.
-    cfg.chip_vif.sw_straps_if.drive(3'h7);
-    spi_host_drive_bootstrap(sw_byte_q);
+    `uvm_info(`gfn, "DUT fully configured spi_device, therefore is awaiting bootstrap.", UVM_LOW)
+    spi_agent_drive_bootstrap(sw_byte_q);
     cfg.chip_vif.sw_straps_if.drive(3'h0);
 
     // Disable dut_init() bootstrap control for subsequent reboots.
