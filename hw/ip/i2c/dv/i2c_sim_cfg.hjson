@@ -325,5 +325,14 @@
               "i2c_target_bad_addr", "i2c_target_hrst",
               "i2c_target_smbus_maxlen"]
     }
+    {
+      name: nightly_test
+      reseed: 2
+      tests: [
+        "i2c_host_mode_toggle",
+        "i2c_host_fifo_reset_rx",
+        "i2c_target_perf",
+      ]
+    }
   ]
 }

@@ -99,5 +99,14 @@
       name: smoke
       tests: ["rv_timer_random"]
     }
+    {
+      name: nightly_test
+      reseed: 2
+      tests: [
+        "rv_timer_csr_hw_reset",
+        "rv_timer_csr_aliasing",
+        "rv_timer_csr_mem_rw_with_rand_reset",
+      ]
+    }
   ]
 }

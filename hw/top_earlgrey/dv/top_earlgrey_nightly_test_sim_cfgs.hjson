@@ -1,0 +1,30 @@
+// Copyright lowRISC contributors (OpenTitan project).
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+{
+  // This is a cfg hjson group for DV simulations. It includes ALL individual DV simulation
+  // cfgs of the IPs and the full chip used in top_earlgrey. This enables the common
+  // regression sets to be run in one shot.
+  name: top_earlgrey_nightly_test_batch_sim
+
+  import_cfgs: [// Project wide common cfg file
+                "{proj_root}/hw/data/common_project_cfg.hjson"]
+
+  flow: sim
+
+  rel_path: "hw/top_earlgrey/dv/summary"
+
+  // Maintain alphabetical order below.
+  use_cfgs: [
+             "{proj_root}/hw/ip/i2c/dv/i2c_sim_cfg.hjson",
+             "{proj_root}/hw/ip/rv_timer/dv/rv_timer_sim_cfg.hjson",
+             "{proj_root}/hw/top_earlgrey/ip_autogen/pwrmgr/dv/pwrmgr_sim_cfg.hjson",
+    ]
+
+  regressions: [
+    {
+      name: nightly_test
+      en_sim_modes: ["cov"]
+    }
+  ]
+}

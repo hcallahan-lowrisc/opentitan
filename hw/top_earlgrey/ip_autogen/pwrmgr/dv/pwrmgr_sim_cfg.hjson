@@ -148,5 +148,13 @@
       name: smoke
       tests: ["pwrmgr_smoke"]
     }
+    {
+      name: nightly_test
+      reseed: 2
+      tests: [
+        "pwrmgr_wakeup_reset",
+        "pwrmgr_lowpower_wakeup_race",
+      ]
+    }
   ]
 }
