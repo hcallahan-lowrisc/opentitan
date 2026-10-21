@@ -545,6 +545,22 @@ module i3c_controller_trx
     end
   end
 
+  // Direction (R/W bit) of the most recent Address Header; the ACK hand-off is required only ahead
+  // of an SDR Write.
+  logic addr_rnw_q;
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) addr_rnw_q <= 1'b1;
+    else if (enable_i && req_starting) begin
+      unique case (trx_dreq_i.req)
+        CReqType_ArbAddr,
+        CReqType_Address: addr_rnw_q <= trx_dreq_i.wdata[DataWidth-8];
+        // The final bit of a Dynamic Address assignment is parity, not R/W.
+        CReqType_DynAddr: addr_rnw_q <= 1'b1;
+        default: begin end
+      endcase
+    end
+  end
+
   logic arb_lost;
   // Take over responsibility for Actively holding SDA low (ACK).
   wire sdr_ack_handoff = &{(state_q == State_WAckClkLoSetupD), last_bit, phase_end};
@@ -955,17 +971,6 @@ module i3c_controller_trx
         //
         // Note: Presently we do not try to optimize the driving of non-initial bits in Arbitrable
         // Address Header intervals, although this could be an optional configuration option.
-        State_ArbClkLoSetupD: begin
-          if (req_q.req == CReqType_AckNack && req_q.rx) begin
-            if (arb_lost) begin
-              // Handoff the ACK signaling to the Target.
-              sda_drv_d = open_drain();
-            end else begin
-              // Take over responsibility for Actively holding SDA low (ACK).
-              sda_drv_d = sda_i ? sda_drv_q : push_pull();
-            end
-          end
-        end
         State_ArbClkHiIdle: begin
         end
         State_ArbClkLoIdle: begin
@@ -1031,6 +1036,12 @@ module i3c_controller_trx
         State_Stop: sda_drv_d = pull_up();
         State_PatternHiD: if (leave_hdr_sr) sda_drv_d = pull_up();
 
+        // When the Target ACKs an Address Header ahead of an SDR Write, it releases SDA as soon as
+        // it sees SCL rise, so the Controller must take over holding SDA low until SCL falls
+        // (I3C Basic v1.2, section 4.3.2.3.1). `sda_q` acquires the sampled ACK/NACK, so a NACK
+        // leaves SDA undriven.
+        State_WAckClkLoSetupD: if (sdr_ack_handoff && !addr_rnw_q) sda_drv_d = open_drain();
+
         State_RepStartLoD: begin
           if (!targ_reset) begin
             if (state_next_req == State_AddrClkLoSetupD) sda_drv_d = push_pull();
@@ -1046,8 +1057,8 @@ module i3c_controller_trx
         State_AddrClkLoSetupD,
         State_AddrClkHiHoldD,
         State_AddrClkHiSetupD,
+        State_ArbClkLoSetupD,
         State_ArbClkHiHoldD,
-        State_WAckClkLoSetupD,
         State_ClkLoSetupD,
         State_ClkHiHoldD,
         State_ClkHiSetupD,
