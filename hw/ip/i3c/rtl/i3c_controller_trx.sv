@@ -791,6 +791,18 @@ module i3c_controller_trx
   // Default state duration in clock cycles (2 cycles at 50MHz), minus 1 because downcounting.
   localparam int unsigned ClkKhz = prim_util_pkg::ceil_udiv(ClkFreq, 1000);
   localparam int unsigned DefTmCyc = prim_util_pkg::ceil_udiv(40 * ClkKhz, 1_000_000) - 1;
+
+  // An Open Drain SCL low period must be the whole tLOW_OD (Table 49), i.e. the `tclh` and `tcls`
+  // of the Open Drain bit whose rising SCL edge ends it. Two such low periods begin before the
+  // transceiver has accepted the request for that bit:
+  // - the low period after START, which begins in `State_Start`;
+  // - the ACK/NACK low period after a non-arbitrable (Push-Pull) Address Header, which begins
+  //   in the final `State_AddrClkLoHoldD` of the Address (4.3.2.3.1, step 1).
+  // The FSM presents the next request as soon as the current one has been accepted, so these
+  // states take the `tclh` of that next request.
+  wire next_arb_addr = trx_dvalid_i & (trx_dreq_i.req == CReqType_ArbAddr);
+  wire next_rx_ack   = &{trx_dvalid_i, trx_dreq_i.req == CReqType_AckNack, trx_dreq_i.rx};
+
   // Duration of the next state, in clock cycles.
   // - most of these timings are supplied with the request because they are target- and mode-
   //   dependent.
@@ -816,6 +828,8 @@ module i3c_controller_trx
       // predictable.
       unique case (state_q)
         State_Idle:            phase_cycles = tcas;
+        // SCL low after START; the first part of the low period of the Arbitrable Address.
+        State_PreStart:        phase_cycles = next_arb_addr ? trx_dreq_i.tm.tclh : DefTmCyc;
         State_Start:           phase_cycles = targ_resetting ? DefTmCyc : trx_dreq_i.tm.tcls;
         // SCL low, setup/await data...SCL high next.
         State_ArbClkLoSetupD,
@@ -828,8 +842,11 @@ module i3c_controller_trx
         State_ClkHiHoldD,
         State_ClkHiSampleD:    phase_cycles = req_q.tm.tchs;
         // SCL high, setup/await data...SCL low next.
+        // - SCL low after the final Address bit is the first part of the ACK/NACK low period.
+        State_AddrClkHiSetupD: phase_cycles = &{last_req_bit, req_q.req == CReqType_Address,
+                                                next_rx_ack} ? trx_dreq_i.tm.tclh
+                                                             : req_q.tm.tclh;
         State_ArbClkHiIdle,
-        State_AddrClkHiSetupD,
         State_ClkHiSetupD,
         State_ClkHiAwaitD:     phase_cycles = req_q.tm.tclh;
         // SCL low...SCL remains low.
