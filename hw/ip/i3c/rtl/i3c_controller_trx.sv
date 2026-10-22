@@ -312,6 +312,16 @@ module i3c_controller_trx
   // will be others such as HDR-DDR since a request can accommodate two Data Words.
   assign req_ok_early = sdr_read_ending;
 
+  // When the Controller ends an SDR Read, it drives SDA low during the SCL high period of the
+  // T-bit, which is a Repeated START (Figure 87). The SCL high period either side of that SDA
+  // falling edge must then meet tCBSr and tCASr (both tCASmin / 2, Table 50), so we extend it
+  // where the data timing is shorter.
+  wire sdr_ctrl_ending = &{sdr_read, last_bit, !sdr_tbit_intent};
+  wire [TmCycW-1:0] tchh_rd = (sdr_ctrl_ending && req_q.tm.tchh < tcas_d2_i) ? tcas_d2_i
+                                                                              : req_q.tm.tchh;
+  wire [TmCycW-1:0] tchs_rd = (sdr_ctrl_ending && req_q.tm.tchs < tcas_d2_i) ? tcas_d2_i
+                                                                              : req_q.tm.tchs;
+
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
       sdr_tbit_targ_q   <= 1'b1;
@@ -834,13 +844,13 @@ module i3c_controller_trx
         // SCL low, setup/await data...SCL high next.
         State_ArbClkLoSetupD,
         State_AddrClkLoSetupD,
-        State_ClkLoSetupD,
-        State_ClkLoAwaitD:     phase_cycles = req_q.tm.tchh;
+        State_ClkLoSetupD:     phase_cycles = req_q.tm.tchh;
+        State_ClkLoAwaitD:     phase_cycles = tchh_rd;
         // SCL high, hold/sample data...SCL remains high.
         State_ArbClkHiHoldD,
         State_AddrClkHiHoldD,
-        State_ClkHiHoldD,
-        State_ClkHiSampleD:    phase_cycles = req_q.tm.tchs;
+        State_ClkHiHoldD:      phase_cycles = req_q.tm.tchs;
+        State_ClkHiSampleD:    phase_cycles = tchs_rd;
         // SCL high, setup/await data...SCL low next.
         // - SCL low after the final Address bit is the first part of the ACK/NACK low period.
         State_AddrClkHiSetupD: phase_cycles = &{last_req_bit, req_q.req == CReqType_Address,
