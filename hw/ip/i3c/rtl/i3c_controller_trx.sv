@@ -322,14 +322,24 @@ module i3c_controller_trx
   wire [TmCycW-1:0] tchs_rd = (sdr_ctrl_ending && req_q.tm.tchs < tcas_d2_i) ? tcas_d2_i
                                                                               : req_q.tm.tchs;
 
+  // If the Controller ends an SDR Read whilst the Target wishes to continue, that Repeated START
+  // (Figure 87) may be followed directly by the Address (Figure 88), so a Repeated START request
+  // must not produce a second one. The next request may be accepted as the read ends.
+  logic sdr_ctrl_sr_q;
+  wire  sdr_ctrl_sr = (sdr_read_ending & sdr_tbit_targ_q) | sdr_ctrl_sr_q;
+
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
       sdr_tbit_targ_q   <= 1'b1;
       sdr_tbit_drive_q  <= 1'b0;
+      sdr_ctrl_sr_q     <= 1'b0;
     end else if (sw_reset_i) begin
       sdr_tbit_targ_q   <= 1'b1;
       sdr_tbit_drive_q  <= 1'b0;
+      sdr_ctrl_sr_q     <= 1'b0;
     end else if (enable_i) begin
+      // Retained only until the next request starts.
+      sdr_ctrl_sr_q <= sdr_ctrl_sr & !req_starting;
       if (sdr_read_ending) begin
         sdr_tbit_targ_q   <= 1'b1;
         sdr_tbit_drive_q  <= 1'b0;
@@ -700,7 +710,9 @@ module i3c_controller_trx
         //   transitions; the `Pre` states establish these preconditions.
         CReqType_SDRStart:    state_next_req = State_PreStart;
         CReqType_SDRStop:     state_next_req = State_PreStop;
-        CReqType_SDRRepStart: state_next_req = State_RepStart;
+        // - after a Controller-ended SDR Read, SCL is already low with SDA held low, as at the end
+        //   of Repeated START signaling.
+        CReqType_SDRRepStart: state_next_req = sdr_ctrl_sr ? State_RepStartLoC : State_RepStart;
         // Arbitrable Address Header (after SDR Start, and ENTDAA read data).
         CReqType_ArbAddr,
         CReqType_ArbDAA:      state_next_req = State_ArbClkLoSetupD;
