@@ -131,6 +131,7 @@ module i3c_controller_trx
     State_RepStartHiD     = 7'b00100_1_0,
     State_RepStartHiC     = 7'b00011_1_1,
     State_RepStartLoD     = 7'b00100_1_1,
+    State_RepStartLoC     = 7'b01111_1_0,
 
     // --- Address phases ---
     //
@@ -357,7 +358,8 @@ module i3c_controller_trx
   wire tx_advance = |{state_q == State_ClkHiHoldD && ddr_mode,
                       state_q == State_ClkLoHoldD,
                       state_q == State_Start,
-                      state_q == State_RepStartLoD,
+                      state_q == State_RepStartLoD && req_q.req == CReqType_TargetReset,
+                      state_q == State_RepStartLoC,
                       state_q == State_AddrClkLoHoldD,
                       state_q == State_ArbClkLoIdle && req_q.req == CReqType_ArbAddr,
                       state_q == State_ArbClkLoIdle && last_req_bit
@@ -494,7 +496,7 @@ module i3c_controller_trx
       State_Start,
       State_Stop,
       State_Stalling,
-      State_RepStartLoD,
+      State_RepStartLoC,
       State_ArbClkLoIdle,
       State_AddrClkLoHoldD,
       State_ClkLoHoldD,
@@ -503,6 +505,9 @@ module i3c_controller_trx
       State_ClkHiDirDrv,
       State_ClkLoPPDirDrv,
       State_ClkHiPPDirDrv: bit_done = phase_end;
+      // Target Reset proceeds directly to STOP; otherwise SCL must fall before the Repeated Start
+      // is complete.
+      State_RepStartLoD:   bit_done = phase_end & targ_reset;
       default: begin end
     endcase
   end
@@ -771,7 +776,9 @@ module i3c_controller_trx
       State_RepStart:         state_d = State_RepStartHiD;
       State_RepStartHiD:      state_d = State_RepStartHiC;
       State_RepStartHiC:      state_d = State_RepStartLoD;
-      State_RepStartLoD:      state_d = targ_reset ? State_Stop : state_next_req;
+      State_RepStartLoD:      state_d = targ_reset ? State_Stop : State_RepStartLoC;
+      // SDA remains low until after SCL has fallen.
+      State_RepStartLoC:      state_d = state_next_req;
       // --- SDR STOP ---
       State_PreStop:          state_d = State_Stop;
       State_Stop:             state_d = State_Idle;
@@ -1042,11 +1049,11 @@ module i3c_controller_trx
         // leaves SDA undriven.
         State_WAckClkLoSetupD: if (sdr_ack_handoff && !addr_rnw_q) sda_drv_d = open_drain();
 
-        State_RepStartLoD: begin
-          if (!targ_reset) begin
-            if (state_next_req == State_AddrClkLoSetupD) sda_drv_d = push_pull();
-            else sda_drv_d = pull_up();
-          end
+        // SDA may be released only once SCL is low, because a rising edge whilst SCL is high
+        // would be a STOP.
+        State_RepStartLoC: begin
+          if (state_next_req == State_AddrClkLoSetupD) sda_drv_d = push_pull();
+          else sda_drv_d = pull_up();
         end
 
         // These states do not change the state of the driver enables and must be listed
@@ -1066,6 +1073,7 @@ module i3c_controller_trx
         State_RepStart,
         State_RepStartHiD,
         State_RepStartHiC,
+        State_RepStartLoD,
         State_ClkLoDirDrv,
         State_ClkHiDirDrv,
         State_ClkLoPPDirDrv,
