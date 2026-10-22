@@ -581,7 +581,7 @@ module i3c_controller_trx
       sda_d = 1'b1;
     end else if (state_q == State_PatternHiD && phase_end) sda_d = leave_targ_rst;
     else if (|{starting, restarting, pre_stop, stop}) sda_d = restarting | stop;
-    else if (state_q == State_RepStartHiC) sda_d = 1'b0;
+    else if (state_q == State_RepStartHiC && phase_end) sda_d = 1'b0;
     else if (sdr_ack_handoff) sda_d = sda_i[0];
     else if (sdr_tbit_drive) sda_d = 1'b0;  // We only ever drive it low; open drain signaling.
     else if (tx_advance) begin
