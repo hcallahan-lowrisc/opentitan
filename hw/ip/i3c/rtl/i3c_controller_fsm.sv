@@ -1374,7 +1374,9 @@ module i3c_controller_fsm
         ibi_stat_wvalid_q <= 1'b0;
       end
       if (ibi_stat_capture) begin
-        ibi_stat_captured_q <= 1'b1;
+        // The response to IBI Payload collection, and a CRR or Hot-Join request that is already
+        // captured, are committed in the same cycle; nothing remains to be committed later.
+        ibi_stat_captured_q <= !(ibi_response | (ibi_capt_crr_hj & ibi_stat_captured_q));
         ibi_stat_desc_q     <= mod_stat_desc;
       end else if (ibi_stat_commit) begin
         ibi_stat_captured_q <= 1'b0;
