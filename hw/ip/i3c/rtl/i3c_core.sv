@@ -212,12 +212,21 @@ module i3c_core
   // Note: when the logic attached to a bus is disabled, the bus is considered to be `active`
   //       because we are timing a period of inactivity from the point of becoming enabled.
   //
-  // Once the Bus Available Condition holds, a Target may issue a START by pulling SDA Low and
-  // then wait for the Controller to pull SCL Low (I3C Basic 4.3.6.2). That START request must not
-  // end the Bus Available Condition, or the Controller no longer sees it; only SCL Low does.
+  // A Target may issue a START request by pulling SDA Low once the bus has been free for tAVAL,
+  // then waits for the Controller to pull SCL Low (I3C Basic 4.3.6.2). The Controller sees the
+  // STOP and the SDA fall through synchronizers, so a Target that starts at exactly tAVAL can
+  // pull SDA Low a few cycles before our timer elapses. Once the bus has gone free (SCL and SDA
+  // both High), only SCL Low ends it: an SDA fall must not restart the timer, or the Target holds
+  // SDA Low for ever and the bus deadlocks. SDA held Low since before the bus went free (e.g. a
+  // stuck Target) still keeps the timer in reset.
+  logic ctrl_bus_free_q;
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) ctrl_bus_free_q <= 1'b0;
+    else ctrl_bus_free_q <= ctrl_scl_sync & (ctrl_sda_sync | ctrl_bus_free_q);
+  end
   logic ctrl_bus_active;
   logic ctrl_bus_avail;
-  assign ctrl_bus_active = ~(ctrl_enabled & ctrl_scl_sync & (ctrl_sda_sync | ctrl_bus_avail));
+  assign ctrl_bus_active = ~(ctrl_enabled & ctrl_scl_sync & (ctrl_sda_sync | ctrl_bus_free_q));
 
   logic targ_bus_active;
   logic targ_bus_avail, targ_bus_idle;
