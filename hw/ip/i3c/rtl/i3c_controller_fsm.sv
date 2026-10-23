@@ -436,6 +436,7 @@ module i3c_controller_fsm
   logic i3c_first;
 
   logic hj_crr_captured;
+  logic ibi_capt_crr_hj;
 
   // Transition to the next state?
   // - most of these states are waiting on the occurrence of an external event that occurs on a
@@ -479,9 +480,11 @@ module i3c_controller_fsm
       WaitAckb:  proceed = trx_avalid_i;  // Arbitration information available.
 
       // Controller Role Requests. TODO(#31308): No support for CRR presently.
-      CRR:       proceed = hj_crr_captured;
+      // - a rejected request produces no IBI Status Descriptor unless software asked to be
+      //   notified (`IBI_NOTIFY_CTRL`), so there is then nothing to wait for.
+      CRR:       proceed = hj_crr_captured | !ibi_capt_crr_hj;
       // Hot-Join Requests.
-      HotJoin:   proceed = hj_crr_captured;
+      HotJoin:   proceed = hj_crr_captured | !ibi_capt_crr_hj;
 
       // In-Band Interrupt reception.
       IBICheck:  proceed = 1'b1;
@@ -1280,7 +1283,6 @@ module i3c_controller_fsm
   logic arb_nack;
 
   // Software may request notification when an IBI, CRR or HJ is rejected by the Controller.
-  logic ibi_capt_crr_hj;
   always_comb begin
     unique case (state_q)
       // Hot-Join and CRR carry no data bytes and are transient states.
