@@ -430,6 +430,10 @@ module i3c_controller_trx
 
   // Any request from the Controller core whilst we're Idle leads to Start signaling.
   wire starting   = &{advance, state_q == State_Idle, trx_dvalid_i};
+  // A request whilst we're Stalling is taken up at once too. The previous request need not have
+  // ended normally: a read that the Target ends early (T-bit 0, e.g. an IBI payload) leaves units
+  // outstanding.
+  wire unstalling = &{advance, state_q == State_Stalling, trx_dvalid_i};
   // We must lower SDA for the second part of HDR Restart/SDR Repeated Start signaling.
   wire restarting = &{advance, state_q inside {State_RepStart, State_RepStartHiD}};
   // We must lower SDA before we can raise it for STOP signaling.
@@ -537,6 +541,7 @@ module i3c_controller_trx
 
   // Accept a new request upon completion of the current unit.
   assign trx_dready_o = |{starting,
+                          unstalling,
                           req_ending,
                           state_q == State_PatternLoD & leave_hdr_sr,
                           state_q == State_PatternHiD & leave_hdr_exit};
