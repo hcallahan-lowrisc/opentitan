@@ -1412,7 +1412,8 @@ module i3c_controller_fsm
   logic datc_hit;
   assign trx_aready_o = trx_avalid_i & (datc_gnt | ~trx_arb_i.arb_lost);
   // TODO(#31308) Controller Role Requests are always rejected, pending Handoff implementation.
-  assign arb_nack = (ibi_req ? ibi_reject : reg2hw_i.hc_control.hot_join_ctrl.q) | cr_role_req;
+  // - HC_CONTROL is `hwext`, so use `d`.
+  assign arb_nack = (ibi_req ? ibi_reject : hc_control_i.hot_join_ctrl.d) | cr_role_req;
 
   i3c_dat_cache #(
     .NumDATEntries  (NumDATEntries),  // Number of entries in the DAT.
@@ -1517,7 +1518,7 @@ module i3c_controller_fsm
   logic unused_hc_control;
   assign unused_hc_control = ^{hc_control_i.abort, hc_control_i.autocmd_data_rpt,
                                hc_control_i.bus_enable, hc_control_i.data_byte_order_mode,
-                               hc_control_i.halt_on_cmd_seq_timeout, hc_control_i.hot_join_ctrl,
+                               hc_control_i.halt_on_cmd_seq_timeout,
                                hc_control_i.i2c_dev_present, hc_control_i.mode_selector,
                                hc_control_i.resume};
   // - TODO(#31304): blocked addresses are not checked yet.
