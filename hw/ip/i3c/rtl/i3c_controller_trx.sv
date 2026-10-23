@@ -1126,6 +1126,15 @@ module i3c_controller_trx
         // Handle invalid states; relinquish everything but the pull-up.
         default: sda_drv_d = pull_up();
       endcase
+
+      // The ACK/NACK bit that follows the RnW bit is always Open Drain (4.3.2.2.4), and the
+      // Target may pull SDA Low as soon as SCL falls. An RnW of 1 is at the level of the pull-up,
+      // so SDA is released as SCL falls, rather than at the end of the ACK low period, which
+      // would otherwise drive a 1 against the Target's ACK.
+      if (&{state_q == State_AddrClkHiSetupD, last_req_bit, req_q.req == CReqType_Address,
+            trx_dvalid_i, trx_dreq_i.req == CReqType_AckNack, trx_dreq_i.rx, sda_q}) begin
+        sda_drv_d = pull_up();
+      end
     end
   end
 
