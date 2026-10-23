@@ -211,9 +211,13 @@ module i3c_core
   //
   // Note: when the logic attached to a bus is disabled, the bus is considered to be `active`
   //       because we are timing a period of inactivity from the point of becoming enabled.
+  //
+  // Once the Bus Available Condition holds, a Target may issue a START by pulling SDA Low and
+  // then wait for the Controller to pull SCL Low (I3C Basic 4.3.6.2). That START request must not
+  // end the Bus Available Condition, or the Controller no longer sees it; only SCL Low does.
   logic ctrl_bus_active;
   logic ctrl_bus_avail;
-  assign ctrl_bus_active = ~(ctrl_enabled & ctrl_sda_sync & ctrl_scl_sync);
+  assign ctrl_bus_active = ~(ctrl_enabled & ctrl_scl_sync & (ctrl_sda_sync | ctrl_bus_avail));
 
   logic targ_bus_active;
   logic targ_bus_avail, targ_bus_idle;
