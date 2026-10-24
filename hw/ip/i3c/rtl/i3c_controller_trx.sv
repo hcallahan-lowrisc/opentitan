@@ -605,6 +605,9 @@ module i3c_controller_trx
     if (&{state_q == State_PatternLoD, phase_end, !leave_hdr_exit}) begin
       sda_d = 1'b1;
     end else if (state_q == State_PatternHiD && phase_end) sda_d = leave_targ_rst;
+    // The Target Reset Pattern from Bus Free begins with SCL falling while SDA stays High; a START
+    // here would be followed at once by SCL falling, breaking tCAS (I3C Basic 4.3.9.3).
+    else if (starting & targ_resetting) sda_d = 1'b1;
     else if (|{starting, restarting, pre_stop, stop}) sda_d = restarting | stop;
     else if (state_q == State_RepStartHiC && phase_end) sda_d = 1'b0;
     else if (sdr_ack_handoff) sda_d = sda_i[0];
