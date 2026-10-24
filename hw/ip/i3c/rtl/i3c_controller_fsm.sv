@@ -398,6 +398,7 @@ module i3c_controller_fsm
     logic       pending;
     logic       dec_err;   // Error returned from command decoding?
     logic       nack_det;  // Too many NACK responses to command?
+    logic       icc;       // Internal Control command; no transfer response to await.
     logic       wroc;      // Write Response on Completion.
     logic       rnw;       // Read not Write.
     logic [3:0] tid;       // Transaction ID from the Command Descriptor.
@@ -868,11 +869,16 @@ module i3c_controller_fsm
                         ~|cmd_state.retry_cnt || !nacked,  // Retries in response to Nack.
                         ~|cmd_state.reps_left,             // Iteration within Address Assignment.
                         trx_dready_i};
+  // - An Internal Control command is complete once decoded, if it only modifies the Controller
+  //   state, or once the transceiver takes up the Target Reset Pattern.
+  wire icc_done = (trans_type == TransType_Cmd) &
+                 |{&{state_q == CmdDecode, cmd_attrs.attr == CmdAttr_InternalCtrl, state_d == Idle},
+                   (state_q == TargRst) & trx_dready_i};
   // - Any transfer such as an IBI request that does involve a Command Descriptor shall be excluded.
   assign cmd_complete = (trans_type == TransType_Cmd) &
                        |{cmd_trans_done,
-                        (state_q == TargRst) & trx_dready_i,  // Target Reset internal command.
-                        (state_q == CmdDecErr)};              // Command rejected.
+                        icc_done,                 // Internal Control command.
+                        (state_q == CmdDecErr)};  // Command rejected.
 
   // Reading of commands; we use the FIFO output directly for the upper half of the Command
   // Descriptor, so it is consumed upon completion of the command.
@@ -1171,7 +1177,8 @@ module i3c_controller_fsm
   wire rsp_post = rsp_info.pending & |{rsp_received & rsp_info.wroc,  // From transceiver.
                                        rsp_received & !rsp_success,   // All errors are posted.
                                        rsp_info.dec_err,              // From command decode.
-                                       rsp_info.nack_det};            // From command execution.
+                                       rsp_info.nack_det,             // From command execution.
+                                       rsp_info.icc};                 // Internal Control command.
   wire rsp_drop = &{rsp_info.pending, rsp_received, !rsp_info.wroc, rsp_success};
 
   assign rsp_posted = rsp_desc_wvalid_o & rsp_desc_wready_i;
@@ -1185,7 +1192,8 @@ module i3c_controller_fsm
       rsp_write_q <= (rsp_post | rsp_write_q) & ~rsp_desc_wready_i;
       if (rsp_post) begin
         rsp.err_status  <= rsp_info.dec_err  ? ErrStatus_NotSupported :
-                           rsp_info.nack_det ? ErrStatus_NACK : trx_rsp_i.err_status;
+                           rsp_info.nack_det ? ErrStatus_NACK :
+                           rsp_info.icc      ? ErrStatus_OK : trx_rsp_i.err_status;
         rsp.tid         <= rsp_info.tid;
         rsp.reserved    <= 'b0;  // Not used; pacify synthesis.
         // TODO(#31304): The reported `DATA_LENGTH` field can be incorrect for early-terminated/
@@ -1212,14 +1220,16 @@ module i3c_controller_fsm
     // Is this acknowledgement for the Arbitrable I3C Broadcast Address of a Private SDR transfer?
     bcst_priv = &{addr_bcst, ~cmd_attrs.is_ccc, ~cmd_attrs.ddr};
 
-    if (|{cmd_acked & ~bcst_priv, dec_err, cmd_nack_excess}) begin
+    if (|{cmd_acked & ~bcst_priv, dec_err, cmd_nack_excess, icc_done}) begin
       rsp_next.pending  = 1'b1;
       rsp_next.dec_err  = dec_err;
       rsp_next.nack_det = cmd_nack_excess;
+      // An Internal Control command has no WROC field and is always answered.
+      rsp_next.icc      = icc_done;
       // Write Response On Completion; Response Status required?
       // - responses are optional only for successful write transfers.
-      rsp_next.wroc     = cmd_attrs.wroc | cmd_attrs.rnw;
-      rsp_next.rnw      = cmd_attrs.rnw;  // Read not Write transfer.
+      rsp_next.wroc     = cmd_attrs.wroc | cmd_attrs.rnw | icc_done;
+      rsp_next.rnw      = cmd_attrs.rnw & ~icc_done;  // Read not Write transfer.
       rsp_next.tid      = cmd_attrs.tid;  // Transaction ID from the Command Descriptor.
     end
   end
