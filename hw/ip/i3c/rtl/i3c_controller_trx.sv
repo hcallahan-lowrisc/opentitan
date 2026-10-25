@@ -451,6 +451,11 @@ module i3c_controller_trx
   wire leave_hdr_sr   = (req_q.req == CReqType_HDRRestart) & ~|hdr_patt_cnt;
   wire leave_targ_rst = targ_reset & ~|hdr_patt_cnt;
 
+  // SDA state when a new request is loaded. An HDR Exit/Restart Pattern starts from the level
+  // already on SDA; driving the (zero) data MSB would add an SDA falling edge to the pattern
+  // whenever SDA is High (I3C Basic v1.2, section 4.3.10.2).
+  wire tx_load_sda = gen_hdr_patt ? sda_i[0] : trx_dreq_i.wdata[DataWidth-1];
+
   // Has an error condition occurred within this transfer?
   // TODO(#31305): We shall perhaps need to make this sticky.
   logic raise_error;
@@ -644,11 +649,11 @@ module i3c_controller_trx
               default: sda_d = buf_q[DataWidth-1];
             endcase
           end else begin
-            sda_d = tx_load ? trx_dreq_i.wdata[DataWidth-1] : buf_q[DataWidth-1];
+            sda_d = tx_load ? tx_load_sda : buf_q[DataWidth-1];
           end
         end
       endcase
-    end else if (tx_load) sda_d = trx_dreq_i.wdata[DataWidth-1];
+    end else if (tx_load) sda_d = tx_load_sda;
   end
 
   // Data to be parallel-loaded into the buffer.
