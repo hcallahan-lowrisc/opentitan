@@ -595,7 +595,9 @@ module i3c_controller_fsm
       CmdAddr:  state_d = WaitAckb;
 
       // Awaiting Ack/Nack from the Target/Group.
-      WaitAckb: state_d = trx_arb_i.nack ? StopSDR  :
+      // - no ACK to 7'h7E (Error Type CE2) calls for the HDR Exit Pattern ahead of the STOP, to
+      //   recover any Target that missed an earlier HDR Exit (I3C Basic v1.2, section 4.3.8.2.3).
+      WaitAckb: state_d = trx_arb_i.nack ? (cmd_attrs.addr_bcst ? ExitHDR : StopSDR) :
                         cmd_attrs.is_ccc ? CCC      :
              (cmd_attrs.ddr & !curr_ddr) ? EnterDDR :
              // Sr before Private Transfer, after 7'h7e?
