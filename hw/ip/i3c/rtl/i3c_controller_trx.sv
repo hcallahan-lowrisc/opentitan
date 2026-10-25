@@ -540,9 +540,11 @@ module i3c_controller_trx
   assign unit_end = &{bit_done, last_bit};
 
   // Accept a new request upon completion of the current unit.
+  // - not at the end of a STOP: the bus is then free, so the next request must wait in Idle, where
+  //   `starting` signals the START (or the Target Reset Pattern) ahead of it.
   assign trx_dready_o = |{starting,
                           unstalling,
-                          req_ending,
+                          req_ending & (state_q != State_Stop),
                           state_q == State_PatternLoD & leave_hdr_sr,
                           state_q == State_PatternHiD & leave_hdr_exit};
 
@@ -811,9 +813,9 @@ module i3c_controller_trx
       State_RepStartLoC:      state_d = state_next_req;
       // --- SDR STOP ---
       State_PreStop:          state_d = State_Stop;
-      // A request may be taken up as the STOP completes (e.g. the START of a command that was
-      // waiting behind an IBI); it must not be dropped.
-      State_Stop:             state_d = state_next_req;
+      // A request that is pending as the STOP completes (e.g. the START of a command that was
+      // waiting behind an IBI) is not accepted here (see `trx_dready_o`); Idle takes it up.
+      State_Stop:             state_d = State_Idle;
 
       // Recovery from invalid states.
       default:                state_d = State_Idle;
