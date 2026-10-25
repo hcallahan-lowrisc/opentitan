@@ -1290,6 +1290,8 @@ module i3c_controller_fsm
   // required to post to the Response Queue.
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) rsp_info <= '0;  // Clears `pending`.
+    // A soft reset abandons any outstanding response; otherwise the next command waits forever.
+    else if (sw_reset_i) rsp_info <= '0;
     else if (enable_i) rsp_info <= rsp_next;
   end
 
