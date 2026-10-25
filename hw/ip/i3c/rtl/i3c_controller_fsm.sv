@@ -716,6 +716,7 @@ module i3c_controller_fsm
       bus_state.mode      <= XferMode_SDR0;
       bus_state.i2c       <= 1'b0;
       cmdq_lo_valid       <= 1'b0;
+      cmdq_lo_data        <= '0;
       cmd_state.available <= 1'b0;
       cmd_state.started   <= 1'b0;
       pio_bcst_addr_en    <= 1'b0;
