@@ -683,6 +683,11 @@ module i3c_controller_fsm
   // reads are performed by the DAT cache rather than the FSM itself.
   logic datf_re;
   logic datf_re_q;
+  // DAT read data held until the DATCapt state can proceed; a chained (TOC = 0) Command waits
+  // there for its predecessor's response, long after the single cycle in which `dat_rdata_i` is
+  // valid.
+  i3c_dat_mem_t datf_rdata_q;
+  logic         datf_rdata_vld;
 
   // Command/Transfer handling.
   always_ff @(posedge clk_i or negedge rst_ni) begin
@@ -693,6 +698,8 @@ module i3c_controller_fsm
       cmd_state         <= 'b0;
       datf_re_q         <= 1'b0;
       dat_entry         <= 'b0;
+      datf_rdata_q      <= 'b0;
+      datf_rdata_vld    <= 1'b0;
       data_len          <= 'b0;
       txd_imm           <= 1'b0;
       bus_state.mode    <= XferMode_SDR0;
@@ -711,6 +718,7 @@ module i3c_controller_fsm
       cmd_state.started   <= 1'b0;
       pio_bcst_addr_en    <= 1'b0;
       cmd_state.rst_csect <= 1'b0;
+      datf_rdata_vld      <= 1'b0;
     end else if (enable_i) begin
       if (proceed) begin  // The progress of the state machine is conditional.
         unique case (state_q)
@@ -724,7 +732,10 @@ module i3c_controller_fsm
           // Capture the DAT entry (read data from DAT could be altered by software access);
           // - note that we also wait here until the result from the previous command has been
           //   posted into the Response Queue.
-          DATCapt: if (datf_re_q) dat_entry <= dat_rdata_i;
+          DATCapt: begin
+            if (datf_re_q) dat_entry <= dat_rdata_i;
+            else if (datf_rdata_vld) dat_entry <= datf_rdata_q;
+          end
           // Now that we have the captured DAT entry available to complete the command decoding,
           // we can proceed
           CmdDecode: begin
@@ -830,6 +841,12 @@ module i3c_controller_fsm
 
       // Remember whether a DAT read was performed.
       datf_re_q <= datf_re;
+      if (state_q == DATCapt && proceed) begin
+        datf_rdata_vld <= 1'b0;
+      end else if (datf_re_q) begin
+        datf_rdata_q   <= dat_rdata_i;
+        datf_rdata_vld <= 1'b1;
+      end
     end
   end
 
