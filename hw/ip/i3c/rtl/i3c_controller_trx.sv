@@ -1018,6 +1018,14 @@ module i3c_controller_trx
       endcase
     end else if (phase_end) begin
       // TODO(#31304): References to `state_next_req` should be disappearing from here.
+      // When we ACK an IBI that the Target follows with data, the Target may drive SDA (the MSb of
+      // the Mandatory Data Byte, in Push-Pull) as soon as SCL falls at the end of the ACK, so we
+      // must release SDA by then (I3C Basic 4.3.2.3.2, step 3). `State_AddrClkHiSetupD` ends with
+      // that SCL fall and does not otherwise change the driver enables.
+      if (&{state_q == State_AddrClkHiSetupD, last_req_bit, req_q.req == CReqType_AckNack,
+            !req_q.rx, trx_dvalid_i, trx_dreq_i.rx}) begin
+        sda_drv_d = pull_up();
+      end
       unique case (state_q)
         State_Reset: sda_drv_d = disconnect();
         // Leave the bus inactive with pull-up enabled until starting a transaction.
