@@ -596,7 +596,9 @@ module i3c_controller_fsm
       // Awaiting Ack/Nack from the Target/Group.
       // - a Direct CCC addresses its Target once the framing has been sent, and then transfers
       //   any data as a Private Transfer would; it may have no data (e.g. ENTAS0).
-      WaitAckb: state_d = trx_arb_i.nack ? StopSDR :
+      // - no ACK to 7'h7e (Error Type CE2) calls for the HDR Exit Pattern ahead of the STOP, to
+      //   recover any Target that missed an earlier HDR Exit (I3C Basic v1.2, section 4.3.8.2.3).
+      WaitAckb: state_d = trx_arb_i.nack ? (addr_bcst ? ExitHDR : StopSDR) :
              (ccc_direct & !ccc_framing) ? (data_left     ? (cmd_attrs.rnw ? RxData : TxData) :
                                             cmd_attrs.toc ? StopSDR : RepStSDR) :
                         cmd_attrs.is_ccc ? CCC :
