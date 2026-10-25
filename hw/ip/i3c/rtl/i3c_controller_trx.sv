@@ -542,11 +542,13 @@ module i3c_controller_trx
   // Accept a new request upon completion of the current unit.
   // - not at the end of a STOP: the bus is then free, so the next request must wait in Idle, where
   //   `starting` signals the START (or the Target Reset Pattern) ahead of it.
+  // - at the end of an HDR Restart/Exit Pattern, in the phase in which the state machine moves on
+  //   to the next request (`State_PatternHiD` for a Restart, `State_PatternLoD` for an Exit).
   assign trx_dready_o = |{starting,
                           unstalling,
                           req_ending & (state_q != State_Stop),
-                          state_q == State_PatternLoD & leave_hdr_sr,
-                          state_q == State_PatternHiD & leave_hdr_exit};
+                          &{state_q == State_PatternHiD, leave_hdr_sr,   phase_end},
+                          &{state_q == State_PatternLoD, leave_hdr_exit, phase_end}};
 
   // Interpret the new command.
   i3c_ddr_cmd_word_t dreq_cmd;
