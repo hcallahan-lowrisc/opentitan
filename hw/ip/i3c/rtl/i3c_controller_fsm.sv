@@ -256,13 +256,26 @@ module i3c_controller_fsm
   wire  [7:0] prev_ccc  = reg_state[CtrlCR_CCC];
   wire  [7:0] prev_defb = reg_state[CtrlCR_DEFB];
   wire    prev_had_defb = reg_state[CtrlCR_Status][CtrlStat_HasDEFB];
+  wire     prev_was_ccc = reg_state[CtrlCR_Status][CtrlStat_IsCCC];
 
   // Do we need to restart the CCC Framing?
-  // - must restart if CCC, DEFB or presence/absence of DEFB differs from the previous command;
-  //   otherwise the Target(s) shall have retained the framing information.
+  // - must restart if CCC, DEFB or presence/absence of DEFB differs from the previous command,
+  //   or if the previous command was not a CCC; otherwise the Target(s) shall have retained the
+  //   framing information.
   wire [16:0] prev_ccc_attribs = {prev_had_defb,      prev_defb,      prev_ccc};
   wire [16:0] cmd_ccc_attribs  = {cmd_attrs.has_defb, cmd_attrs.defb, cmd_attrs.ccc};
-  wire ccc_framing_reqd = |{cmd_ccc_attribs ^ prev_ccc_attribs, !cmd_state.rep_start};
+  wire ccc_framing_reqd = |{cmd_ccc_attribs ^ prev_ccc_attribs, !cmd_state.rep_start,
+                            !prev_was_ccc};
+  // The I3C Broadcast Address is still to be sent for the current command, to frame a CCC or to
+  // end the framing of a preceding one; valid from `DATCapt` onwards.
+  wire ccc_framing = reg_state[CtrlCR_Status][CtrlStat_SendFraming];
+
+  // Direct CCC (TCRI 6.3): S/Sr 7E/W CCC [DEFB] Sr DA/RnW [data] Sr/P.
+  // - the CCC handling sends the framing, then this FSM addresses the Target and transfers the
+  //   data as it would for a Private Transfer.
+  // - Address Assignment using SETDASA has its own handling within the CCC logic.
+  wire ccc_direct = &{cmd_attrs.is_ccc, !cmd_attrs.brd_ccc,
+                      cmd_attrs.attr != CmdAttr_AddrAssignment};
 
   // Start thresholds are specified as being 'at least 2^(N+1)' so a right shift here is cheapest.
   // - we can never be starting both Rx and Tx simultaneously, so we employ MUXing here.
@@ -581,7 +594,11 @@ module i3c_controller_fsm
       CmdAddr:  state_d = WaitAckb;
 
       // Awaiting Ack/Nack from the Target/Group.
+      // - a Direct CCC addresses its Target once the framing has been sent, and then transfers
+      //   any data as a Private Transfer would; it may have no data (e.g. ENTAS0).
       WaitAckb: state_d = trx_arb_i.nack ? StopSDR :
+             (ccc_direct & !ccc_framing) ? (data_left     ? (cmd_attrs.rnw ? RxData : TxData) :
+                                            cmd_attrs.toc ? StopSDR : RepStSDR) :
                         cmd_attrs.is_ccc ? CCC :
              (cmd_attrs.ddr & !curr_ddr) ? EnterDDR :
             (addr_bcst & !cmd_attrs.ddr) ? RepStPriv :  // Sr before Private Transfer, after 7'h7e.
@@ -611,7 +628,9 @@ module i3c_controller_fsm
       // or otherwise.
       CCC: begin
         unique case (ccc_rsp.err_status)
-          ErrStatus_OK: state_d = cmd_attrs.toc ? StopSDR : RepStSDR;
+          // A Direct CCC continues with Sr and the Target Address once the framing is sent.
+          ErrStatus_OK: state_d = ccc_direct    ? RepStPriv :
+                                  cmd_attrs.toc ? StopSDR : RepStSDR;
           default: state_d = ErrFatal;
         endcase
       end
@@ -824,6 +843,8 @@ module i3c_controller_fsm
         // this for the start of every CCC operation, no matter how any previous operation
         // concluded.
         StartSDR: ccc_idx <= '0;
+        // Likewise if a new CCC is framed after a Repeated Start (Sr).
+        CmdAddr: if (ccc_framing) ccc_idx <= '0;
         // FSM remains in CCC handling until instructed to finish.
         CCC: if ((ccc_rsp.rst_idx | ccc_rsp.inc_idx) & ccc_proceed) begin
             ccc_idx <= (ccc_rsp.rst_idx ? 4'h0 : ccc_idx) + 4'(ccc_rsp.inc_idx);
@@ -847,12 +868,23 @@ module i3c_controller_fsm
         reg_state[CtrlCR_DEFB]  <= cmd_attrs.defb;
         // Update the CCC/DEFB validity indicator.
         reg_state[CtrlCR_Status][CtrlStat_HasDEFB]     <= cmd_attrs.has_defb;
-        reg_state[CtrlCR_Status][CtrlStat_SendFraming] <= ccc_framing_reqd;
+        // A transfer that follows a CCC after a Repeated Start (Sr) must first end the CCC framing
+        // by sending the I3C Broadcast Address (I3C Basic 4.3.7.1); it then sends a further Sr
+        // and its own address, as when commencing a Private Transfer with the Broadcast Address.
+        reg_state[CtrlCR_Status][CtrlStat_SendFraming] <=
+            cmd_attrs.is_ccc ? ccc_framing_reqd : (cmd_state.rep_start & prev_was_ccc);
+        reg_state[CtrlCR_Status][CtrlStat_IsCCC]       <= cmd_attrs.is_ccc;
       end else if (state_q == StopSDR) begin
         reg_state[CtrlCR_Status] <= 8'b0;
+      end else if (state_q == RepStPriv) begin
+        // The I3C Broadcast Address has been sent; the Target is addressed next.
+        reg_state[CtrlCR_Status][CtrlStat_SendFraming] <= 1'b0;
       end
       // Perform register writes from the CCC handling.
-      if (ccc_rsp.reg_we) reg_state[ccc_rsp.reg_widx] <= ccc_rsp.reg_wdata;
+      // - these take effect as the CCC handling advances, i.e. when any request has been accepted.
+      if (&{state_q == CCC, ccc_rsp.reg_we, ccc_proceed}) begin
+        reg_state[ccc_rsp.reg_widx] <= ccc_rsp.reg_wdata;
+      end
     end
   end
 
@@ -1015,6 +1047,7 @@ module i3c_controller_fsm
     .i3c_first_i    (i3c_first),
     .send_nack_i    (nacked),
     .xfer_mode_i    (ibi_xfer_mode),
+    .ccc_framing_i  (ccc_framing),
 
     // Data transmission.
     .tx_data_i      (tx_data),
@@ -1217,8 +1250,9 @@ module i3c_controller_fsm
 
     dec_err = &{state_q == Idle, !direct_drive, !disable_now, cmd_reject} | (state_q == CmdDecErr);
     cmd_acked = &{state_q == WaitAckb, trx_avalid_i, !trx_arb_i.nack};
-    // Is this acknowledgement for the Arbitrable I3C Broadcast Address of a Private SDR transfer?
-    bcst_priv = &{addr_bcst, ~cmd_attrs.is_ccc, ~cmd_attrs.ddr};
+    // Is this acknowledgement for the I3C Broadcast Address of a Private SDR transfer or of a
+    // Direct CCC? The transfer is then yet to address its Target, which may NACK.
+    bcst_priv = &{addr_bcst, ~cmd_attrs.is_ccc | ccc_direct, ~cmd_attrs.ddr};
 
     if (|{cmd_acked & ~bcst_priv, dec_err, cmd_nack_excess, icc_done}) begin
       rsp_next.pending  = 1'b1;

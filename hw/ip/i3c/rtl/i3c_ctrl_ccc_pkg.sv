@@ -11,8 +11,13 @@ package i3c_ctrl_ccc_pkg;
 
   // These are bit indexes within the `CtrlCR_Status` register.
   typedef enum {
+    // The CCC framing (I3C Broadcast Address, CCC and any Defining Byte) has yet to be sent.
+    // - cleared once the CCC has been sent, so that a Direct CCC then addresses its Target.
     CtrlStat_SendFraming = 0,
-    CtrlStat_HasDEFB
+    CtrlStat_HasDEFB,
+    // The Command Descriptor that set these flags was a CCC; a Private Transfer does not carry
+    // framing information, however its CMD field may happen to match the next CCC.
+    CtrlStat_IsCCC
   } i3c_ctrl_ccc_flags_e;
 
   // Width of the registers devoted to Controller CCC handling.

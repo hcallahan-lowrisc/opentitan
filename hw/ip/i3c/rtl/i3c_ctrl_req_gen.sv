@@ -30,6 +30,7 @@ module i3c_ctrl_req_gen
   input                       i3c_first_i,  // CmdArb, WaitAckb, SendAckb
   input                       send_nack_i,  // SendAckb
   input i3c_xfer_mode_e       xfer_mode_i,
+  input                       ccc_framing_i,  // I3C Broadcast Address to be sent (CCC framing).
 
   // Data transmission.
   input       [DataWidth-1:0] tx_data_i,
@@ -258,10 +259,14 @@ module i3c_ctrl_req_gen
   assign tm_sel.tclh   = &tm_sw.tclh ? tm_hw.tclh  : tm_sw.tclh;
 
   // Using I3C Broadcast Address to commence a transfer?
-  // - do NOT use the I3C Broadcast Address after a Repeated Start (Sr); for either CCC or Private
-  //   transfers. TODO(#31304): ENTDAA is an exception here.
-  assign addr_bcst_o = |{cmd_attrs_i.is_ccc, cmd_attrs_i.ddr, use_bcst_addr_i} &
-                        ~cmd_state_i.rep_start;
+  // - a CCC uses it until its framing has been sent, even after a Repeated Start (Sr) when the
+  //   previous Command Descriptor was not part of the same CCC (TCRI 6.3); a Direct CCC then
+  //   addresses its Target after a further Sr.
+  // - a Private Transfer uses it after an Sr only to end the framing of a preceding CCC.
+  // - otherwise do NOT use the I3C Broadcast Address after a Repeated Start (Sr).
+  //   TODO(#31304): ENTDAA is an exception here.
+  assign addr_bcst_o = ccc_framing_i | &{!cmd_attrs_i.is_ccc, |{cmd_attrs_i.ddr, use_bcst_addr_i},
+                                         !cmd_state_i.rep_start};
 
   // Target address as request write data (CmdArb or CmdAddr).
   logic [DataWidth-1:0] addr_wdata;

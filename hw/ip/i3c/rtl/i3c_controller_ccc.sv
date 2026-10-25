@@ -57,12 +57,19 @@ module i3c_controller_ccc
     // - we handle Broadcasts with a single Defining Byte here too.
     // - for CCCs that are more involved, we append the data below after incrementing the state
     //   index.
-    if (&{r_i[CtrlCR_Status][CtrlStat_SendFraming], !cmd_state_i.rep_start, ~|ccc_req_i.idx}) begin
+    // - the framing may follow a Repeated Start (Sr) if the previous Command Descriptor was not
+    //   part of the same CCC; the FSM has then sent the I3C Broadcast Address after the Sr.
+    if (&{r_i[CtrlCR_Status][CtrlStat_SendFraming], ~|ccc_req_i.idx}) begin
       ccc_rsp_o.req_dvalid = 1'b1;
       ccc_rsp_o.req_type   = CReqType_SDRBytes;
       ccc_rsp_o.req_rx     = 1'b0;
       ccc_rsp_o.req_wdata  = {r_i[CtrlCR_CCC], r_i[CtrlCR_DEFB], 16'b0};
       ccc_rsp_o.req_len    = {1'b0, r_i[CtrlCR_Status][CtrlStat_HasDEFB]};
+      // The framing has been sent once the transceiver accepts this request; a Direct CCC shall
+      // then address its Target rather than the I3C Broadcast Address.
+      ccc_rsp_o.reg_we    = 1'b1;
+      ccc_rsp_o.reg_widx  = CtrlCR_Status;
+      ccc_rsp_o.reg_wdata = r_i[CtrlCR_Status] & ~(CtrlCRWidth'(1) << CtrlStat_SendFraming);
       // Advance to data transfer upon the next invocation.
       ccc_rsp_o.inc_idx = 1'b1;
     end else begin
@@ -125,9 +132,15 @@ module i3c_controller_ccc
           endcase
         end
 
-        default: begin
-          // TODO(#31304): Extend this for data reception too.
-          // Generic CCC handling
+        default: if (!broadcast_ccc(ccc)) begin
+          // Direct CCCs (TCRI 6.3): the framing alone is sent here. The FSM then sends Sr and the
+          // Target Address with the RnW bit, collects the ACK/NACK, and transfers any data as it
+          // would for a Private Transfer, so Direct SETs and GETs share the Tx/Rx Buffer handling
+          // and the NACK retry logic.
+          ccc_rsp_o.done       = 1'b1;
+          ccc_rsp_o.err_status = ErrStatus_OK;
+        end else begin
+          // Generic Broadcast CCC handling
           // - Defining Byte, if supplied, has already been transmitted with the CCC.
           // - Here we are concerned with transmitting the data payload, if any.
           unique case (ccc_req_i.idx)
@@ -166,13 +179,14 @@ module i3c_controller_ccc
   logic unused_ccc_inputs;
   assign unused_ccc_inputs = ^{enable_i, r_i[CtrlCR_Status][7:2], r_i[CtrlCR_Scratch],
                                cmd_state_i.available, cmd_state_i.dev_index, cmd_state_i.reps_left,
-                               cmd_state_i.retry_cnt, cmd_state_i.rst_csect, cmd_state_i.started,
+                               cmd_state_i.rep_start, cmd_state_i.retry_cnt, cmd_state_i.rst_csect,
+                               cmd_state_i.started,
                                ccc_req_i.cmd_raw, ccc_req_i.dat_entry.autocmd_hdr_code,
                                ccc_req_i.dat_entry.autocmd_mask, ccc_req_i.dat_entry.autocmd_mode,
                                ccc_req_i.dat_entry.autocmd_value, ccc_req_i.dat_entry.crr_reject,
                                ccc_req_i.dat_entry.dev_nack_retry_cnt, ccc_req_i.dat_entry.device,
                                ccc_req_i.dat_entry.ibi_payload, ccc_req_i.dat_entry.ibi_reject,
                                ccc_req_i.dat_entry.ring_id, ccc_req_i.dat_entry.ts,
-                               ccc_req_i.rdata, ccc_req_i.re, ccc_req_i.rlen, ccc};
+                               ccc_req_i.rdata, ccc_req_i.re, ccc_req_i.rlen};
 
 endmodule
