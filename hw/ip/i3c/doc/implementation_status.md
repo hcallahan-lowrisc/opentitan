@@ -57,8 +57,8 @@ The following [CCCs](tti.md#supported-cccs) are not implemented or only partiall
 
 ### Other Target features
 
-- [Hot-Join](tti.md#hot-join-feature): the Target does not act on `TARG_CONTROL.HJ_REQUEST` ([#31337](https://github.com/lowRISC/opentitan/issues/31337)).
 - [HDR Restart Pattern](theory_of_operation.md#hdr-exit-and-hdr-restart-detection): the Target does not act on it ([#31035](https://github.com/lowRISC/opentitan/issues/31035)).
+- [In-Band Interrupts](tti.md#in-band-interrupts): In-Band Interrupts presently cannot convey payload data, including the MDB.
 
 ## Primary partition
 

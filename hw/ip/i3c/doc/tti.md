@@ -177,6 +177,9 @@ If `BCR[2]` is set, the Mandatory Data Byte (MDB) must be provided for any In-Ba
 The number of bytes of additional IBI payload data may be 0, or it may be up to 255.
 It shall always be restricted to less than the current [`IBI_LEN`](registers.md#targ_ibi_len) setting of the Virtual Target that is attempting to transmit the IBI.
 
+For any Virtual Target having `BCR[2]` clear, indicating that IBI payload bytes are not supported, no MDB will be sent, and Pending Read Notifications cannot be supported.
+An attempt to send a PRN from such a Virtual Target will cause transmission to be suspended.
+
 The Target-side hardware will reject transfers of greater length and will, if enabled via [`TARG_ASYNC_EVT_CONTROL.IBI_NOTIFY`](registers.md#targ_async_evt_control--ibi_notify), report this by posting into the Asynchronous Event Queue.
 
 If the Active Controller attempts to request an unlimited IBI payload size, by specifying 0 in the SETMRL CCC (I3C Basic 4.3.7.3.6), the [`IBI_LEN`](registers.md#targ_ibi_len) field(s) of the Virtual Target(s) will instead be set to 255.
@@ -436,6 +439,8 @@ It comes in two forms:
 Software requests a Hot-Join via the [`TARG_CONTROL`](registers.md#targ_control--hj_request) register.
 A Target that supports Hot-Join must also support the ENTDAA CCC (I3C Basic Specification, Table 16), which the Virtual Targets support (see [Address Assignment](#address-assignment)).
 The HCI also specifies a Hot-Join capability via the [Standby Controller Control register](registers.md#stby_cr_control--stby_cr_enable_init), but this version of the IP block does not support the Standby Controller role.
+
+A Hot-Join request will only be sent to the Active Controller if at least one enabled Virtual Target is both lacking a dynamic address and permitted to issue Hot-Join requests, as indicated by [`TARG_EVENT_ENABLE`](registers.md#targ_event_enable--enhj).
 
 ## Handling of Common Command Codes
 

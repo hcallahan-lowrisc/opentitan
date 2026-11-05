@@ -366,6 +366,9 @@ Issue Hot-Join request.
 This applies to all Virtual Targets since they share a single physical Target.
 Software shall set this to '1' to issue the request, and the hardware will clear it when the request has been sent and acknowledged.
 
+A request will be sent to the Active Controller only if at least one Virtual Target does not have an assigned dynamic address but is permitted to send Hot-Join requests.
+If Standby Controller mode is enabled, then the first Virtual Target does not contribute to this decision since it has its own configuration.
+
 ### TARG_CONTROL . EN_HDR_DDR
 Declare support for HDR-DDR mode in the GETCAPS response of the Target.
 
