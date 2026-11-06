@@ -498,18 +498,20 @@ module i3c_controller_trx
       State_ClkHiDirDrv,
       State_ClkLoPPDirDrv,
       State_ClkHiPPDirDrv: bit_done = phase_end;
+      // HDR Restart and HDR Exit signaling.
+      State_PatternHiD:    bit_done = leave_hdr_sr   & phase_end;
+      State_PatternLoD:    bit_done = leave_hdr_exit & phase_end;
       default: begin end
     endcase
   end
 
   // Transition at the end of a unit within a request.
-  assign unit_end = &{bit_done, last_bit};
+  assign unit_end = last_bit & bit_done;
 
   // Accept a new request upon completion of the current unit.
   assign trx_dready_o = |{starting,
                           req_ending,
-                          state_q == State_PatternLoD & leave_hdr_sr,
-                          state_q == State_PatternHiD & leave_hdr_exit};
+                          state_q inside {State_PatternLoD, State_PatternHiD} & bit_done};
 
   // Interpret the new command.
   i3c_ddr_cmd_word_t dreq_cmd;
@@ -836,6 +838,7 @@ module i3c_controller_trx
       cnt           <= '0;
       state_q       <= State_Reset;
       bit_idx       <= '1;
+      tx_data_bit_q <= 1'b0;
     end else begin
       if (req_starting) begin
         // Behavior specific to the new data unit.

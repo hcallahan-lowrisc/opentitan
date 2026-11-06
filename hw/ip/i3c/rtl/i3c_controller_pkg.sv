@@ -38,8 +38,9 @@ package i3c_controller_pkg;
   // The type of transfer being performed by the Controller.
   typedef enum logic [1:0] {
     TransType_None,
-    TransType_Cmd,  // Transfer is the result of executing a Command Descriptor.
-    TransType_Intr  // Encompasses IBI, CRR and Hot-Join requests.
+    TransType_CmdDesc,  // Transfer is the result of executing a Command Descriptor.
+    TransType_CmdAuto,  // Transfer is an internally-generated command (Auto Command or DISEC).
+    TransType_Intr      // Encompasses IBI, CRR and Hot-Join requests.
   } i3c_ctrl_trans_type_e;
 
   // Controller FSM states; this state machine handles the processing of HCI Command Descriptors and
@@ -66,11 +67,15 @@ package i3c_controller_pkg;
     EnterDDR,   // Sending ENTHDR0, which puts the bus into HDR-DDR mode.
     ExitHDR,    // Sending HDR Exit signaling, which returns the bus to SDR mode.
     ReStHDR,    // Sending HDR Restart signaling.
+    CCCFrame,   // Common Command Code framing (CCC, and DEFB where reuired).
     CmdWord,    // Sending HDR-DDR Command Word.
     TxData,     // Moving data from Tx Buffer to Transceiver logic.
     TxCRC,      // Sending HDR-DDR CRC Word.
     RxData,     // Requesting read operations of the Transceiver logic.
     RxCRC,      // Receiving HDR-DDR CRC Word.
+    RxDChar,    // Receiving device characteristics (ENTDAA).
+    TxDAddr,    // Sending Dynamic Address (ENTDAA).
+    WaitDAckb,  // Collect ACK/NACK response (without handoff) during ENTDAA read phase.
 
     // --- Controller Role and Hot-Join Requests ---
     CRR,        // TODO(#31308): CRR is not yet supported.
@@ -92,7 +97,11 @@ package i3c_controller_pkg;
     DirectDrv,
 
     // --- Error handling and recovery ---
-    CmdDecErr,  // Command was rejected in second-stage decoding.
+    CmdDecErr,  // Command was rejected during decoding.
+    CmdDecAbt,  // Command was rejected during Abort handling.
+
+    // --- Controller-global Abort state ---
+    Aborted,  // During this state even IBIs are ignored.
 
     // Exit from this state occurs only in response to a software reset.
     ErrFatal
@@ -109,7 +118,7 @@ package i3c_controller_pkg;
     CReqType_CRCWord      = 4'b0101,
     // Arbitrable Address Header.
     CReqType_ArbAddr      = 4'b0010,
-    // Ack/Nack bit of arbitrable address header.
+    // ACK/NACK bit of arbitrable address header.
     CReqType_AckNack      = 4'b0100,
     // Arbitrable Dynamic Address Allocation phase.
     CReqType_ArbDAA       = 4'b0110,
@@ -243,12 +252,22 @@ package i3c_controller_pkg;
   // Stored properties of the current HCI Command Descriptor, and properties preserved from earlier
   // Command Descriptor(s) forming a single sequence.
   //
-  // - Command Descriptors may operate together to form a single CCC operation.
+  // - Command Descriptors may operate together as a 'sequence', e.g., to form a single CCC
+  //   operation.
   // - Address Assignment commands require iteration, to assign a number of dynamic addresses.
+  // - Aborting (either PIO- or Controller-level) requires that the remaining commands of the
+  //   aborted sequence receive `HC_ABORTED` responses.
   typedef struct packed {
     // Command Descriptor available; command ready to be actioned.
     // Note: This does not imply that the Command Descriptor has been accepted as valid.
     logic                 available;
+
+    // Aborting a sequence of one or more Command Descriptors.
+    // - upon completion of a Controller Abort the FSM will enter the stable `Aborted` state and
+    //   await software intervention.
+    // - PIO Abort simply returns responses for the commands in the current sequence and then holds
+    //   off the dispatch of new commands.
+    logic                 aborting;
 
     // Command Descriptors performing a series of RSTACT CCCs are to be followed by the Target Reset
     // Pattern if it is not interrupted by failure or timeout.
@@ -265,12 +284,17 @@ package i3c_controller_pkg;
     //
     // Current DAT index; this advances whilst executing Address Assignment commands.
     logic  [DATAddrW-1:0] dev_index;
-    // Was the most recent command/segment terminated with Sr rather than P?
+    // Is this the first phase for the current Command Descriptor?
+    logic                 first_phase;
+    // Was the most recent command/phase terminated with Sr rather than P?
     logic                 rep_start;
     // Number of retries required for this command when NACK(s) are received.
     logic           [1:0] retry_cnt;
     // Number of repetitions remaining.
-    // - each repetition is a phase within e.g. a Combo Transfer or Address Assignment command.
+    // - each repetition is a phase within a Command Descriptor of one of the following types:
+    //   - Immediate Data Transfer of Regular Data Transfer implementing Direct Read/Write.
+    //   - Combo Transfer.
+    //   - Address Assignment.
     logic   [CmdRepW-1:0] reps_left;
   } i3c_ctrl_cmd_state_t;
 

@@ -61,7 +61,7 @@ module i3c_ctrl_req_gen
   logic [3:0] sn;
   always_comb begin
     if (&{state_i inside {CmdArb, WaitAckb, SendAckb},
-          trans_type_i == TransType_Cmd, cmd_attrs_i.addr_bcst}) begin
+          trans_type_i == TransType_CmdDesc, cmd_attrs_i.addr_bcst}) begin
       // Starting a Command-initiated transfer to the I3C Broadcast Address.
       // - if this is still our first attempt without success, we operate at the slower speed index
       //   so that I3C-capable devices receive the traffic and know to disable their spike filters.
@@ -280,9 +280,10 @@ module i3c_ctrl_req_gen
                                           EnterDDR, ExitHDR, ReStHDR,
                                           CmdArb, RepStPriv, CmdAddr,
                                           WaitAckb, SendAckb,
-                                          CmdWord,
-                                          TxData, TxCRC,  // Transmit data.
-                                          RxData, RxCRC,  // Request data reception.
+                                          CCCFrame, CmdWord,
+                                          TxData, TxCRC,     // Transmit data.
+                                          RxData, RxCRC,     // Request data reception.
+                                          RxDChar, TxDAddr,  // ENTDAA read phase.
                                           IBIRxData,
                                           TargRst,
                                           DirectDrv},     // Direct-driving of pins.
@@ -309,7 +310,7 @@ module i3c_ctrl_req_gen
       // Arbitrable Address Header, i.e. following a Start.
       CmdArb: begin
         trx_dreq_o.req = CReqType_ArbAddr;
-        if (trans_type_i == TransType_Cmd) begin
+        if (trans_type_i == TransType_CmdDesc) begin
           // We are contending for the bus, attempting to address a Target/Group.
           trx_dreq_o.wdata = addr_wdata;
         end else begin
@@ -320,6 +321,14 @@ module i3c_ctrl_req_gen
 
       // Repeated Start (Sr) after using the I3C Broadcast Address to command a Private Read/Write.
       RepStPriv: trx_dreq_o.req = CReqType_SDRRepStart;
+
+      // Common Command Code (CCC, and DEFB where required).
+      CCCFrame: begin
+        trx_dreq_o.req   = CReqType_SDRBytes;
+        trx_dreq_o.len   = cmd_attrs_i.has_defb ? 2'b01 : 2'b00;
+        trx_dreq_o.wdata = {8'(cmd_attrs_i.ccc), cmd_attrs_i.defb} << (DataWidth - 16);
+        trx_dreq_o.last  = 1'b1;
+      end
 
       // Address Header, following Repeated Start.
       CmdAddr: begin
@@ -384,8 +393,8 @@ module i3c_ctrl_req_gen
       // achieving better utilization.
       RxData: begin
         trx_dreq_o.req  = cmd_attrs_i.ddr ? CReqType_DataWord : CReqType_SDRBytes;
-        trx_dreq_o.len  = dlen_i;
         trx_dreq_o.rx   = 1'b1;
+        trx_dreq_o.len  = dlen_i;
         trx_dreq_o.last = data_last_i;
       end
       // HDR-DDR CRC Word at the end of a Read.
@@ -395,11 +404,28 @@ module i3c_ctrl_req_gen
         trx_dreq_o.len = 2'b00;
       end
 
+      // Receive Device Characteristics (ENTDAA); open drain signaling.
+      RxDChar: begin
+        trx_dreq_o.req   = CReqType_SDRBytes;  // TODO: Different request type? (OD).
+        trx_dreq_o.rx    = 1'b1;
+        trx_dreq_o.len   = dlen_i;
+        trx_dreq_o.last  = data_last_i;
+      end
+      // Transmit Dynamic Address (ENTDAA); also open drain signaling.
+      TxDAddr: begin
+        trx_dreq_o.req   = CReqType_SDRBytes;
+        // Here we trust the driver-supplied Parity bit (HCI 8.1.2).
+        trx_dreq_o.wdata = {dat_entry_i.dynamic_address[22:16],
+                            dat_entry_i.dynamic_address[23]} << (DataWidth - 8);
+        trx_dreq_o.len   = 2'b00;
+        trx_dreq_o.last  = 1'b1;
+      end
+
       // IBI Payload Reception.
       IBIRxData: begin
         trx_dreq_o.req  = CReqType_SDRBytes;
-        trx_dreq_o.len  = dlen_i;
         trx_dreq_o.rx   = 1'b1;
+        trx_dreq_o.len  = dlen_i;
         trx_dreq_o.last = 1'b0;
       end
 
@@ -408,8 +434,8 @@ module i3c_ctrl_req_gen
         // Forward all requests to the transceiver.
         trx_dreq_o.req   = ccc_rsp_i.req_type;
         trx_dreq_o.rx    = ccc_rsp_i.req_rx;
-        trx_dreq_o.len   = ccc_rsp_i.req_len;
         trx_dreq_o.wdata = ccc_rsp_i.req_wdata;
+        trx_dreq_o.len   = ccc_rsp_i.req_len;
         trx_dreq_o.last  = ccc_rsp_i.req_last;
       end
 

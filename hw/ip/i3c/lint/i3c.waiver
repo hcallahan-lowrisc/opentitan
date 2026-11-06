@@ -75,6 +75,9 @@ waive -rules {ONE_BIT_MEM_WIDTH} -location {i3c_target_fsm.sv} \
 waive -rules {CALC_NEXT_STATE} -location {i3c_controller_trx.sv} \
       -regexp {Next state register 'state_d' is assigned a non-constant expression 'state_next_req'} \
       -comment "state_next_req is the state that serves the next transceiver request, which a separate block decodes."
+waive -rules {CALC_NEXT_STATE} -location {i3c_controller_fsm.sv} \
+      -regexp {Next state register 'state_d' is assigned a non-constant expression '(dec_state_d|phsend_state_d|xfer_state_d)'} \
+      -comment "To avoid code replication the more involved state transitions are expressed in separate blocks and the linting doesn't apply transitivity."
 waive -rules {ENUM_RANGE} -location {i3c_controller_trx.sv} \
       -regexp {Base of index expression 'state_q\[(ST_SCL|ST_SCL_PP_EN)\]' is of enumerated type 'state_e'} \
       -comment "The state encoding drives SCL and its push-pull enable directly from state flops, to avoid glitches."

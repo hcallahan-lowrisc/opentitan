@@ -25,6 +25,9 @@ module i3c_controller_ccc
   // Command state, for any additional information required.
   input  i3c_ctrl_cmd_state_t cmd_state_i,
 
+  // Command attributes; derived from the command descriptor state.
+  input  i3c_ctrl_cmd_attrs_t cmd_attrs_i,
+
   // Requests from the Controller FSM.
   input  i3c_ctrl_ccc_req_t   ccc_req_i,
 
@@ -44,6 +47,7 @@ module i3c_controller_ccc
   //       only with SDR traffic, i.e. bytes not 16-bit DataWords.
 
   import i3c_consts_pkg::*;
+  import i3c_hci_pkg::*;
 
   // The Common Command Code, including Broadcast/Direct indication.
   // - this comes from a register but is always available, along with all of the other registers.
@@ -57,6 +61,19 @@ module i3c_controller_ccc
     // - we handle Broadcasts with a single Defining Byte here too.
     // - for CCCs that are more involved, we append the data below after incrementing the state
     //   index.
+    //
+    // Broadcast Write:
+    //   7e/W/ACK CCC [DEFB] [Tx Data] Sr|P
+    //
+    // Direct Write:
+    //   7e/W/ACK CCC [DEFB] Sr Addr/W/ACK [Tx Data] Sr|P
+    //
+    // Direct Read:
+    //   7e/W/ACK CCC [DEFB] Sr Addr/R/ACK [Rx Data] Sr|P
+    //                                                /\
+    //                                                |
+    // Single Command Descriptor up to here ----------+
+
     if (&{r_i[CtrlCR_Status][CtrlStat_SendFraming], !cmd_state_i.rep_start, ~|ccc_req_i.idx}) begin
       ccc_rsp_o.req_dvalid = 1'b1;
       ccc_rsp_o.req_type   = CReqType_SDRBytes;
@@ -126,37 +143,53 @@ module i3c_controller_ccc
         end
 
         default: begin
-          // TODO(#31304): Extend this for data reception too.
-          // Generic CCC handling
-          // - Defining Byte, if supplied, has already been transmitted with the CCC.
-          // - Here we are concerned with transmitting the data payload, if any.
-          unique case (ccc_req_i.idx)
-            // Pass Tx buffer data to the transceiver logic.
-            4'h1:
-              if (ccc_req_i.txd_valid) begin
-                ccc_rsp_o.req_dvalid = 1'b1;
-                ccc_rsp_o.req_type   = CReqType_SDRBytes;
-                ccc_rsp_o.req_rx     = 1'b0;
-                ccc_rsp_o.req_wdata  = ccc_req_i.txd_data;
-                ccc_rsp_o.req_len    = ccc_req_i.txd_len;
+          if (cmd_attrs_i.rnw) begin
+            unique case (ccc_req_i.idx)
+              4'h1: begin
+                ccc_rsp_o.req_type = CReqType_SDRBytes;
+                ccc_rsp_o.req_rx   = 1'b1;
+                ccc_rsp_o.req_len  = ccc_req_i.txd_len;
                 // When the request has been accepted by the transceiver,
                 // we'll advance to the next state.
                 ccc_rsp_o.inc_idx = 1'b1;
-              end else if (ccc_req_i.txd_left) begin
-                ccc_rsp_o.txd_req = 1'b1;
-              end else begin
+              end
+              default: begin
                 ccc_rsp_o.done       = 1'b1;
                 ccc_rsp_o.err_status = ErrStatus_SUCCESS;
               end
-            //
-            default: begin
-              // Consume the Tx data that we just sent to the transceiver.
-              ccc_rsp_o.txd_consume = 1'b1;
-              // Index toggles between 1 and 2 until all data has been transmitted.
-              ccc_rsp_o.rst_idx     = 1'b1;
-              ccc_rsp_o.inc_idx     = 1'b1;
-            end
-          endcase
+            endcase
+          end else begin
+            // Generic CCC handling
+            // - Defining Byte, if supplied, has already been transmitted with the CCC.
+            // - Here we are concerned with transmitting the data payload, if any.
+            unique case (ccc_req_i.idx)
+              // Pass Tx buffer data to the transceiver logic.
+              4'h1:
+                if (ccc_req_i.txd_valid) begin
+                  ccc_rsp_o.req_dvalid = 1'b1;
+                  ccc_rsp_o.req_type   = CReqType_SDRBytes;
+                  ccc_rsp_o.req_rx     = 1'b0;
+                  ccc_rsp_o.req_wdata  = ccc_req_i.txd_data;
+                  ccc_rsp_o.req_len    = ccc_req_i.txd_len;
+                  // When the request has been accepted by the transceiver,
+                  // we'll advance to the next state.
+                  ccc_rsp_o.inc_idx = 1'b1;
+                end else if (ccc_req_i.txd_left) begin
+                  ccc_rsp_o.txd_req = 1'b1;
+                end else begin
+                  ccc_rsp_o.done       = 1'b1;
+                  ccc_rsp_o.err_status = ErrStatus_SUCCESS;
+                end
+              //
+              default: begin
+                // Consume the Tx data that we just sent to the transceiver.
+                ccc_rsp_o.txd_consume = 1'b1;
+                // Index toggles between 1 and 2 until all data has been transmitted.
+                ccc_rsp_o.rst_idx     = 1'b1;
+                ccc_rsp_o.inc_idx     = 1'b1;
+              end
+            endcase
+          end
         end
       endcase
     end
