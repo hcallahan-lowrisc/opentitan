@@ -259,6 +259,7 @@ module i3c_target_fsm
       data_pq[b] = unit_data[2*b-8];
     end
     // Ensure that the LS byte of a 16-bit HDR-DDR word is zero if the MS byte is the last byte.
+    // - if `unit_rlast[0]` is set, the last valid byte is in `unit_data[7:0]`.
     for (int unsigned b = 0; b < 4; b++) begin
       data_nq[b] = unit_data[2*b+9] & ~unit_rlast[0];
       data_pq[b] = unit_data[2*b+8] & ~unit_rlast[0];
@@ -642,6 +643,14 @@ module i3c_target_fsm
                          (trx_rxd_i.ccc_state inside {CCC_SegAddr, CCC_SegData});
 
   assign ccc_tx_start = &{trx_rvalid_i, trx_rxd_i.sr, ccc_rd_prefetch};
+
+  //always_ff @(posedge clk_i or negedge rst_ni) begin
+  //  if (!rst_ni) txc_toggle_o <= 1'b0;
+  //  else if (&{state_q == CCC_Tx, ccc_req.en, txc_toggle_i == txc_toggle_o,
+  //             ccc_rsp.req_cvalid}) begin
+  //    txc_toggle_o <= !txc_toggle_o;
+  //  end
+  //end
 
   // Construction of request to the CCC handling.
   always_comb begin : drv_ccc_req

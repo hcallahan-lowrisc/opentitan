@@ -512,15 +512,16 @@ module i3c_target_trx
   // - Contention on the SDA line, which we need to detect in order to invoke recovery procedures.
   logic sda_diff;
 
-  logic [2:0] started;
+  logic [3:0] started;
   always_ff @(posedge scl_ni or negedge rst_ni) begin
-    if (!rst_ni) started <= '0;
-    else started <= {stop_det, rep_start_det, start_det};
+    if (!rst_ni) started <= 'b0;
+    else started <= {hdr_restart_det_i, stop_det, rep_start_det, start_det};
   end
 
-  wire starting     = start_det     & !started[0];
-  wire rep_starting = rep_start_det & !started[1];
-  wire stopping     = stop_det      & !started[2];
+  wire starting     = start_det         & !started[0];
+  wire rep_starting = rep_start_det     & !started[1];
+  wire stopping     = stop_det          & !started[2];
+  wire hdr_restart  = hdr_restart_det_i & !started[3];
 
   assign arb_starting = starting & arb_reqd;
   assign arb_ending   = (state_q == State_ArbCont) & arb_lost;
@@ -643,7 +644,11 @@ module i3c_target_trx
       // START handling.
       state_d = arb_reqd ? State_ArbCont : State_ArbCede;
     end else if (rep_starting) begin
+      // Repeated Start (Sr) handling.
       state_d = State_ArbCede;
+    end else if (hdr_restart) begin
+      // HDR Restart handling; another HDR-DDR command is expected next.
+      state_d = State_RxCmdDDR;
     end else begin
       unique case (state_q)
         // --- Address Arbitration ---
@@ -748,7 +753,7 @@ module i3c_target_trx
         trans.has_defb  <= 1'b0;
         ccc_state_q     <= CCC_Idle;
         ccc_idx_q       <= '0;
-      end else if (rep_starting) begin
+      end else if (rep_starting | hdr_restart) begin
         // Next phase of Direct CCC may address another Target/Group.
         ccc_state_q <= CCC_SegAddr;
         ccc_idx_q   <= '0;
@@ -794,6 +799,8 @@ module i3c_target_trx
               unique case (ccc_state_q)
                 CCC_Idle: begin
                   // Target ID here determines whether this is CCC framing or a Private transfer.
+                  // - I3C Broadcast Address: CCC framing.
+                  // - Other: Private Transfer (Group/Target).
                   trans.targ_id   <= targ_id;
                   trans.targ_set  <= targ_set;
                   trans.is_group  <= is_group;
@@ -807,7 +814,7 @@ module i3c_target_trx
                   trans.cmd     <= ddr_payload[15:8];
                 end
                 CCC_SegAddr: begin
-                  // A Broadcast address here signals termination of a the previous CCC and
+                  // A Broadcast address here signals termination of the previous CCC and
                   // commencement of a new CCC transfer.
                   if (cmd_word.targ_addr == Addr_Broadcast && cmd_word.rnw) begin
                     ccc_state_q <= CCC_Setup;
@@ -977,6 +984,8 @@ module i3c_target_trx
     end else begin
       if (starting | rep_starting) begin
         bit_idx <= BitW'('d8);
+      end else if (hdr_restart) begin
+        bit_idx <= BitW'('d9);
       end else if (last_bit) begin
         unique case (state_q)
           // SDR traffic shall be followed by further SDR traffic or, if entering HDR-DDR mode,
@@ -1263,7 +1272,7 @@ module i3c_target_trx
   end
   // - TODO(#31035): HDR Restart is not handled yet.
   logic unused_trx_signals;
-  assign unused_trx_signals = ^{trx_areq_i.targ_id, trx_areq_i.rdata_nq, hdr_restart_det_i,
+  assign unused_trx_signals = ^{trx_areq_i.targ_id, trx_areq_i.rdata_nq,
                                 cmd_word.cmd_code, cmd_word.para, capture_all, trans.defb,
                                 trans.has_defb, prepen_bit, sda_mismatch};
 

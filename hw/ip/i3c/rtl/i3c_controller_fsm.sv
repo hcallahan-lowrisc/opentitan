@@ -720,6 +720,9 @@ module i3c_controller_fsm
       CmdBegin:  state_d = DATCapt;
       DATCapt:   state_d = CmdDecode;
       CmdDecode: state_d = (cmd_dec_err | cmd_addr_blocked) ? CmdDecErr : dec_state_d;
+      // HDR Restart.
+      // TODO(#31304): The Controller must sit in this state for quite a while if the bus was idle,
+      // monitoring SDA to ensure that nothing pulls it low (4.3.9.3).
       ReStHDR:   state_d = Idle;
       ExitHDR:   state_d = StopSDR;
       StartSDR:  state_d = CmdArb;

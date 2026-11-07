@@ -164,8 +164,11 @@ module i3c_controller_trx
     State_ClkLoSampleD    = 7'b01100_1_0,
 
     // --- HDR Exit, HDR Restart, Target Reset ---
+    State_PatternSetupD   = 7'b01111_1_0,
     State_PatternHiD      = 7'b01101_1_0,
     State_PatternLoD      = 7'b01110_1_0,
+    State_PatternHoldD    = 7'b10011_1_0,
+    State_PatternSrDone   = 7'b01111_1_1,
 
     // --- Error states ---
     //
@@ -251,11 +254,15 @@ module i3c_controller_trx
   } next_unit_t;
   next_unit_t next_unit;
 
+  // Patterns differs from the regular data units in that they have special termination conditions.
+  logic patt_ending;
+  wire req_patt = req_q.req inside {CReqType_HDRRestart, CReqType_HDRExit, CReqType_TargetReset};
+
   // Starting a new request?
   wire req_starting = trx_dvalid_i & trx_dready_o;
   // Ending the current request?
   // - this can be successful completion, successful early termination, error or abort.
-  wire req_ending = |{last_req_bit & bit_done, req_ending_early};
+  wire req_ending = req_patt ? patt_ending : |{last_req_bit & bit_done, req_ending_early};
   // Continuation within an ongoing request?
   wire req_continuing = unit_end & |req_q.len;
   // Starting to transmit an HDR-DDR word? (Command Word, Data Word or CRC Word.)
@@ -264,6 +271,9 @@ module i3c_controller_trx
   wire cmd_starting = req_starting & (trx_dreq_i.req == CReqType_CommandWord);
   // About to issue Target Reset signaling?
   wire targ_resetting = (trx_dreq_i.req == CReqType_TargetReset);
+  // About to start a pattern?
+  wire patt_starting = targ_resetting ||
+                       trx_dreq_i.req inside {CReqType_HDRRestart, CReqType_HDRExit};
   // Starting a new unit?
   wire unit_starting = req_starting | req_continuing;
   always_comb begin
@@ -373,9 +383,6 @@ module i3c_controller_trx
   // Possible state transition.
   wire advance = enable_i & phase_end;
 
-  // Pattern counter (HDR Restart, HDR Exit and Target Reset signaling).
-  wire patt_advance = (state_q == State_PatternHiD) & phase_end;
-
   // Indications of preantepenultimate, prepenultimate, penultimate and the last bit;
   // these are useful for both the addressing phase and the reception of HDR-DDR words.
   wire   preant_bit = (bit_idx == Log2DW'('d3));
@@ -409,16 +416,20 @@ module i3c_controller_trx
   wire pre_stop   = &{advance, state_q == State_PreStop};
   // STOP signaling; SDA raised but SCL still driven low.
   wire stop       = &{advance, state_q == State_Stop};
+  // Starting
+  // Issuing HDR Restart signaling?
+  wire hdr_restart = (req_q.req == CReqType_HDRRestart);
+  // Issuing HDR Exit signaling?
+  wire hdr_exit    = (req_q.req == CReqType_HDRExit);
   // Issuing Target Reset signaling?
-  wire targ_reset = (req_q.req == CReqType_TargetReset);
+  wire targ_reset  = (req_q.req == CReqType_TargetReset);
 
   // Generation of HDR Exit/Restart signaling.
-  wire [2:0] hdr_patt_cnt = bit_idx[2:0];  // HDR pattern and data Tx/Rx never occur simultaneously.
-  wire gen_hdr_patt   = (trx_dreq_i.req == CReqType_HDRExit ||
-                         trx_dreq_i.req == CReqType_HDRRestart) & trx_dvalid_i;
-  wire leave_hdr_exit = (req_q.req == CReqType_HDRExit)    & ~|hdr_patt_cnt;
-  wire leave_hdr_sr   = (req_q.req == CReqType_HDRRestart) & ~|hdr_patt_cnt;
-  wire leave_targ_rst = targ_reset & ~|hdr_patt_cnt;
+  wire leave_hdr_sr   = &{hdr_restart, state_q == State_PatternSrDone, bit_done};
+  wire leave_hdr_exit = &{hdr_exit,   last_bit, bit_done};  // Should receive stoP next.
+  wire leave_targ_rst = &{targ_reset, last_bit, bit_done};  // Expecting Sr and P next.
+
+  assign patt_ending = |{leave_hdr_sr, leave_hdr_exit, leave_targ_rst};  // TODO: re targ_rst.
 
   // Has an error condition occurred within this transfer?
   // TODO(#31305): We shall perhaps need to make this sticky.
@@ -497,10 +508,10 @@ module i3c_controller_trx
       State_ClkLoDirDrv,
       State_ClkHiDirDrv,
       State_ClkLoPPDirDrv,
-      State_ClkHiPPDirDrv: bit_done = phase_end;
-      // HDR Restart and HDR Exit signaling.
-      State_PatternHiD:    bit_done = leave_hdr_sr   & phase_end;
-      State_PatternLoD:    bit_done = leave_hdr_exit & phase_end;
+      State_ClkHiPPDirDrv,
+      State_PatternLoD,
+      State_PatternHoldD,
+      State_PatternSrDone: bit_done = phase_end;
       default: begin end
     endcase
   end
@@ -511,7 +522,9 @@ module i3c_controller_trx
   // Accept a new request upon completion of the current unit.
   assign trx_dready_o = |{starting,
                           req_ending,
-                          state_q inside {State_PatternLoD, State_PatternHiD} & bit_done};
+                          leave_hdr_sr,
+                          leave_hdr_exit,
+                          leave_targ_rst};
 
   // Interpret the new command.
   i3c_ddr_cmd_word_t dreq_cmd;
@@ -558,9 +571,10 @@ module i3c_controller_trx
     sda_d = sda_q;
     // Set SDA to the appropriate state for (S)tart and sto(P) signaling.
     // Ditto for the HDR Restart/Exit and Target Reset patterns.
-    if (&{state_q == State_PatternLoD, phase_end, !leave_hdr_exit}) begin
-      sda_d = 1'b1;
-    end else if (state_q == State_PatternHiD && phase_end) sda_d = leave_targ_rst;
+    if (patt_starting | patt_ending) sda_d = sda_q;  // Starting: SCL must drop before SDA rises.
+    else if (state_q == State_PatternSetupD && phase_end) sda_d = 1'b1;
+    else if (state_q == State_PatternLoD && phase_end && !leave_hdr_exit) sda_d = 1'b1;
+    else if (state_q == State_PatternHiD && phase_end) sda_d = leave_targ_rst;  // TODO
     else if (|{starting, restarting, pre_stop, stop}) sda_d = restarting | stop;
     else if (state_q == State_RepStartHiC) sda_d = 1'b0;
     else if (sdr_ack_handoff) sda_d = sda_i[0];
@@ -684,9 +698,10 @@ module i3c_controller_trx
                                                              : State_ClkLoSetupD;  // Transmission.
         // HDR Exit, HDR Restart and Target Reset signaling.
         // - these all involve a defined number of SDA falling edges with SCL held low.
+        // - SCL must be dropped before SDA is raised (Figures 67, 69 and 97).
         CReqType_HDRExit,
-        CReqType_HDRRestart:  state_next_req = State_PatternLoD;
-        CReqType_TargetReset: state_next_req = State_PatternHiD;
+        CReqType_HDRRestart,
+        CReqType_TargetReset: state_next_req = sda_q ? State_PatternHiD : State_PatternSetupD;
         CReqType_DirectDrive:
           // Open drain signaling takes precedence over push-pull driving,
           // TODO(#31307): ... but we have no open drain driver on SCL.
@@ -745,9 +760,15 @@ module i3c_controller_trx
       // --- HDR Exit, HDR Restart and Target Reset ---
       // TODO(#31304): The Controller must sit in this state for quite a while if the bus was idle,
       // monitoring SDA to ensure that nothing pulls it low (4.3.9.3).
-      State_PatternHiD:       state_d = leave_targ_rst ? State_RepStart :
-                                       (leave_hdr_sr   ? state_next_req : State_PatternLoD);
-      State_PatternLoD:       state_d = leave_hdr_exit ? state_next_req : State_PatternHiD;
+      // TODO: The Target Reset signaling here must surely be incomplete.
+      State_PatternSetupD:    state_d = State_PatternHiD;
+      State_PatternHiD:       state_d = (last_bit & targ_reset) ? state_next_req  // TODO!
+                                                                : State_PatternLoD;
+      State_PatternLoD:       state_d = last_bit ? (hdr_restart ? State_PatternHoldD
+                                                                : state_next_req)
+                                                 : State_PatternHiD;
+      State_PatternHoldD:     state_d = State_PatternSrDone;
+      State_PatternSrDone:    state_d = state_next_req;
       // --- SDR Repeated Start ---
       State_RepStart:         state_d = State_RepStartHiD;
       State_RepStartHiD:      state_d = State_RepStartHiC;
@@ -774,16 +795,19 @@ module i3c_controller_trx
       // When transitioning to a new unit/request, the next state is difficult to predict from the
       // current state alone, so we use the request type.
       unique case (next_unit.req)
-        CReqType_SDRStart: phase_cycles = tcas;
-        CReqType_SDRStop:  phase_cycles = tcbp;
+        CReqType_SDRStart:    phase_cycles = tcas;
+        CReqType_SDRStop,
+        CReqType_SDRRepStart: phase_cycles = tcbp;
         CReqType_ArbAddr,
         CReqType_AckNack,
+        CReqType_ArbDAA,
+        CReqType_DynAddr,
         CReqType_Address,
         CReqType_SDRBytes,
         CReqType_CommandWord,
         CReqType_DataWord,
-        CReqType_CRCWord:  phase_cycles = trx_dreq_i.tm.tcls;
-        default:           phase_cycles = DefTmCyc;
+        CReqType_CRCWord:     phase_cycles = trx_dreq_i.tm.tcls;
+        default:              phase_cycles = DefTmCyc;
       endcase
     end else begin
       // We can use the current state here because the next state, and thus its duration, are very
@@ -843,20 +867,18 @@ module i3c_controller_trx
       if (req_starting) begin
         // Behavior specific to the new data unit.
         unique case (trx_dreq_i.req)
-          CReqType_HDRRestart:  bit_idx <= Log2DW'(2);  // Re-purposing the `bit_idx` counter for...
-          CReqType_HDRExit:     bit_idx <= Log2DW'(4);  // ...counting SDA negative edges.
+          CReqType_HDRRestart:  bit_idx <= Log2DW'(1);  // Re-purposing the `bit_idx` counter for...
+          CReqType_HDRExit:     bit_idx <= Log2DW'(3);  // ...counting SDA negative edges.
           CReqType_TargetReset: bit_idx <= Log2DW'(7);
           CReqType_DirectDrive,                         // Collect new drive state for every bit.
           CReqType_AckNack:     bit_idx <= Log2DW'(0);  // Single ACK/NACK bit.
           // Normal transmission/reception.
           default:              bit_idx <= d_bits_m1;
         endcase
-      end else if (patt_advance) begin
-        bit_idx <= bit_idx - 'b1;
       end else if (bit_done) begin
         // Counting of bits within data unit/repetition of data unit.
         bit_idx <= last_req_bit ? Log2DW'(0) :
-                      (last_bit ? unitlen_bits(req_q.req) : (bit_idx - 'b1));
+                      (last_bit ? unitlen_bits(req_q.req) : (bit_idx - |bit_idx));
       end
 
       // Decide whether the current output bit contributes to parity and CRC-5 calculations;
@@ -1027,7 +1049,7 @@ module i3c_controller_trx
         end
 
         State_Stop: sda_drv_d = pull_up();
-        State_PatternHiD: if (leave_hdr_sr) sda_drv_d = pull_up();
+        State_PatternSrDone: sda_drv_d = pull_up();
 
         State_RepStartLoD: begin
           if (!targ_reset) begin
@@ -1049,7 +1071,10 @@ module i3c_controller_trx
         State_ClkLoSetupD,
         State_ClkHiHoldD,
         State_ClkHiSetupD,
+        State_PatternSetupD,
+        State_PatternHiD,
         State_PatternLoD,
+        State_PatternHoldD,
         State_RepStart,
         State_RepStartHiD,
         State_RepStartHiC,
@@ -1268,6 +1293,6 @@ module i3c_controller_trx
   // - the MSB of the halved Start/stoP timing parameters is dropped when doubling them.
   logic unused_misc;
   assign unused_misc = ^{hotjoin_ctrl_i, trx_dreq_i.i3c_first, tcas_d2_i[TmCycW-1],
-                         tcbp_d2_i[TmCycW-1], sdr_write, gen_hdr_patt, raise_error, dreq_cmd};
+                         tcbp_d2_i[TmCycW-1], sdr_write, raise_error, dreq_cmd};
 
 endmodule
