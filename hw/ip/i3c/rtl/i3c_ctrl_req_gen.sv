@@ -285,7 +285,7 @@ module i3c_ctrl_req_gen
                                           RxData, RxCRC,     // Request data reception.
                                           RxDChar, TxDAddr,  // ENTDAA read phase.
                                           IBIRxData,
-                                          TargRst,
+                                          TargRst, TargRstSr, TargRstP,
                                           DirectDrv},     // Direct-driving of pins.
                          // Forward transceiver requests from the CCC handling.
                          (state_i == CCC) & ccc_rsp_i.req_dvalid};
@@ -299,8 +299,14 @@ module i3c_ctrl_req_gen
     unique case (state_i)
       // SDR Bus State signaling.
       StartSDR: trx_dreq_o.req = CReqType_SDRStart;
+      TargRstP,
       StopSDR:  trx_dreq_o.req = CReqType_SDRStop;
+      TargRstSr,
       RepStSDR: trx_dreq_o.req = CReqType_SDRRepStart;
+
+      // Target Reset operations.
+      // - SDA toggling, Sr (above) and P (above).
+      TargRst: trx_dreq_o.req = CReqType_TargetReset;
 
       // HDR Exit signaling.
       ExitHDR: trx_dreq_o.req = CReqType_HDRExit;
@@ -438,9 +444,6 @@ module i3c_ctrl_req_gen
         trx_dreq_o.len   = ccc_rsp_i.req_len;
         trx_dreq_o.last  = ccc_rsp_i.req_last;
       end
-
-      // Target Reset operations.
-      TargRst: trx_dreq_o.req = CReqType_TargetReset;
 
       // Software direct-driving of pins.
       DirectDrv: begin

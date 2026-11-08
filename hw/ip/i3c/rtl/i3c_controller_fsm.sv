@@ -604,6 +604,14 @@ module i3c_controller_fsm
                                                                                    : StopSDR)
                                                                   : (cmd_attrs.ddr ? ReStHDR
                                                                                    : RepStSDR);
+  // Next state for data transfer;
+  // - zero length transfers must be supported (Write only), for Direct SET CCCs, so we sometimes
+  //   need to bypass the `TxData` state.
+  i3c_ctrl_fsm_state_e xfer_state_d;
+  assign xfer_state_d = cmd_attrs.rnw ? RxData :
+                            |data_len ? TxData :
+                        cmd_attrs.ddr ? TxCRC  : phsend_state_d;
+
   // Transition to the next state?
   // - most of these states are waiting on the occurrence of an external event that occurs on a
   //   slower timescale than the state transitions of the FSM which operates on the main IP clock.
@@ -670,7 +678,9 @@ module i3c_controller_fsm
       // TODO(#31304): Implement this as more than a single issue; in more general use it shall be
       // issued following a RSTACT CCC Command Descriptor with TOC set.
       // - this is just for initial testing; there are various RSTACT CCC operations here.
-      TargRst:   proceed = trx_dready_i;
+      TargRst,
+      TargRstSr,
+      TargRstP:  proceed = trx_dready_i;
 
       // Under software direct-driving of the pins we must wait until this mode is disabled.
       DirectDrv: proceed = trx_dready_i;
@@ -740,8 +750,9 @@ module i3c_controller_fsm
 
       // Common Command Code (CCC, and DEFB where required).
       // - CCC and [DEFB] sent as a single transceiver request.
-      // - `data_len` describes any write data that follows this framing and precedes the Sr/P.
-      CCCFrame: state_d = (|cmd_attrs.data_len & ~cmd_attrs.rnw) ? TxData : phsend_state_d;
+      // - `data_len` describes any write data that follows this framing and precedes the Sr/P,
+      //   but it may be zero so we may bypass the TxData state entirely.
+      CCCFrame: state_d = xfer_state_d;
 
       // ---- Common Command Codes ---
       //
@@ -768,14 +779,13 @@ module i3c_controller_fsm
                              (cmd_attrs.ddr & !curr_ddr) ? EnterDDR :
                              // Sr before Private Transfer, after 7'h7e?
                              (cmd_attrs.addr_bcst & !cmd_attrs.ddr) ? RepStPriv :
-                               (cmd_is_addr_assgn &  cmd_attrs.rnw) ? RxDChar   :
-                                                      cmd_attrs.rnw ? RxData    : TxData;
+                               (cmd_is_addr_assgn &  cmd_attrs.rnw) ? RxDChar   : xfer_state_d;
 
       // Sending Ack/Nack to the Target when we lost arbitration, or did not contend.
       SendAckb: state_d = hotjoin_req ? HotJoin  :
                               ibi_req ? IBICheck : CRR;
       EnterDDR: state_d = CmdWord;
-      CmdWord:  state_d = cmd_attrs.rnw ? RxData : TxData;
+      CmdWord:  state_d = xfer_state_d;
       // TODO(#31304): Ensure that we send HC_ABORTED response with an appropriate data length.
       TxData:   state_d = (data_last | cmd_hci.aborting) ? (cmd_attrs.ddr ? TxCRC : phsend_state_d)
                                                          : TxData;
@@ -801,7 +811,9 @@ module i3c_controller_fsm
       CmdDecAbt:  state_d = Idle;
 
       // --- Target Reset operations ---
-      TargRst:    state_d = Idle;
+      TargRst:    state_d = TargRstSr;
+      TargRstSr:  state_d = TargRstP;
+      TargRstP:   state_d = Idle;
 
       // --- Direct-driving of pins by software ---
       DirectDrv:  state_d = direct_drive ? DirectDrv : ExitHDR;

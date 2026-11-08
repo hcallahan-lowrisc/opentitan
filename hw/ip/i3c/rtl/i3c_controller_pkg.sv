@@ -91,7 +91,9 @@ package i3c_controller_pkg;
     CCC,        // The FSM remains in this state until the CCC has completed.
 
     // --- Target reset ---
-    TargRst,    // Generate Target Reset signaling.
+    TargRst,    // Generate Target Reset signaling...
+    TargRstSr,  // ...which is followed by a repeated start (Sr)...
+    TargRstP,   // ...and a sto(P).
 
     // --- Direct drive by software; test/recovery ---
     DirectDrv,

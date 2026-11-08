@@ -869,7 +869,7 @@ module i3c_controller_trx
         unique case (trx_dreq_i.req)
           CReqType_HDRRestart:  bit_idx <= Log2DW'(1);  // Re-purposing the `bit_idx` counter for...
           CReqType_HDRExit:     bit_idx <= Log2DW'(3);  // ...counting SDA negative edges.
-          CReqType_TargetReset: bit_idx <= Log2DW'(7);
+          CReqType_TargetReset: bit_idx <= Log2DW'(6);
           CReqType_DirectDrive,                         // Collect new drive state for every bit.
           CReqType_AckNack:     bit_idx <= Log2DW'(0);  // Single ACK/NACK bit.
           // Normal transmission/reception.
