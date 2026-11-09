@@ -547,7 +547,8 @@ module i3c_target_fsm
     // --- CCC handling ---
     CCC,
     CCC_Tx,
-    CCC_P  // stoP
+    CCC_Sr,  // repeated start (Sr)
+    CCC_P    // stoP
   } state_e;
 
   // Current and next states.
@@ -556,7 +557,7 @@ module i3c_target_fsm
   // logic does that for us.
   logic [3:0] ccc_txd_idx;
 
-  wire ccc_active  = state_q inside {CCC, CCC_Tx, CCC_P};
+  wire ccc_active  = state_q inside {CCC, CCC_Tx, CCC_Sr, CCC_P};
   wire ccc_enabled = enable_i & ccc_active;
 
 
@@ -596,8 +597,8 @@ module i3c_target_fsm
                                        //  Important e.g., for the legal combination of
                                        //  S | Addr+W | RegAddr | Sr | Addr+R | ReadData | P
       // TODO(#31333): Shall likely want error-handling.
-      CCC:      proceed = ccc_tx_start | stop_det_i;
-      CCC_Tx:   proceed = ccc_unit_ready | stop_det_i;
+      CCC:      proceed = ccc_tx_start | stop_det_i | rep_start_det_i;
+      CCC_Tx:   proceed = ccc_unit_ready | stop_det_i | rep_start_det_i;
       // All other states are immediately responsive.
       default:  proceed = 1'b1;
     endcase
@@ -613,9 +614,12 @@ module i3c_target_fsm
           endcase
         end
       PrivXfer: state_d = Inactive;
-      CCC:      state_d = stop_det_i ? CCC_P : CCC_Tx;
+      CCC:      state_d = stop_det_i ? CCC_P  :
+                     rep_start_det_i ? CCC_Sr : CCC_Tx;
       // TODO(#31333): ENTDAA perhaps requires a transmission back to CCC?
-      CCC_Tx:   state_d = stop_det_i ? CCC_P : (ccc_rsp.req_clast ? CCC : CCC_Tx);
+      CCC_Tx:   state_d = stop_det_i ? CCC_P  :
+                     rep_start_det_i ? CCC_Sr : (ccc_rsp.req_clast ? CCC : CCC_Tx);
+      CCC_Sr:   state_d = CCC;
       CCC_P:    state_d = Inactive;
       default:  state_d = Inactive;
     endcase
@@ -664,6 +668,7 @@ module i3c_target_fsm
       Inactive: ccc_req.en = trx_rvalid_i & (trx_rxd_i.ccc_state == CCC_Setup);
       CCC:      ccc_req.en = trx_rvalid_i;
       CCC_Tx:   ccc_req.en = ccc_unit_ready;
+      CCC_Sr,
       CCC_P:    ccc_req.en = 1'b1;
       default:  ccc_req.en = 1'b0;
     endcase
@@ -686,7 +691,8 @@ module i3c_target_fsm
         ccc_req.rsn = TargCRsn_TxD;
         ccc_req.idx = ccc_txd_idx;
       end
-      CCC_P: ccc_req.rsn = TargCRsn_P;
+      CCC_Sr: ccc_req.rsn = TargCRsn_Sr;
+      CCC_P:  ccc_req.rsn = TargCRsn_P;
       default: begin end
     endcase
     ccc_req.sr    = (trx_rxd_i.ccc_state != CCC_Setup);
