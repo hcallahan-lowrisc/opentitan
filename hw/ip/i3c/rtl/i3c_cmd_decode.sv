@@ -223,7 +223,7 @@ module i3c_cmd_decode
     // The most significant field is the command type (`cmd_attr`).
     // - the validity of fields is type-specific.
     unique case (cmd_reg_o.cmd_attr)
-      // Immediate Data Transfer Command (7.1.2.1).
+      // Immediate Data Transfer Command (TCRI 7.1.2.1).
       CmdAttr_ImmTransfer: begin
         cmd_attrs_o.has_defb = (cmd_imm_o.dtt > 'h4);
         cmd_attrs_o.defb     =  cmd_imm_o.data_byte_1;
@@ -243,7 +243,7 @@ module i3c_cmd_decode
         if (!mode_supported(cmd_attrs_o.mode, cmd_attrs_o.i2c)) err_o = 1'b1;
       end
 
-      // Regular Data Transfer Command (7.1.2.2).
+      // Regular Data Transfer Command (TCRI 7.1.2.2).
       CmdAttr_RegTransfer: begin
         cmd_attrs_o.has_defb = cmd_reg_o.dbp;
         cmd_attrs_o.defb     = cmd_reg_o.def_byte;
@@ -262,7 +262,7 @@ module i3c_cmd_decode
         if (cmd_attrs_o.is_ccc & tcri_blocked_ccc(cmd_reg_o.cmd)) err_o = 1'b1;
       end
 
-      // Combo Transfer (Write + Write/Read) Command (7.1.2.3).
+      // Combo Transfer (Write + Write/Read) Command (TCRI 7.1.2.3).
       CmdAttr_ComboTransfer: begin
         // TODO(#31304). Combo Transfer Commands are declared as unsupported, and not implemented.
         cmd_attrs_o.data_len  = cmd_combo_o.data_length;
@@ -277,17 +277,19 @@ module i3c_cmd_decode
         if (cmd_attrs_o.is_ccc & tcri_blocked_ccc(cmd_combo_o.cmd)) err_o = 1'b1;
       end
 
-      // Address Assignment Command (7.1.2.5).
+      // Address Assignment Command (TCRI 7.1.2.5).
       CmdAttr_AddrAssignment: begin
         cmd_attrs_o.mode = XferMode_SDR0;
         cmd_attrs_o.i2c  = 1'b0;
-        cmd_attrs_o.toc  = 1'b0;
-        // TODO(#31304): Dynamic address during the write phase, but this is possibly not required.
-        cmd_attrs_o.data_len  = 'h1;
-        // The first segment is a write operation, sending the CCC.
-        // Subsequent segments are predominantly reads, collecting the target characteristics,
-        // and then transparently changing to a write mid-segment.
-        cmd_attrs_o.rnw       = !first_phase_i;
+        // The first phase is a write operation, sending the CCC.
+        // SETDASA - Ensuing phases just carry a single byte Dynamic Address for each Target.
+        // ENTDAA  - Subsequent phases are predominantly reads, collecting the Target
+        //           characteristics, and then transparently changing to a write mid-phase;
+        //           we treat this as (predominantly) a _read_ phase.
+        cmd_attrs_o.rnw       = (cmd_attrs_o.ccc == ENTDAA) & !first_phase_i;
+        // Describe the Read data length for ENTDAA. SETDASA is simple enough.
+        cmd_attrs_o.data_len  = first_phase_i ? 16'h0 :
+                  (cmd_attrs_o.ccc == ENTDAA) ? 16'h8 : 16'h1;
         // The index into the DAT advances for each command phase, and is incremented _before_ use.
         cmd_attrs_o.dev_index = first_phase_i ? cmd_daa_o.dev_index : dev_index_i;
         // Number of repetitions left after the current command phase.
@@ -295,7 +297,7 @@ module i3c_cmd_decode
         cmd_attrs_o.reps_left = first_phase_i ? cmd_daa_o.dev_count : reps_left_i;
       end
 
-      // Internal Control Command (7.1.2.4).
+      // Internal Control Command (TCRI 7.1.2.4).
       CmdAttr_InternalCtrl:
         unique case (cmd_intn_o.mipi_cmd)
           MIPICmd_NoOp,

@@ -348,8 +348,12 @@ module i3c_controller_fsm
   // Current and next states.
   i3c_ctrl_fsm_state_e state_q, state_d;
 
-  // The first word of any transmission may require special treatment.
-  logic txd_imm;
+  // Transmit data comes from an Immediate Data Transfer command?
+  wire txd_imm = &{cmd_attrs.attr == CmdAttr_ImmTransfer, |cmd_imm.dtt, cmd_imm.dtt != 3'h5};
+  // Transmit data comes from an Address Assignment command?
+  // - both SETDASA and ENTDAA need to transmit the Dynamic Address to the Target.
+  wire txd_daa = (cmd_attrs.attr == CmdAttr_AddrAssignment);
+
   // The final word of any transfer may require special treatment.
   logic data_last;
   // Any more data?
@@ -875,7 +879,6 @@ module i3c_controller_fsm
       datf_re_q         <= 1'b0;
       dat_entry         <= 'b0;
       data_len          <= 'b0;
-      txd_imm           <= 1'b0;
       bus_state.mode    <= XferMode_SDR0;
       bus_state.i2c     <= 1'b0;
       cmdq_lo_valid     <= 1'b0;
@@ -932,8 +935,6 @@ module i3c_controller_fsm
                 default: begin end
               endcase
             end
-            // The first - and only - word of TxD may come from the Command Descriptor itself.
-            txd_imm <= &{cmd_attrs.attr == CmdAttr_ImmTransfer, |cmd_imm.dtt, cmd_imm.dtt != 3'h5};
           end
           // When we've learned the outcome of any arbitration, the transfer type may need updating.
           WaitArb: if (trx_arb_i.arb_lost) begin
@@ -963,10 +964,7 @@ module i3c_controller_fsm
             bus_state.i2c  <= 1'b0;
           end
           // Count the transferred bytes.
-          TxData, RxData: begin
-            data_len  <= next_len;
-            txd_imm   <= 1'b0;
-          end
+          TxData, RxData: data_len <= next_len;
           // Track when we've generated a Repeated Start (Sr).
           // - used within CCC transfers to decide whether we're targeting a specific address.
           // - used with Private Transfers that have been commenced using the I3C Broadcast Address.
@@ -988,10 +986,7 @@ module i3c_controller_fsm
         // Not leaving the current state, but some activity is still occurring...
         unique case (state_q)
           CCC: begin
-            if (ccc_rsp.txd_consume) begin
-              data_len  <= next_len;
-              txd_imm   <= 1'b0;
-            end
+            if (ccc_rsp.txd_consume) data_len <= next_len;
           end
           default: begin end
         endcase
@@ -1147,7 +1142,8 @@ module i3c_controller_fsm
     // The data for transmission may come from the Command Descriptor itself if short enough.
     tx_data_pre = txd_imm ? {cmd_imm.data_byte_4, cmd_imm.data_byte_3,
                              cmd_attrs.has_defb ? cmd_imm.data_byte_3 : cmd_imm.data_byte_2,
-                             cmd_attrs.has_defb ? cmd_imm.data_byte_2 : cmd_imm.data_byte_1}
+                             cmd_attrs.has_defb ? cmd_imm.data_byte_2 : cmd_imm.data_byte_1} :
+                  txd_daa ? {24'b0, dat_entry.dynamic_address[22:16], 1'b0}  // Single byte DA.
                           : txbuf_rdata_i;  // Usual case.
 
     // Move the 8- or 16-bit units into the correct order for transmission by the Transceiver.
