@@ -105,9 +105,6 @@ waive -rules {VAR_INDEX_RANGE} -location {i3c_target_trx.sv i3c_target_ccc.sv} \
 waive -rules {VAR_INDEX_RANGE} -location {i3c_target_fsm.sv} \
       -regexp {'tx_targ_id' of length [0-9]+ is larger than the [0-9]+ bits required to address 'tx_desc_rdata_i'} \
       -comment "Virtual Target indices are reported to software in terms of MaxTargets, whereas a transmit descriptor queue exists only for each of the NumTargets implemented Virtual Targets."
-waive -rules {VAR_INDEX_RANGE} -location {i3c_controller_fsm.sv} \
-      -regexp {'ccc_rsp\.reg_widx' of length 3 is larger than the 2 bits required} \
-      -comment "The register index enum includes the CtrlCR_Count member, which is never used as an index."
 
 ## Constant flops
 waive -rules {CONST_FF} -location {i3c_controller_fsm.sv i3c_target_fsm.sv} \
@@ -137,7 +134,7 @@ waive -rules {CONST_FF} -location {i3c_targ_async_events.sv} \
 
 ## Unused signals
 waive -rules {INPUT_NOT_READ HIER_BRANCH_NOT_READ} \
-      -location {i3c_core.sv i3c_controller.sv i3c_controller_ccc.sv i3c_controller_fsm.sv i3c_controller_state.sv i3c_ctrl_req_gen.sv i3c_stby_cr_regs.sv i3c_target.sv i3c_target_ccc.sv i3c_target_fsm.sv i3c_targ_async_events.sv} \
+      -location {i3c_core.sv i3c_controller.sv i3c_controller_fsm.sv i3c_controller_state.sv i3c_ctrl_req_gen.sv i3c_stby_cr_regs.sv i3c_target.sv i3c_target_ccc.sv i3c_target_fsm.sv i3c_targ_async_events.sv} \
       -regexp {(Input port|Net|Connected net) 'reg2hw_i[.']} \
       -comment "These modules receive the complete register interface and read only the fields they need. Fields that no module reads are sunk explicitly in i3c_core."
 waive -rules {HIER_NET_NOT_READ} -location {i3c_core.sv} \

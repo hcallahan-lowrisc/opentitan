@@ -7,7 +7,6 @@
 module i3c_ctrl_req_gen
   import i3c_consts_pkg::*;
   import i3c_controller_pkg::*;
-  import i3c_ctrl_ccc_pkg::*;
   import i3c_hci_pkg::*;
   import i3c_pkg::*;
   import i3c_reg_pkg::*;
@@ -41,9 +40,6 @@ module i3c_ctrl_req_gen
   input       [DataWidth-1:0] tx_data_i,
   input                       data_last_i,
   input                 [1:0] dlen_i,
-
-  // Response from the CCC handling logic.
-  input i3c_ctrl_ccc_rsp_t    ccc_rsp_i,
 
   // Timing parameters; target- and transfer-invariant.
   output         [TmCycW-1:0] tcas_d2_o,
@@ -276,19 +272,17 @@ module i3c_ctrl_req_gen
   wire [DataWidth-1:0] addr_wdata = (cmd_attrs_i.addr_rnw | {8{blocked}}) << (DataWidth - 8);
 
   // TODO(#31304): Perhaps it would be more compact to list the states that do not send a request?
-  assign trx_dvalid_o = |{state_i inside {StartSDR, StopSDR, RepStSDR,
-                                          EnterDDR, ExitHDR, ReStHDR,
-                                          CmdArb, RepStPriv, CmdAddr,
-                                          WaitAckb, SendAckb,
-                                          CCCFrame, CmdWord,
-                                          TxData, TxCRC,     // Transmit data.
-                                          RxData, RxCRC,     // Request data reception.
-                                          RxDChar, TxDAddr,  // ENTDAA read phase.
-                                          IBIRxData,
-                                          TargRst, TargRstSr, TargRstP,
-                                          DirectDrv},     // Direct-driving of pins.
-                         // Forward transceiver requests from the CCC handling.
-                         (state_i == CCC) & ccc_rsp_i.req_dvalid};
+  assign trx_dvalid_o = state_i inside {StartSDR, StopSDR, RepStSDR,
+                                        EnterDDR, ExitHDR, ReStHDR,
+                                        CmdArb, RepStPriv, CmdAddr,
+                                        WaitAckb, SendAckb,
+                                        CCCFrame, CmdWord,
+                                        TxData, TxCRC,     // Transmit data.
+                                        RxData, RxCRC,     // Request data reception.
+                                        RxDChar, TxDAddr,  // ENTDAA read phase.
+                                        IBIRxData,
+                                        TargRst, TargRstSr, TargRstP,
+                                        DirectDrv};  // Direct-driving of pins.
 
   always_comb begin : gen_trx_req
     // Note: in particular, this initialization zeroes `len` for many requests, preventing the
@@ -435,16 +429,6 @@ module i3c_ctrl_req_gen
         trx_dreq_o.last = 1'b0;
       end
 
-      // Common Command Code handling.
-      CCC: begin
-        // Forward all requests to the transceiver.
-        trx_dreq_o.req   = ccc_rsp_i.req_type;
-        trx_dreq_o.rx    = ccc_rsp_i.req_rx;
-        trx_dreq_o.wdata = ccc_rsp_i.req_wdata;
-        trx_dreq_o.len   = ccc_rsp_i.req_len;
-        trx_dreq_o.last  = ccc_rsp_i.req_last;
-      end
-
       // Software direct-driving of pins.
       DirectDrv: begin
         trx_dreq_o.req = CReqType_DirectDrive;
@@ -484,9 +468,6 @@ module i3c_ctrl_req_gen
                                dat_entry_i.dev_nack_retry_cnt, dat_entry_i.device,
                                dat_entry_i.dynamic_address[23], dat_entry_i.ibi_payload,
                                dat_entry_i.static_address,
-                               dat_entry_i.ibi_reject, dat_entry_i.ring_id, dat_entry_i.ts,
-                               ccc_rsp_i.done, ccc_rsp_i.err_status, ccc_rsp_i.inc_idx,
-                               ccc_rsp_i.reg_wdata, ccc_rsp_i.reg_we, ccc_rsp_i.reg_widx,
-                               ccc_rsp_i.rst_idx, ccc_rsp_i.txd_consume, ccc_rsp_i.txd_req};
+                               dat_entry_i.ibi_reject, dat_entry_i.ring_id, dat_entry_i.ts};
 
 endmodule

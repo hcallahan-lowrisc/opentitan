@@ -152,7 +152,6 @@ module i3c_controller_fsm
 );
 
   import i3c_consts_pkg::*;
-  import i3c_ctrl_ccc_pkg::*;
 
   localparam int unsigned Log2DW = $clog2(DataWidth);
 
@@ -389,8 +388,8 @@ module i3c_controller_fsm
                                         : reg2hw_i.data_buffer_thld_ctrl.tx_start_thld.q;
   // Some commands do not require the Tx Buffer.
   wire cmd_no_txd = |{cmd_attrs.attr == CmdAttr_ImmTransfer,
-                      cmd_attrs.attr == CmdAttr_RegTransfer && ~|cmd_reg.data_length};
-  wire buf_words_enough = (32'({buf_words, 2'b00}) >= 32'(cmd_reg.data_length));
+                      cmd_attrs.attr == CmdAttr_RegTransfer && ~|cmd_attrs.data_len};
+  wire buf_words_enough = (16'({buf_words, 2'b00}) >= cmd_attrs.data_len);
   // The start threshold or the data length must be satisfied before the command may be dispatched.
   wire cmd_start  = |{cmd_no_txd, buf_words[FIFODepthW:1] >> start_thld, buf_words_enough};
 
@@ -406,42 +405,6 @@ module i3c_controller_fsm
   // - this is used for CCC handling, Private Reads _and_ IBI payload reception.
   logic [15:0] rx_data_len;
   wire  [15:0] rx_next_len = rx_data_len + 16'(rx_len);
-
-  // Interface to Common Command Code handling.
-  i3c_ctrl_ccc_req_t ccc_req;
-  i3c_ctrl_ccc_rsp_t ccc_rsp;
-  logic [3:0] ccc_idx;
-
-  // Construction of the request to the CCC handling.
-  // - data into/out of the CCC handling has the same form/byte ordering as that in the DWORD-based
-  //   Tx and Rx buffers, so it is not complicated by the transmission mode/packing.
-  always_comb begin
-    ccc_req = '0;
-    // Tx Buffer data, already in the appropriate order for passing to the transceiver.
-    ccc_req.txd_left  = txd_imm | data_left;
-    ccc_req.txd_valid = txd_imm | (txbuf_rvalid_i & data_left);
-    ccc_req.txd_len   = dlen;
-    ccc_req.txd_data  = tx_data;
-    // DAT entry for the current Target.
-    ccc_req.dat_entry = dat_entry;
-    // Index number within the current CCC handling (= local state number, initially 0).
-    ccc_req.idx       = ccc_idx;
-    // Read data returned from the transceiver.
-    ccc_req.re        = trx_rdvalid_i;
-    ccc_req.rlen      = rx_len;
-    ccc_req.rdata     = rx_data;
-    // Raw Command Descriptor.
-    ccc_req.cmd_raw   = cmd_raw;
-  end
-
-  // Proceed to the next state within the CCC handling, or complete the CCC handling.
-  //
-  // Note: since the CCC handling logic in `i3c_controller_ccc` is purely combinational, the
-  //       `ccc_proceed` signal advances the `idx` value and thus produces a change in the outputs
-  //       but this does _not_ imply termination of the CCC command transfer. That is determined
-  //       by `ccc_rsp.done` being asserted.
-  wire ccc_proceed = &{txbuf_rvalid_i | !ccc_rsp.txd_req,   // Not still waiting on Tx data.
-                       trx_dready_i | !ccc_rsp.req_dvalid}; // Not still waiting on transceiver ack.
 
   // ------------------------------- Arbitration Requests from Targets -----------------------------
 
@@ -549,27 +512,6 @@ module i3c_controller_fsm
 
   logic hj_crr_captured;
 
-  /* TODO(#31304): Common Command Code handling.
-  CCC handling needs to be a higher-level state machine, steering the regular state machine;
-  this minimises any logic duplication.
-
-  always_ff @(posedge clk_i or negedge rst_ni) begin
-      // ---- Common Command Codes ---
-      //
-      // The handling of Common Command Codes (CCCs) is performed according to the directions
-      // of the `i3c_controller_ccc` logic. Essentially the state machine at this point is
-      // following a supplied script.
-      //
-      // It will remain in the `CCC` state until this phase of the CCC is completed, successfully
-      // or otherwise. Further address headers are non-arbitrable and no other I3C bus traffic is
-      // permitted to interject.
-        unique case (ccc_rsp.err_status)
-          ErrStatus_SUCCESS: state_d = cmd_attrs.toc ? StopSDR : RepStSDR;
-          default: state_d = ErrFatal;
-        endcase
-  end
-  */
-
   // Next state for `CmdDecode` when successful, because it's a bit more involved.
   i3c_ctrl_fsm_state_e dec_state_d;
   always_comb begin
@@ -671,10 +613,6 @@ module i3c_controller_fsm
       IBIRxData: proceed = trx_dready_i;  // Request accepted.
       IBIRxWait: proceed = trx_rdvalid_i | trx_rvalid_i;  // Await data or transfer result.
 
-      // CCC handling; remains in `CCC` until we have a verdict for this CCC segment.
-      // - `ccc_proceed` means advance the internal state used when handling this CCC.
-      CCC:       proceed = ccc_rsp.done & ccc_proceed;  // `done` signals command completion.
-
       // Command failures; these are non-fatal errors which are posted as responses.
       CmdDecErr,                  // Command was rejected as invalid.
       CmdDecAbt: proceed = 1'b1;  // Aborting the remaining commands of a sequence.
@@ -758,27 +696,12 @@ module i3c_controller_fsm
       //   but it may be zero so we may bypass the TxData state entirely.
       CCCFrame: state_d = xfer_state_d;
 
-      // ---- Common Command Codes ---
-      //
-      // The handling of Common Command Codes (CCCs) is performed according to the directions
-      // of the `i3c_controller_ccc` logic. Essentially the state machine at this point is
-      // following a supplied script.
-      //
-      // It will remain in the `CCC` state until this phase of the CCC is completed, successfully
-      // or otherwise. Further address headers are non-arbitrable and no other I3C bus traffic is
-      // permitted to interject.
-      //CCC: begin
-      //  unique case (ccc_rsp.err_status)
-      //    ErrStatus_SUCCESS: state_d = phsend_state_d;
-      //    default: state_d = ErrFatal;
-      //  endcase
-      //end
-
       // A non-arbitrable header never requires us to send ACK/NACK because there are no contenders.
       CmdAddr:  state_d = WaitAckb;
 
       // Awaiting Ack/Nack from the Target/Group.
       WaitAckb: state_d = trx_arb_i.nack ? StopSDR  :
+              // TODO: We should use the SendFraming state here.
               (cmd_attrs.is_ccc & cmd_state.first_phase) ? CCCFrame :
                              (cmd_attrs.ddr & !curr_ddr) ? EnterDDR :
                              // Sr before Private Transfer, after 7'h7e?
@@ -982,14 +905,6 @@ module i3c_controller_fsm
           default: begin end
         endcase
         state_q <= state_d;
-      end else begin
-        // Not leaving the current state, but some activity is still occurring...
-        unique case (state_q)
-          CCC: begin
-            if (ccc_rsp.txd_consume) data_len <= next_len;
-          end
-          default: begin end
-        endcase
       end
 
       // End of the current phase within this command?
@@ -1029,25 +944,6 @@ module i3c_controller_fsm
     end
   end
 
-  // State index within the CCC handling FSM state.
-  // - no need for software reset handling; the FSM will reset on entering `StartSDR`.
-  always_ff @(posedge clk_i or negedge rst_ni) begin
-    if (!rst_ni) ccc_idx <= '0;
-    else if (enable_i) begin
-      unique case (state_q)
-        // Potentially entering CCC handling. Index will be unused if not, but we _must_ initialize
-        // this for the start of every CCC operation, no matter how any previous operation
-        // concluded.
-        StartSDR: ccc_idx <= '0;
-        // FSM remains in CCC handling until instructed to finish.
-        CCC: if ((ccc_rsp.rst_idx | ccc_rsp.inc_idx) & ccc_proceed) begin
-            ccc_idx <= (ccc_rsp.rst_idx ? 4'h0 : ccc_idx) + 4'(ccc_rsp.inc_idx);
-          end
-        default: begin end
-      endcase
-    end
-  end
-
   // Updating of CCC register state.
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
@@ -1066,8 +962,6 @@ module i3c_controller_fsm
       end else if (state_q == StopSDR) begin
         reg_state[CtrlCR_Status] <= 8'b0;
       end
-      // Perform register writes from the CCC handling.
-      if (ccc_rsp.reg_we) reg_state[ccc_rsp.reg_widx] <= ccc_rsp.reg_wdata;
     end
   end
 
@@ -1111,8 +1005,7 @@ module i3c_controller_fsm
 
   // Reading of data from the Tx buffer.
   // TODO(#31305): Availability check required....must abort transfer if buffer underruns.
-  assign txbuf_rready_o = &{cmd_attrs.attr != CmdAttr_ImmTransfer, state_q == TxData, trx_dready_i}
-                        | &{state_q == CCC, ccc_rsp.txd_consume, !txd_imm};
+  assign txbuf_rready_o = &{cmd_attrs.attr != CmdAttr_ImmTransfer, state_q == TxData, trx_dready_i};
 
   // Reverse the order of the bytes within the supplied data word.
   function automatic logic [DataWidth-1:0] revb(logic [DataWidth-1:0] wdata);
@@ -1239,9 +1132,6 @@ module i3c_controller_fsm
     .data_last_i    (data_last),
     .dlen_i         (dlen),
 
-    // Response from the CCC handling logic.
-    .ccc_rsp_i      (ccc_rsp),
-
     // Timing parameters; target- and transfer-invariant.
     .tcas_d2_o      (tcas_d2_o),
     .tcbp_d2_o      (tcbp_d2_o),
@@ -1249,32 +1139,6 @@ module i3c_controller_fsm
     // Request to the transceiver logic.
     .trx_dvalid_o   (trx_dvalid_o),
     .trx_dreq_o     (trx_dreq_o)
-  );
-
-  // ----------------------------------- Common Command Codes --------------------------------------
-
-  // Controller-side Common Command Code handling.
-  i3c_controller_ccc u_ctrl_ccc (
-    // CCC handling enabled and active?
-    .enable_i   (enable_i & (state_q == CCC)),
-
-    // Configuration.
-    .reg2hw_i   (reg2hw_i),
-
-    // Register state, including the CCC itself.
-    .r_i        (reg_state),
-
-    // Current command state, for any additional information required.
-    .cmd_state_i(cmd_state),
-
-    // Command attributes; derived from the command descriptor state.
-    .cmd_attrs_i(cmd_attrs),
-
-    // Requests from the Controller FSM.
-    .ccc_req_i  (ccc_req),
-
-    // Responses to the Controller FSM.
-    .ccc_rsp_o  (ccc_rsp)
   );
 
   // -------------------------------------- Data reception -----------------------------------------
@@ -1732,7 +1596,8 @@ module i3c_controller_fsm
                                                                          : BCLState_BcastWrite)
                                                         : (trx_arb_i.arb_lost ? BCLState_IBIAdrRead
                                                                               : BCLState_Addr);
-      CCC:       bcl_tfr_ststat_o = (cmd_attrs.attr == CmdAttr_AddrAssignment) ? BCLState_DAA
+      // TODO(#31307): This needs updating once the revised CCC handling has stabilized.
+      CCCFrame:  bcl_tfr_ststat_o = (cmd_attrs.attr == CmdAttr_AddrAssignment) ? BCLState_DAA
                                                                                : BCLState_CCC;
       CRR,
       HotJoin,

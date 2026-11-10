@@ -236,7 +236,10 @@ module i3c_cmd_decode
         if (ccc_dual_phase(cmd_attrs_o)) begin
           // For a dual-phase Command Descriptor, the data transfer occurs in the second phase.
           cmd_attrs_o.reps_left = CmdRepW'('b1);
-          if (first_phase_i) cmd_attrs_o.data_len = 16'b0;  // Data length _excludes_ the DEFB.
+          if (first_phase_i) begin
+            cmd_attrs_o.data_len = 16'b0;  // Data length _excludes_ the DEFB.
+            cmd_attrs_o.rnw      = 1'b0;   // First phase just transmits the CCC and maybe the DEFB.
+          end
         end
         if (cmd_imm_o.rnw) err_o = 1'b1;  // Immediate transfers are Write only.
         // Not all Transfer mode values are valid/supported.
@@ -252,7 +255,10 @@ module i3c_cmd_decode
         if (ccc_dual_phase(cmd_attrs_o)) begin
           // For a dual-phase Command Descriptor, the data transfer occurs in the second phase.
           cmd_attrs_o.reps_left = CmdRepW'('b1);
-          if (first_phase_i) cmd_attrs_o.data_len = 16'b0;  // Data length _excludes_ the DEFB.
+          if (first_phase_i) begin
+            cmd_attrs_o.data_len = 16'b0;  // Data length _excludes_ the DEFB.
+            cmd_attrs_o.rnw      = 1'b0;   // First phase just transmits the CCC and maybe the DEFB.
+          end
         end
         // Not all Transfer mode values are valid/supported, and zero-length transfers shall be done
         // using Immediate Data Transfer commands.

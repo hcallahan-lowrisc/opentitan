@@ -87,9 +87,6 @@ package i3c_controller_pkg;
     IBIRxData,  // Request to the transfer to retrieve some IBI payload data.
     IBIRxWait,  // Await read data or transfer response from the transceiver.
 
-    // --- CCC Handling ---
-    CCC,        // The FSM remains in this state until the CCC has completed.
-
     // --- Target reset ---
     TargRst,    // Generate Target Reset signaling...
     TargRstSr,  // ...which is followed by a repeated start (Sr)...
