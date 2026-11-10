@@ -982,7 +982,7 @@ module i3c_controller_trx
               sda_drv_d = open_drain();
             end else begin
               // Take over responsibility for Actively holding SDA low (ACK).
-              sda_drv_d = sda_i ? sda_drv_q : push_pull();
+              sda_drv_d = sda_i[0] ? sda_drv_q : push_pull();
             end
           end
         end
@@ -1014,6 +1014,12 @@ module i3c_controller_trx
             // dynamic address assignment phase of ENTDAA.
             sda_drv_d = pull_up();
           end
+        end
+
+        State_WAckClkLoSetupD: begin
+          // When preparing to start writing in push-pull mode, and we've observed an ACK from one
+          // or more targets, we must take over responsibility for driving SDA low.
+          if (last_bit & !sda_i[0]) sda_drv_d = push_pull();
         end
 
         State_ClkLoAwaitD: begin
@@ -1067,7 +1073,6 @@ module i3c_controller_trx
         State_AddrClkHiHoldD,
         State_AddrClkHiSetupD,
         State_ArbClkHiHoldD,
-        State_WAckClkLoSetupD,
         State_ClkLoSetupD,
         State_ClkHiHoldD,
         State_ClkHiSetupD,
@@ -1093,7 +1098,7 @@ module i3c_controller_trx
   // target.
   logic sda_driven;
   // TODO(#31305): The action taken on a mismatch, if any, shall depend upon the state.
-  assign sda_mismatch = &{sda_driven, sda_i != bus_drv_o.sda[0]};
+  assign sda_mismatch = &{sda_driven, sda_i[0] != bus_drv_o.sda[0]};
 
   // Driver enables.
   //
