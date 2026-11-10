@@ -56,12 +56,14 @@ module i3c_ctrl_req_gen
   // - a single software-programmed value is used for SDR1-SDR4, but scaled accordingly.
   logic [3:0] sn;
   always_comb begin
-    if (&{state_i inside {CmdArb, WaitAckb, SendAckb},
-          trans_type_i == TransType_CmdDesc, cmd_attrs_i.addr_bcst}) begin
-      // Starting a Command-initiated transfer to the I3C Broadcast Address.
+    if (&{state_i inside {CmdArb, WaitAckb, SendAckb}, trans_type_i == TransType_CmdDesc}) begin
+      // Use Open Drain timing for Arbitrable Address Headers, and for ACK/NACK bits to both
+      // non-Arbitrable and Arbitrable Addresses.
+      //
+      // Starting a Command-initiated transfer to the I3C Broadcast Address:
       // - if this is still our first attempt without success, we operate at the slower speed index
       //   so that I3C-capable devices receive the traffic and know to disable their spike filters.
-      sn = i3c_first_i ? 4'h8 : 4'h7;
+      sn = (cmd_attrs_i.addr_bcst & i3c_first_i) ? 4'h8 : 4'h7;
     end else begin : gen_sn
       i3c_xfer_mode_e mode;
       logic i2c;  // This disambiguates `mode` because it is overloaded.
@@ -82,7 +84,7 @@ module i3c_ctrl_req_gen
           i2c  = 1'b0;
         end
 
-        // Arbitrable Address Header, i.e. following a Start.
+        // Arbitrable Address Header, i.e., following a Start.
         // - the first I3C Broadcast address header is handled above.
         CmdArb,
         WaitAckb,
@@ -101,8 +103,8 @@ module i3c_ctrl_req_gen
           i2c  = 1'b0;
         end
 
-        CmdAddr,          // Address Header, following Repeated Start.
         // All Targets must be able to accept the following at SDR0 rate.
+        CmdAddr,          // Address Header, following Repeated Start.
         EnterDDR,         // HDR-DDR entry.
         DirectDrv: begin  // Software direct-driving of pins.
           mode = XferMode_SDR0;
