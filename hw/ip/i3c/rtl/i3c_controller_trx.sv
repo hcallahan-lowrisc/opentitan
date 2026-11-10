@@ -364,8 +364,10 @@ module i3c_controller_trx
                       state_q == State_Start,
                       state_q == State_RepStartLoD,
                       state_q == State_AddrClkLoHoldD,
-                      state_q == State_ArbClkLoIdle && req_q.req == CReqType_ArbAddr,
-                      state_q == State_ArbClkLoIdle && last_req_bit
+                      state_q == State_ArbClkLoIdle &&
+                        |{req_q.req == CReqType_ArbAddr,              // Arbitrable Address.
+                          req_q.req == CReqType_ArbDAA && !req_q.rx,  // Transmit Dynamic Address.
+                          last_req_bit}
                      } & phase_end;
   wire tx_load    = req_starting & !trx_dreq_i.rx;
   wire tx_shift   = tx_advance & tx_data_bit;
@@ -613,7 +615,7 @@ module i3c_controller_trx
   logic [DataWidth-1:0] buf_d;
   always_comb begin : gen_buf_data
     buf_d = buf_q;
-    unique case ({tx_load, trx_dreq_i.req == CReqType_ArbAddr})
+    unique case ({tx_load, trx_dreq_i.req inside {CReqType_ArbAddr, CReqType_ArbDAA}})
       // Loading data into a normal transmission-only phase.
       2'b10: buf_d[DataWidth-1:1] = trx_dreq_i.wdata[DataWidth-2:0];
       // Loading data into an Arbitrable Address phase causes SDA to be sampled into `buf_q`,
@@ -935,7 +937,7 @@ module i3c_controller_trx
         CReqType_SDRStop:     sda_drv_d = push_pull();
         // Arbitrable Address Header.
         CReqType_ArbAddr:     sda_drv_d = open_drain();
-        CReqType_ArbDAA:      sda_drv_d = pull_up();
+        CReqType_ArbDAA:      sda_drv_d = next_unit.rx ? pull_up() : open_drain();
         // Ack/Nack following Address Header.
         // - if we lost the arbitration we are the recipient of an IBI, CRR or Hot-Join request,
         //   so we must resume driving to send the Ack/Nack bit.
@@ -986,8 +988,6 @@ module i3c_controller_trx
             end
           end
         end
-        State_ArbClkHiIdle: begin
-        end
         State_ArbClkLoIdle: begin
           //if (last_req_bit) begin
           //  // TODO(#31304): For ENTDAA we must continue reading..
@@ -998,13 +998,15 @@ module i3c_controller_trx
           //    end else sda_drv_d = disconnect();
           //  end
           //end else
-          if (arb_lost | last_req_bit) begin
-            // We've lost arbitration, so we do not drive out the remainder of the address header.
-            sda_drv_d = pull_up();
-          end else begin
-            // With the Virtual Open Drain implementation, the driver enables change in a data bit-
-            // dependent fashion, so we need to update them here.
-            sda_drv_d = open_drain();
+          if (req_q.req != CReqType_ArbDAA) begin
+            if (arb_lost | last_req_bit) begin
+              // We've lost arbitration, so we do not drive out the remainder of the address header.
+              sda_drv_d = pull_up();
+            end else begin
+              // With the Virtual Open Drain implementation, the driver enables change in a data bit-
+              // dependent fashion, so we need to update them here.
+              sda_drv_d = open_drain();
+            end
           end
         end
 
@@ -1072,6 +1074,7 @@ module i3c_controller_trx
         State_AddrClkLoSetupD,
         State_AddrClkHiHoldD,
         State_AddrClkHiSetupD,
+        State_ArbClkHiIdle,
         State_ArbClkHiHoldD,
         State_ClkLoSetupD,
         State_ClkHiHoldD,
@@ -1111,7 +1114,9 @@ module i3c_controller_trx
     always_comb begin
       sda_drv_mod = sda_drv_d;
       // When using Open Drain signaling we need to deassert driver enables for high SDA lanes.
-      sda_drv_mod.en = sda_drv_d.en & ~(sda_drv_d.od_en ? sda_d : 'b0);
+      // - Note: we do NOT use `sda_drv_d.en` here because typically `sda_drv_d` reflects the
+      //         previous state of `sda_drv_q`, but its `en` strobes have been modified.
+      sda_drv_mod.en = {NumSDALanes{sda_drv_d.pp_en}} | ({NumSDALanes{sda_drv_d.od_en}} & ~sda_d);
     end
   end
 

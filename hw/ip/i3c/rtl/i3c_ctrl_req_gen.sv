@@ -56,7 +56,8 @@ module i3c_ctrl_req_gen
   // - a single software-programmed value is used for SDR1-SDR4, but scaled accordingly.
   logic [3:0] sn;
   always_comb begin
-    if (&{state_i inside {CmdArb, WaitAckb, SendAckb}, trans_type_i == TransType_CmdDesc}) begin
+    if (state_i inside {CmdArb, WaitAckb, SendAckb, WaitDAckb} &&
+        trans_type_i == TransType_CmdDesc) begin
       // Use Open Drain timing for Arbitrable Address Headers, and for ACK/NACK bits to both
       // non-Arbitrable and Arbitrable Addresses.
       //
@@ -279,9 +280,9 @@ module i3c_ctrl_req_gen
                                         CmdArb, RepStPriv, CmdAddr,
                                         WaitAckb, SendAckb,
                                         CCCFrame, CmdWord,
-                                        TxData, TxCRC,     // Transmit data.
-                                        RxData, RxCRC,     // Request data reception.
-                                        RxDChar, TxDAddr,  // ENTDAA read phase.
+                                        TxData, TxCRC,  // Transmit data.
+                                        RxData, RxCRC,  // Request data reception.
+                                        RxDChar, TxDAddr, WaitDAckb,  // ENTDAA read phase.
                                         IBIRxData,
                                         TargRst, TargRstSr, TargRstP,
                                         DirectDrv};  // Direct-driving of pins.
@@ -339,7 +340,8 @@ module i3c_ctrl_req_gen
       end
 
       // Awaiting ACK/NACK response to our attempted transmission.
-      WaitAckb: begin
+      WaitAckb,
+      WaitDAckb: begin  // for ENTDAA read phase response.
         trx_dreq_o.req = CReqType_AckNack;
         trx_dreq_o.rx  = 1'b1;
       end
@@ -408,19 +410,26 @@ module i3c_ctrl_req_gen
 
       // Receive Device Characteristics (ENTDAA); open drain signaling.
       RxDChar: begin
-        trx_dreq_o.req   = CReqType_SDRBytes;  // TODO: Different request type? (OD).
+        trx_dreq_o.req   = CReqType_ArbDAA;
         trx_dreq_o.rx    = 1'b1;
         trx_dreq_o.len   = dlen_i;
         trx_dreq_o.last  = data_last_i;
       end
       // Transmit Dynamic Address (ENTDAA); also open drain signaling.
+      // TODO: Different request type?
       TxDAddr: begin
-        trx_dreq_o.req   = CReqType_SDRBytes;
-        // Here we trust the driver-supplied Parity bit (HCI 8.1.2).
+        trx_dreq_o.req   = CReqType_ArbDAA;
+        // Here we trust the driver-supplied Parity bit (HCI 8.1.2) rather than introduce additional
+        // hardware to compute it. It also gives us the ability to check NACK handling (4.3.4.2: 9).
         trx_dreq_o.wdata = {dat_entry_i.dynamic_address[22:16],
                             dat_entry_i.dynamic_address[23]} << (DataWidth - 8);
         trx_dreq_o.len   = 2'b00;
         trx_dreq_o.last  = 1'b1;
+      end
+      // Awaiting ACK/NACK response to our attempted transmission.
+      WaitDAckb: begin
+        trx_dreq_o.req = CReqType_AckNack;
+        trx_dreq_o.rx  = 1'b1;
       end
 
       // IBI Payload Reception.

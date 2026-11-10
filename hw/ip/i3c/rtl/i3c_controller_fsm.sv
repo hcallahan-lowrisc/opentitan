@@ -289,8 +289,10 @@ module i3c_controller_fsm
   // - derived combinationally from the current Command Descriptor; no additional storage.
   i3c_ctrl_cmd_attrs_t cmd_attrs;
   // Some helpers indicating the type of Command Descriptor; just for brevity.
-  wire cmd_is_addr_assgn = (cmd_attrs.attr == CmdAttr_AddrAssignment);
   wire cmd_is_intn_ctrl  = (cmd_attrs.attr == CmdAttr_InternalCtrl);
+  // Using the CCC details, rather than the `attr` field, allows the Host driver to construct ENTDAA
+  // commands directly from Regular Transfer descriptors.
+  wire cmd_is_entdaa     = (cmd_attrs.is_ccc && cmd_attrs.ccc == ENTDAA);
 
   // Device Address Table entry.
   // - a single command descriptor may involve the reading and use of multiple DAT entries.
@@ -601,7 +603,8 @@ module i3c_controller_fsm
       RxCRC:     proceed = trx_dready_i;  // Transceiver has accepted the request.
 
       WaitArb,
-      WaitAckb:  proceed = trx_avalid_i;  // Arbitration information available.
+      WaitAckb,
+      WaitDAckb: proceed = trx_avalid_i;  // Arbitration information available.
 
       // Controller Role Requests. TODO(#31308): No support for CRR presently.
       CRR:       proceed = hj_crr_captured;
@@ -704,9 +707,10 @@ module i3c_controller_fsm
               // TODO: We should use the SendFraming state here.
               (cmd_attrs.is_ccc & cmd_state.first_phase) ? CCCFrame :
                              (cmd_attrs.ddr & !curr_ddr) ? EnterDDR :
-                             // Sr before Private Transfer, after 7'h7e?
-                             (cmd_attrs.addr_bcst & !cmd_attrs.ddr) ? RepStPriv :
-                               (cmd_is_addr_assgn &  cmd_attrs.rnw) ? RxDChar   : xfer_state_d;
+                         // Start of ENTDAA read phase?
+                         (cmd_is_entdaa & cmd_attrs.rnw) ? RxDChar  :
+                         // Sr before Private Transfer, after 7'h7e?
+                         (cmd_attrs.addr_bcst & !cmd_attrs.ddr) ? RepStPriv : xfer_state_d;
 
       // Sending Ack/Nack to the Target when we lost arbitration, or did not contend.
       SendAckb: state_d = hotjoin_req ? HotJoin  :
@@ -720,11 +724,14 @@ module i3c_controller_fsm
                                                          : RxData;
       // ENTDAA Read phase.
       // - read device characteristics using Open Drain signaling; no T bits.
-      // - write Dynamic Address and Parity using Open Drain signaling; no intervening Sr.
-      // - ACK/NACK _without Handoff_.
       RxDChar:  state_d = cmd_hci.aborting ? (cmd_attrs.toc ? StopSDR : RepStSDR) :
                                  data_last ? TxDAddr : RxDChar;
+      // - write Dynamic Address and Parity using Open Drain signaling; no intervening Sr.
       TxDAddr:  state_d = WaitDAckb;
+      // - ACK/NACK _without Handoff_ because it's not followed by push-pull writing.
+      // TODO(#31304): Handle ACK/NACK response appropriately here. Early termination if nothing
+      // else.
+      WaitDAckb: state_d = phsend_state_d;
 
       TxCRC,
       RxCRC:    state_d = phsend_state_d;
@@ -887,7 +894,8 @@ module i3c_controller_fsm
             bus_state.i2c  <= 1'b0;
           end
           // Count the transferred bytes.
-          TxData, RxData: data_len <= next_len;
+          RxDChar, TxDAddr,  // ENTDAA read phase...
+          RxData,  TxData: data_len <= next_len;  // ... and regular data transfers.
           // Track when we've generated a Repeated Start (Sr).
           // - used within CCC transfers to decide whether we're targeting a specific address.
           // - used with Private Transfers that have been commenced using the I3C Broadcast Address.
@@ -1190,7 +1198,7 @@ module i3c_controller_fsm
   assign dct_commit  = dct_we_o & dct_wupper;
   // Rewind to the start of the current DCT entry, ready for handling a new Target during ENTDAA.
   assign dct_rewind  = state_q inside {CmdArb, CmdAddr};
-  assign dct_we_o    = (cmd_attrs.attr == CmdAttr_AddrAssignment) & trx_rdvalid_i;
+  assign dct_we_o    = cmd_is_entdaa & trx_rdvalid_i;
   assign dct_wmask_o = dct_wupper ? 9'h1f0 : 9'h00f;
   always_comb begin
     dct_wdata_o.pid_hi = trx_rdata_i.rdata;
