@@ -76,6 +76,9 @@ module i3c_target_fsm
   output                    vend_test_mode_o,
   output                    protocol_error_o,
 
+  // Heart beat signal.
+  output                    heart_beat_o,
+
   // Bus signals, already synchronized to the IP clock domain.
   input                     scl_i,
   input                     sda_i,
@@ -1459,6 +1462,9 @@ module i3c_target_fsm
   // TODO(#31333): Dummy drivers for now.
   assign transfer_err_o = 1'b0;
   assign transfer_aborted_o = 1'b0;
+  // - the heart beat signal must be pulsed sufficiently often to present a timeout expiring; it
+  //   shall be held only in a steady state when the Target-side logic is not enabled.
+  assign heart_beat_o = ~enable_i;  // TODO(#31333) So this is obviously temporary.
 
   // Signals that the logic does not use (yet).
   // - Target device configuration, information and Tx Descriptor queue levels that the

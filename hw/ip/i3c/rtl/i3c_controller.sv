@@ -46,6 +46,9 @@ module i3c_controller
   output       [DCTAddrW-1:0] dct_idx_o,
   output         hc_control_t hc_control_o,
 
+  // Heart beat signal from the Controller core.
+  output                      heart_beat_o,
+
   // Command Queue access.
   output                      cmd_desc_rready_o,
   input                       cmd_desc_rvalid_i,
@@ -122,6 +125,9 @@ module i3c_controller
   // Timing parameters; Target- and transfer-invariant.
   output         [TmCycW-1:0] tcas_d2_o,
   output         [TmCycW-1:0] tcbp_d2_o,
+
+  // Polling of Targets; Passive Hot-Join and unexpected disconnections.
+  input                       poll_now_i,
 
   // Retrying of NACKed commands.
   output                      cmd_nacked_o,
@@ -268,6 +274,9 @@ module i3c_controller
     .aborted_o         (aborted),
     .transfer_aborted_o(transfer_aborted),
 
+    // Heart beat signal.
+    .heart_beat_o      (heart_beat_o),
+
     // Configuration.
     .reg2hw_i          (reg2hw_i),
     .hc_control_i      (hc_control_o),
@@ -344,6 +353,9 @@ module i3c_controller
     // Timing parameterss; target- and transfer-invariant.
     .tcas_d2_o         (tcas_d2_o),
     .tcbp_d2_o         (tcbp_d2_o),
+
+    // Polling of Targets; Passive Hot-Join and unexpected disconnections.
+    .poll_now_i        (poll_now_i),
 
     // Retrying of NACKed commands.
     .cmd_nacked_o      (cmd_nacked_o),

@@ -93,6 +93,9 @@ module i3c_target
   output                    protocol_error_o,
   output                    hj_request_clear_o,
 
+  // Heart beat signal from the Target core.
+  output                    heart_beat_o,
+
   // Interrupts to the TTI.
   output i3c_targ_intr_t    intr_o,
 
@@ -423,6 +426,9 @@ module i3c_target
     .endxfer_d_o          (endxfer_d_o),
     .vend_test_mode_o     (vend_test_mode_o),
     .protocol_error_o     (protocol_error_o),
+
+    // Heart beat signal from the Target core.
+    .heart_beat_o         (heart_beat_o),
 
     // Bus signals, already synchronized to the IP clock domain.
     .scl_i                (scl_i),
