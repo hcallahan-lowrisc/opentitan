@@ -414,11 +414,12 @@ module i3c_controller_trx
   wire starting   = &{advance, state_q == State_Idle, trx_dvalid_i};
   // We must lower SDA for the second part of HDR Restart/SDR Repeated Start signaling.
   wire restarting = &{advance, state_q inside {State_RepStart, State_RepStartHiD}};
+  // A request is accepted immediately if we were stalled awaiting instruction.
+  wire resuming   = &{state_q == State_Stalling, trx_dvalid_i};
   // We must lower SDA before we can raise it for STOP signaling.
   wire pre_stop   = &{advance, state_q == State_PreStop};
   // STOP signaling; SDA raised but SCL still driven low.
   wire stop       = &{advance, state_q == State_Stop};
-  // Starting
   // Issuing HDR Restart signaling?
   wire hdr_restart = (req_q.req == CReqType_HDRRestart);
   // Issuing HDR Exit signaling?
@@ -523,6 +524,7 @@ module i3c_controller_trx
 
   // Accept a new request upon completion of the current unit.
   assign trx_dready_o = |{starting,
+                          resuming,
                           req_ending,
                           leave_hdr_sr,
                           leave_hdr_exit,

@@ -43,6 +43,13 @@ package i3c_controller_pkg;
     TransType_Intr      // Encompasses IBI, CRR and Hot-Join requests.
   } i3c_ctrl_trans_type_e;
 
+  // Destination of received data and command response.
+  typedef enum logic [1:0] {
+    RxDest_Null,  // Data is dropped (e.g., polling with GETSTATUS).
+    RxDest_Buf,   // Rx Data Buffer (e.g., Private Read Transfer).
+    RxDest_IBI    // IBI Data Buffer (IBI Payload, Auto-Command Private Read Transfer).
+  } i3c_ctrl_rx_dest_e;
+
   // Controller FSM states; this state machine handles the processing of HCI Command Descriptors and
   // the servicing of In-Band Interrupts.
   typedef enum logic [5:0] {
@@ -50,6 +57,7 @@ package i3c_controller_pkg;
 
     // --- Bus Idle events ---
     Idle,
+    Continue,
 
     // --- Command/Response Transfers ---
     CmdBegin,   // Reading from Device Address Table when beginning a Command.
@@ -233,7 +241,9 @@ package i3c_controller_pkg;
     // Fields that may be modified by the command type.
     i3c_xfer_mode_e      mode;       // Transfer mode.
     logic                addr_bcst;  // Using the I3C Broadcast Address (7'h7e)?
-    logic          [7:0] addr_rnw;   // Address for this command phase, with (modified) RnW bit.
+    logic          [7:0] addr_rnw;   // Address for this command phase (may be I3C Broadcast Addr),
+                                     //   with (modified) RnW bit.
+    logic          [7:0] par_addr;   // Parity [7] and actual Address of Target/Group [6:0].
     logic                rnw;        // Read, not Write in this command phase?
     logic                toc;        // Terminate On Completion (send stoP as opposed to Sr)?
     logic                i2c;        // I2C device, rather than I3C?
@@ -251,9 +261,6 @@ package i3c_controller_pkg;
   // Stored properties of the current HCI Command Descriptor, and properties preserved from earlier
   // Command Descriptor(s) forming a single sequence.
   //
-  // - Command Descriptors may operate together as a 'sequence', e.g., to form a single CCC
-  //   operation.
-  // - Address Assignment commands require iteration, to assign a number of dynamic addresses.
   // - Aborting (either PIO- or Controller-level) requires that the remaining commands of the
   //   aborted sequence receive `HC_ABORTED` responses.
   typedef struct packed {
@@ -274,6 +281,9 @@ package i3c_controller_pkg;
   } i3c_ctrl_cmd_hci_t;
 
   // Stored properties of the current Command Descriptor, no matter the command source.
+  // - Command Descriptors may operate together as a 'sequence', e.g., to form a single CCC
+  //   operation.
+  // - Address Assignment commands require iteration, to assign a number of dynamic addresses.
   typedef struct packed {
     // Indication that the command has been accepted as valid and that we have started at least
     // one attempt at executing the command, so the remainder of this state may be trusted.
@@ -287,6 +297,11 @@ package i3c_controller_pkg;
     logic                 first_phase;
     // Was the most recent command/phase terminated with Sr rather than P?
     logic                 rep_start;
+    // CCC Framing information from the previous command phase.
+    logic                 ccc_valid;  // Valid CCC state?
+    logic                 has_defb;
+    logic           [7:0] ccc;
+    logic           [7:0] defb;
     // Number of retries required for this command when NACK(s) are received.
     logic           [1:0] retry_cnt;
     // Number of repetitions remaining.
@@ -295,6 +310,8 @@ package i3c_controller_pkg;
     //   - Combo Transfer.
     //   - Address Assignment.
     logic   [CmdRepW-1:0] reps_left;
+    // Destination of received data and/or response.
+    i3c_ctrl_rx_dest_e    rx_dest;
   } i3c_ctrl_cmd_state_t;
 
   // The standard Command Descriptors specify a transfer more and an I2C/I3C indication, which

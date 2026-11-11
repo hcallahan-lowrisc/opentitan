@@ -30,7 +30,6 @@ module i3c_ctrl_req_gen
   input i3c_ctrl_trans_type_e trans_type_i,
   input i3c_ctrl_cmd_state_t  cmd_state_i,
   input i3c_ctrl_cmd_attrs_t  cmd_attrs_i,
-  input i3c_dat_mem_t         dat_entry_i,
   // Additional state-specific information.
   input                       i3c_first_i,  // CmdArb, WaitAckb, SendAckb
   input                       send_nack_i,  // SendAckb
@@ -365,7 +364,7 @@ module i3c_ctrl_req_gen
         trx_dreq_o.req   = CReqType_CommandWord;
         trx_dreq_o.wdata = {// Upper bit of `CMD` field ignored in HDR-DDR.
                             cmd_attrs_i.rnw, 7'(cmd_attrs_i.ccc),
-                            dat_entry_i.dynamic_address[22:16],  // Target Address/Group.
+                            cmd_attrs_i.par_addr[6:0],  // Target Address/Group.
                             1'b0,  // Transceiver completes the Parity Adjustment bit.
                             16'b0};
         // Send only a single Command Word.
@@ -421,8 +420,7 @@ module i3c_ctrl_req_gen
         trx_dreq_o.req   = CReqType_ArbDAA;
         // Here we trust the driver-supplied Parity bit (HCI 8.1.2) rather than introduce additional
         // hardware to compute it. It also gives us the ability to check NACK handling (4.3.4.2: 9).
-        trx_dreq_o.wdata = {dat_entry_i.dynamic_address[22:16],
-                            dat_entry_i.dynamic_address[23]} << (DataWidth - 8);
+        trx_dreq_o.wdata = {cmd_attrs_i.par_addr[6:0], cmd_attrs_i.par_addr[7]} << (DataWidth - 8);
         trx_dreq_o.len   = 2'b00;
         trx_dreq_o.last  = 1'b1;
       end
@@ -472,13 +470,6 @@ module i3c_ctrl_req_gen
                                cmd_attrs_i.brd_ccc, cmd_attrs_i.data_len, cmd_attrs_i.defb,
                                cmd_attrs_i.dev_index, cmd_attrs_i.has_defb, cmd_attrs_i.reps_left,
                                cmd_attrs_i.retry_cnt, cmd_attrs_i.tid, cmd_attrs_i.toc,
-                               cmd_attrs_i.wroc, dat_entry_i.autocmd_hdr_code,
-                               cmd_attrs_i.ccc, cmd_attrs_i.is_ccc,
-                               dat_entry_i.autocmd_mask, dat_entry_i.autocmd_mode,
-                               dat_entry_i.autocmd_value, dat_entry_i.crr_reject,
-                               dat_entry_i.dev_nack_retry_cnt, dat_entry_i.device,
-                               dat_entry_i.dynamic_address[23], dat_entry_i.ibi_payload,
-                               dat_entry_i.static_address,
-                               dat_entry_i.ibi_reject, dat_entry_i.ring_id, dat_entry_i.ts};
+                               cmd_attrs_i.wroc, cmd_attrs_i.ccc, cmd_attrs_i.is_ccc};
 
 endmodule

@@ -39,8 +39,14 @@ module i3c_cmd_decode
   // - DAT index for the current phase.
   input              [DATAddrW-1:0] dev_index_i,
 
+  // Use the DAT entry to discover Target properties?
+  input                             use_dat_i,
   // DAT entry for device-dependent properties.
   input  i3c_dat_mem_t              dat_entry_i,
+
+  // Dynamic Address to be used for DISEC and Polling operations;
+  // these cannot rely upon having an associated Device Address Table (DAT) entry.
+  input                       [7:0] dynaddr_auto_i,  // Parity in MSB.
 
   // Decode the `Auto Command Descriptor` rather than that from the command queue?
   input                             use_auto_i,
@@ -86,6 +92,11 @@ module i3c_cmd_decode
   // - Scheduled Commands are presently not supported, but they too would be handled here.
   wire [63:0] cmd_raw = use_auto_i ? cmd_auto_i : cmd_queue_i;
 
+  // Dynamic Address and I2C/I3C mode selection; these normally come from the DAT entry, but for
+  // other command sources they must be supplied directly.
+  wire [7:0] dynamic_address = use_dat_i ? dat_entry_i.dynamic_address[23:16] : dynaddr_auto_i;
+  wire dev_i2c = use_dat_i & dat_entry_i.device;
+
   // Reinterpret the raw Command Descriptor as each supported type of command.
   // - `cmd_reg_o` is a useful way to access fields that are common to most/all command types.
   assign cmd_intn_o  = i3c_xfer_cmd_intern_ctrl_t'(cmd_raw);
@@ -97,7 +108,9 @@ module i3c_cmd_decode
   // HDR-DDR mode?
   // - `device` field of DAT entry: 0 = I3C, 1 = I2C (HCI Table 130).
   // - may be trusted only once the `cmd_attr` field has been checked.
-  wire hdr_ddr = (cmd_reg_o.mode == XferMode_HDRDDR) & !dat_entry_i.device;
+  wire hdr_ddr = (cmd_reg_o.mode == XferMode_HDRDDR) & !dev_i2c;
+
+  wire first_phase = first_phase_i & !rep_start_i;
 
   // The decision on the validity of the command must be performed before commencing command
   // dispatch, because the dispatch decision depends upon the validity of certain command fields.
@@ -185,7 +198,7 @@ module i3c_cmd_decode
     // Transfer mode, for the basic command types.
     cmd_attrs_o.mode = cmd_reg_o.mode;
     // I2C rather than I3C device, for the basic command types.
-    cmd_attrs_o.i2c  = dat_entry_i.device;  // 0 = I3C, 1 = I2C (HCI Table 130).
+    cmd_attrs_o.i2c  = dev_i2c;  // 0 = I3C, 1 = I2C (HCI Table 130).
     // Use HDR-DDR mode for this command?
     cmd_attrs_o.ddr  = hdr_ddr;
 
@@ -235,8 +248,8 @@ module i3c_cmd_decode
         // A single CCC Command Descriptor may describe two phases.
         if (ccc_dual_phase(cmd_attrs_o)) begin
           // For a dual-phase Command Descriptor, the data transfer occurs in the second phase.
-          cmd_attrs_o.reps_left = CmdRepW'('b1);
-          if (first_phase_i) begin
+          cmd_attrs_o.reps_left = CmdRepW'(first_phase); // TODO: 'b1);
+          if (first_phase) begin
             cmd_attrs_o.data_len = 16'b0;  // Data length _excludes_ the DEFB.
             cmd_attrs_o.rnw      = 1'b0;   // First phase just transmits the CCC and maybe the DEFB.
           end
@@ -254,8 +267,8 @@ module i3c_cmd_decode
         // A single CCC Command Descriptor may describe two phases.
         if (ccc_dual_phase(cmd_attrs_o)) begin
           // For a dual-phase Command Descriptor, the data transfer occurs in the second phase.
-          cmd_attrs_o.reps_left = CmdRepW'('b1);
-          if (first_phase_i) begin
+          cmd_attrs_o.reps_left = CmdRepW'(first_phase); // TODO: 'b1);
+          if (first_phase) begin
             cmd_attrs_o.data_len = 16'b0;  // Data length _excludes_ the DEFB.
             cmd_attrs_o.rnw      = 1'b0;   // First phase just transmits the CCC and maybe the DEFB.
           end
@@ -273,7 +286,7 @@ module i3c_cmd_decode
         // TODO(#31304). Combo Transfer Commands are declared as unsupported, and not implemented.
         cmd_attrs_o.data_len  = cmd_combo_o.data_length;
         // There are two phases to a Combo Transfer command.
-        cmd_attrs_o.reps_left = CmdRepW'(first_phase_i);
+        cmd_attrs_o.reps_left = CmdRepW'(first_phase);
         // Not all Transfer mode values are valid/supported, and zero-length transfers are invalid.
         if (!mode_supported(cmd_attrs_o.mode, cmd_attrs_o.i2c) || ~|cmd_combo_o.data_length ||
             &cmd_combo_o.dlp) begin
@@ -292,15 +305,15 @@ module i3c_cmd_decode
         // ENTDAA  - Subsequent phases are predominantly reads, collecting the Target
         //           characteristics, and then transparently changing to a write mid-phase;
         //           we treat this as (predominantly) a _read_ phase.
-        cmd_attrs_o.rnw       = (cmd_attrs_o.ccc == ENTDAA) & !first_phase_i;
+        cmd_attrs_o.rnw       = (cmd_attrs_o.ccc == ENTDAA) & !first_phase;
         // Describe the Read data length for ENTDAA. SETDASA is simple enough.
-        cmd_attrs_o.data_len  = first_phase_i ? 16'h0 :
+        cmd_attrs_o.data_len  = first_phase ? 16'h0 :
                   (cmd_attrs_o.ccc == ENTDAA) ? 16'h8 : 16'h1;
         // The index into the DAT advances for each command phase, and is incremented _before_ use.
-        cmd_attrs_o.dev_index = first_phase_i ? cmd_daa_o.dev_index : dev_index_i;
+        cmd_attrs_o.dev_index = first_phase ? cmd_daa_o.dev_index : dev_index_i;
         // Number of repetitions left after the current command phase.
         // Note: there's an initial command phase in which no device is accessed.
-        cmd_attrs_o.reps_left = first_phase_i ? cmd_daa_o.dev_count : reps_left_i;
+        cmd_attrs_o.reps_left = first_phase ? cmd_daa_o.dev_count : reps_left_i;
       end
 
       // Internal Control Command (TCRI 7.1.2.4).
@@ -340,6 +353,9 @@ module i3c_cmd_decode
     logic entdaa_read;
     logic rnw_used;
 
+    // Unmodified Target/Group address, with parity in the MSB (as per HCI DAT entries).
+    cmd_attrs_o.par_addr = dynamic_address;
+
     // Is this the read phase of an ENTDAA Command Descriptor?
     // - normally ENTDAA is conducted using an Address Assignment Command Descriptor, but to provide
     //   a fallback option, don't rule that out here; use the CCC details directly.
@@ -363,7 +379,7 @@ module i3c_cmd_decode
     if (cmd_attrs_o.is_ccc && broadcast_ccc(cmd_attrs_o.ccc)) begin
       addr_check = Addr_Broadcast;
     end else begin
-      addr_check = dat_entry_i.dynamic_address[22:16];
+      addr_check = dynamic_address[6:0];
       if (cmd_attrs_o.ccc == SETDASA || cmd_attrs_o.i2c) begin  // HCI 6.3.1
         // SETDASA is always sent to the programmed static address, and I2C devices have only static
         // addresses.
@@ -414,9 +430,7 @@ module i3c_cmd_decode
   logic unused_decode_inputs;
   assign unused_decode_inputs = ^{dat_entry_i.autocmd_hdr_code, dat_entry_i.autocmd_mask,
                                   dat_entry_i.autocmd_mode, dat_entry_i.autocmd_value,
-                                  dat_entry_i.crr_reject, dat_entry_i.dynamic_address,
-                                  dat_entry_i.ibi_payload, dat_entry_i.ibi_reject,
-                                  dat_entry_i.ring_id, dat_entry_i.static_address,
-                                  dat_entry_i.ts};
+                                  dat_entry_i.crr_reject, dat_entry_i.ibi_payload,
+                                  dat_entry_i.ibi_reject, dat_entry_i.ring_id, dat_entry_i.ts};
 
 endmodule
