@@ -787,6 +787,10 @@ module i3c_core
   assign hw2reg_o.targ_status.rstact.d =
     i3c_rstact_e'(hw2reg_o.stby_cr_ccc_config_rstact_params.rst_action.d);
 
+  // Retrying of NACKed IBIs.
+  logic targ_ibi_nacked;
+  logic targ_ibi_retry;
+
   // TODO(#31333): Recovery from TE0.
   logic te0_recov;
 
@@ -948,6 +952,10 @@ module i3c_core
     .ibi_rdata_i          (fifo_out[FIFO_IBITarg].rdata),
     .ibi_rempty_i         (fifo_state[FIFO_IBITarg].empty),
     .ibi_rused_i          (fifo_state[FIFO_IBITarg].used),
+
+    // Retrying of NACKed IBIs.
+    .ibi_nacked_o         (targ_ibi_nacked),
+    .ibi_retry_i          (targ_ibi_retry),
 
     // Transmit data to the transceiver, for Private Read transfers.
     .trx_dvalid_o         (targ_trx_dvalid),
@@ -1644,12 +1652,13 @@ module i3c_core
   // TODO(#31304):Placeholder timer signals on the Controller side.
   logic dead_ctrl;
   // TODO(#31337):Placeholder timer signals on the Target side.
-  wire targ_ibi_nacked = 1'b1;
   logic dead_targ;
-  logic targ_ibi_retry;
 
   // Interval timers driven by the IP block, reporting on timed events related to bus activity or
   // inactivity.
+  // TODO#(31304): The 800us retry interval for a command is particularly questionable; the
+  // specifications do not specify a retry interval and, in general, the transfer cannot be retried
+  // without leaving the bus stalled.
   i3c_timers #(
     .ClkFreq     (ClkFreq),
     .NumTimers   (12),
@@ -2480,7 +2489,7 @@ module i3c_core
   assign unused_hci_addr = ^bufq_addr_i[TL_HCI][3:2];
   // - TODO(#31333): timers whose outputs are not yet routed to the core logic.
   logic unused_timers;
-  assign unused_timers = ^{read_stalled, te0_recov, targ_ibi_retry};
+  assign unused_timers = ^{read_stalled, te0_recov};
   // - TODO(#31307): these timers need associated interrupts to inform software drivers.
   logic unused_timers_dead;
   assign unused_timers_dead = ^{dead_ctrl, dead_targ};

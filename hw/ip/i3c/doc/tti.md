@@ -91,6 +91,10 @@ A Virtual Target may choose to inform the Active Controller that there is read d
 Pending Read Notifications (PRN) are differentiated from regular transmission descriptors by bit 31 and are placed in the Virtual Target transmission buffer ahead of the Private Read transfer to ensure that transmission occurs in the appropriate order.
 
 The Active Controller, upon acknowledging the PRN, should proceed to collect the Private Read Transfer with no intervening traffic to or from that Virtual Target.
+To avoid a potential race between the Target software and the Active Controller, a PRN is not considered eligible for transmission until another transmission descriptor has been queued up behind it.
+
+The driver software should supply the PRN descriptor, followed by at least the first part of the Private Read data, and then the transmission descriptor, in that order.
+This ensures that if the Active Controller responds with an Auto-Command read transfer, the data is ready to be collected promptly.
 
 Bits [7:5] of the Mandatory Data Byte are completed with 3'b101, to identify the IBI as a PRN, and the remaining bits are supplied by the `LSB` field of the descriptor and defined by the driver or protocol.
 

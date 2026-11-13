@@ -19,6 +19,7 @@ module i3c_dword_splitter
   input         rst_ni,
 
   input         clr_i,
+  input         enable_i,
 
   // Input DWORDs.
   input         valid_i,
@@ -55,14 +56,16 @@ module i3c_dword_splitter
     end else if (clr_i) begin
       valid_q <= 1'b0;
       len_q   <= 2'b00;
-    end else if (valid_i) begin
-      valid_q <= 1'b1;
-      len_q   <= 2'b11;
-      data_q  <= data_i;
-    end else if (valid_q & ready_i) begin
-      valid_q <= |len_q;
-      len_q   <= len_d;
-      data_q  <= {8'b0, data_d};
+    end else if (enable_i) begin
+      if (valid_i) begin
+        valid_q <= 1'b1;
+        len_q   <= 2'b11;
+        data_q  <= data_i;
+      end else if (valid_q & ready_i) begin
+        valid_q <= |len_q;
+        len_q   <= len_d;
+        data_q  <= {8'b0, data_d};
+      end
     end
   end
 

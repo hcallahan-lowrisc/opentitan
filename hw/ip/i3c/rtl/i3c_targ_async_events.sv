@@ -46,7 +46,7 @@ module i3c_targ_async_events
   input  i3c_err_status_e     ibi_status_i,
   input          [Log2NT-1:0] ibi_targ_id_i,
   input                 [3:0] ibi_tid_i,
-  input                [15:0] ibi_data_left_i,
+  input                 [7:0] ibi_data_left_i,
 
   // Suspending transmission.
   input      [NumTargets-1:0] suspend_tx_i,
@@ -185,7 +185,7 @@ module i3c_targ_async_events
   i3c_err_status_e    ibi_status_q;
   logic  [Log2NT-1:0] ibi_targ_id_q;
   logic         [3:0] ibi_tid_q;
-  logic        [15:0] ibi_data_left_q;
+  logic         [7:0] ibi_data_left_q;
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
@@ -285,7 +285,7 @@ module i3c_targ_async_events
     async_evt[AsyncEv_NotifyIBI].ibir.err_status = ibi_status_q;
     async_evt[AsyncEv_NotifyIBI].ibir.targ_id    = Log2MT'(ibi_targ_id_q);
     async_evt[AsyncEv_NotifyIBI].ibir.tid        = ibi_tid_q;
-    async_evt[AsyncEv_NotifyIBI].ibir.data_left  = ibi_data_left_q;
+    async_evt[AsyncEv_NotifyIBI].ibir.data_left  = 16'(ibi_data_left_q);
 
     async_evt[AsyncEv_TxSuspend].txds.code    = AsyncEv_TxSuspend;
     async_evt[AsyncEv_TxSuspend].txds.targets = MaxTargets'(suspend_tx_q);

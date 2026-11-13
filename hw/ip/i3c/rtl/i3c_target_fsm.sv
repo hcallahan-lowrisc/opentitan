@@ -116,9 +116,7 @@ module i3c_target_fsm
   input                     tx_desc_rvalid_i[NumTargets],
   input     [DataWidth-1:0] tx_desc_rdata_i[NumTargets],
   input                     tx_desc_rempty_i[NumTargets],
-  // TODO: rused/ravail below currently unused.
   input      [FIFODepthW:0] tx_desc_rused_i[NumTargets],
-  input      [FIFODepthW:0] tx_desc_ravail_i[NumTargets],
 
   // Reception Descriptor access.
   output                    rx_desc_wvalid_o,
@@ -148,6 +146,10 @@ module i3c_target_fsm
   input                     ibi_rempty_i,
   // TODO: rused currently unused
   input      [FIFODepthW:0] ibi_rused_i,
+
+  // Retrying of NACKed IBIs.
+  output                    ibi_nacked_o,
+  input                     ibi_retry_i,
 
   // Transmit data for Private Read transfers.
   output logic              txd_toggle_o[NumTargets],
@@ -227,7 +229,7 @@ module i3c_target_fsm
   i3c_targ_info_t targ_info[NumTargets];
   always_comb begin : drv_targ_info
     for (int unsigned t = 0; t < NumTargets; t++) begin
-      targ_info[t] = '0;
+      targ_info[t] = 'b0;
       targ_info[t].dcr =  reg2hw_i.targ_char[t].dcr.q;
       targ_info[t].bcr =  reg2hw_i.targ_char[t].bcr.q;
       targ_info[t].pid = {reg2hw_i.targ_char[t].pid_hi.q, reg2hw_i.targ_pid_lo[t].q};
@@ -332,18 +334,23 @@ module i3c_target_fsm
   logic [SinkBuffers-1:0] sink_rready;
 
   // Are there any Pending Read Notifications?
-  // - special descriptors are introduced into the Tx Desc queue before the Transfers themselves.
-  logic [NumTargets-1:0] prn_rvalid;
+  // - special descriptors are introduced into the Tx Desc queue before the Transfers themselves,
+  //   but there must be an ensuing descriptor (assumed to be a Tx Descriptor) before they can be
+  //   processed.
+  logic [NumTargets-1:0] prn_desc_avail;
   // Tx Descriptors and their validity indicators.
   logic [NumTargets-1:0] tx_desc_valid;
   i3c_tti_tx_desc_t tx_desc[NumTargets];
 
-  // Was the arbitration request (toggle-style signalling) processed by the transceiver?
-  logic prev_arb_toggle, arb_toggle_edge;
-  assign arb_toggle_edge = arb_toggle_i ^ prev_arb_toggle;
+  // Is an I3C bus arbitration request still pending?
+  // - an arbitration datum is accepted when it is _no longer required_ by the transceiver, so in
+  //   the case of an arbitration request that carries the MDB, acceptance occurs once the MDB has
+  //   been captured and is ready to be transmitted; this guves us time to prepare the next datum.
+  logic prev_arb_toggle, arb_accepted;
+  assign arb_accepted = arb_toggle_i ^ prev_arb_toggle;
 
-  // Latched version of the IBI arbiter gnt
-  logic [NumTargets+1:0] arb_gnt_q;
+  // Completion signals to IBI sources.
+  logic [NumTargets+1:0] ibi_tx_complete;
 
   // The single physical Target and FSM implement a number of Virtual Targets.
   // - each Virtual Target has its own Transmit Data Buffer and Tx Descriptor Queue in order to
@@ -351,13 +358,13 @@ module i3c_target_fsm
   // - Tx Descriptor and Tx Data word are prefetched from shared storage and handled here.
   for (genvar t = 0; t < NumTargets; t++) begin : gen_txd
     logic        tx_desc_consumed;
+    logic        tx_desc_avail;
     logic  [3:0] tx_start_thld;
     logic        tx_thld_reached;
     logic        tx_desc_len_reached;
     logic        tx_suspended;
     logic [15:0] tx_data_len;
     logic        tx_active;
-    logic        tx_rvalid;
     logic        tx_start;
     logic        unit_valid;
     logic        unit_ready;
@@ -368,15 +375,13 @@ module i3c_target_fsm
     // Descriptor is valid if it is a Pending Read Notification or it's a regular transmission
     // having a valid length. Respect the MRL value specified by the Active Controller for Private
     // Read Transfers.
-    // Note that if a Virtual Target has been configured for no IBI payload, PRNs canno tbe sent.
-    // TODO(#31337): We cannot yet send any PRN payload bytes; this is true of any IBI payload data.
+    // Note that if a Virtual Target has been configured for no IBI payload, PRNs cannot be sent.
     assign tx_desc_valid[t] = tx_desc[t].prn.notify ? (targ_payload_cfg[t] &
                                                        ~&tx_desc[t].prn.len) :  // 0-2 bytes only.
                             (|tx_desc[t].tx.data_length &&
                               tx_desc[t].tx.data_length <= reg2hw_i.targ_rw_len[t].mrl.q);
     // TODO(#31337): Aborting is not yet implemented.
     assign tx_suspended = reg2hw_i.targ_pio_control.tx_suspended.q[t];
-    // TODO(#31337): Post response and/or raise error interrupt if not valid.
 
     // Have we enough data available to commence transmission? Fire on either
     // - At least as many DWORDs in buffer as dictated in descriptor, or
@@ -388,9 +393,10 @@ module i3c_target_fsm
     assign tx_start = (tx_desc_len_reached || tx_thld_reached) && !tx_suspended;
 
     // Is this Tx Descriptor describing a Read Transfer?
-    assign tx_rvalid = tx_desc_rvalid_i[t] & !tx_desc[t].tx.notify;
+    // - Note: this does not mean that it's been validated.
+    assign tx_desc_avail = tx_desc_rvalid_i[t] & !tx_desc[t].tx.notify;
     // Maybe it's a Pending Read Notification?
-    assign prn_rvalid[t] = tx_desc_rvalid_i[t] & tx_desc[t].tx.notify;
+    assign prn_desc_avail[t] = tx_desc_rvalid_i[t] & tx_desc[t].tx.notify;
 
     // Decompose the message buffer data into individual data units for transmission.
     // - note that we don't know whether the Private Read data will be collected in SDR or
@@ -400,7 +406,8 @@ module i3c_target_fsm
       .clk_i     (clk_i),
       .rst_ni    (rst_ni),
 
-      .clr_i     (tx_desc_consumed),
+      .clr_i     (sw_reset_i | tx_desc_consumed),
+      .enable_i  (enable_i),
 
       // Input DWORDs.
       // - full DWORDs are supplied and `clr_i` is then asserted at the end of the transfer;
@@ -416,7 +423,7 @@ module i3c_target_fsm
     );
 
     // Collect DWORD from buffer.
-    assign txbuf_rready_o[t] = &{enable_i, tx_rvalid, !unit_valid, tx_start | tx_active} |
+    assign txbuf_rready_o[t] = &{enable_i, tx_desc_avail, !unit_valid, tx_start | tx_active} |
                                 (enable_i & sink_rready[2 * (t + 1)]);  // Data Sink.
 
     // Since we are driving data into an irregularly-clocked domain, new data is supplied by
@@ -435,7 +442,7 @@ module i3c_target_fsm
       end else if (unit_valid & unit_ready) begin
         prev_txd_toggle <= !prev_txd_toggle;
         rdata_first <= 1'b0;
-      end else if (&{tx_rvalid, tx_desc_valid[t], tx_start, !tx_active}) begin
+      end else if (&{tx_desc_avail, tx_desc_valid[t], tx_start, !tx_active}) begin
         rdata_first <= 1'b1;
       end
     end
@@ -449,12 +456,12 @@ module i3c_target_fsm
     always_ff @(posedge clk_i or negedge rst_ni) begin
       if (!rst_ni) begin
         tx_active   <= 1'b0;
-        tx_data_len <= '0;
+        tx_data_len <= 'b0;
       end else if (sw_reset_i) begin
         tx_active   <= 1'b0;
         // Tx data length will be collected when we have something to transmit.
       end else if (enable_i) begin
-        if (&{tx_rvalid, tx_desc_valid[t], tx_start, !tx_active}) begin
+        if (&{tx_desc_avail, tx_desc_valid[t], tx_start, !tx_active}) begin
           tx_active   <= 1'b1;
           tx_data_len <= tx_desc[t].tx.data_length;
         end else if (tx_active & unit_ready) begin
@@ -471,7 +478,7 @@ module i3c_target_fsm
     // Data for Read Transfers is supplied in anticipation of HDR-DDR collection, and the
     // transceiver reformats it for SDR collection if required.
     always_comb begin : drv_txd_data
-      txd_data_o[t] = '0;
+      txd_data_o[t] = 'b0;
       fmt_data_out(txd_data_o[t].rdata_nq, txd_data_o[t].rdata_pq, txd_data_o[t].rlast,
                    unit_data, rdata_first, unit_rlast);
     end
@@ -480,11 +487,11 @@ module i3c_target_fsm
     // longer required, or if it's invalid.
     // TODO(#31337): We must receive some kind of verdict from the transceiver, not just wait until
     // accepted
-    assign tx_desc_consumed = tx_rvalid & (tx_suspended | &{tx_active, rlast, unit_ready});
+    assign tx_desc_consumed = tx_desc_avail & (tx_suspended | &{tx_active, rlast, unit_ready});
     assign tx_desc_rready_o[t] = enable_i &
-                               |{tx_desc_consumed,                  // Private Read transfer.
-                                 arb_toggle_edge & arb_gnt_q[t+2],  // Pending Read Notification.
-                                 sink_rready[2 * (t + 1) + 1]};     // Data Sink.
+                               |{tx_desc_consumed,               // Private Read transfer.
+                                 ibi_tx_complete[t + 2],         // Pending Read Notification.
+                                 sink_rready[2 * (t + 1) + 1]};  // Data Sink.
 
     // Suspend transmissions from this Virtual Target in the event of an error.
     // TODO(#31337): This covers only invalid descriptors at present; transmission failures shall
@@ -519,7 +526,7 @@ module i3c_target_fsm
   always_comb begin : drv_txc_data
     // Slices belonging to Virtual Targets that are not present keep this default of zero.
     // Note: we do not support CCC handling in HDR-DDR mode, just SDR modes.
-    txc_data_o = '0;
+    txc_data_o = 'b0;
 
     // The first channel carries DAA information too.
     // - CCC logic returns the DAA information for all of the target because it is known at this
@@ -663,7 +670,7 @@ module i3c_target_fsm
 
   // Construction of request to the CCC handling.
   always_comb begin : drv_ccc_req
-    ccc_req = '0;
+    ccc_req = 'b0;
     // TODO(#31337): We could action the P a cycle earlier and drop the additional states?
     // Is there potential for the P to leapfrog the final byte, in which case we
     // perhaps use _P to retain that information and treat `trx_rvalid_i` the same in
@@ -716,7 +723,7 @@ module i3c_target_fsm
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
       // Register state is zero-initialized but nothing shall depend upon it; no sw reset required.
-      for (int unsigned r = 0; r < TargCR_Count; r++) reg_state[r] <= '0;
+      for (int unsigned r = 0; r < TargCR_Count; r++) reg_state[r] <= 'b0;
     end else if (enable_i & ccc_rsp.reg_we) begin
       // Update the selected register.
       reg_state[ccc_rsp.reg_widx] <= ccc_rsp.reg_wdata;
@@ -728,7 +735,7 @@ module i3c_target_fsm
           // - note that a Broadcast CCC affects only the responsive targets, and the transceiver
           //   has already determined this for us.
           reg_state[TargCR_Targets] <= broadcast_ccc(ccc_rsp.reg_wdata) ?
-                                       TargCRWidth'(trx_rxd_i.targ_set) : '0;
+                                       TargCRWidth'(trx_rxd_i.targ_set) : 'b0;
           // Declare 'no DEFB' until it is received.
           reg_state[TargCR_Status][TargStat_HasDEFB] <= 1'b0;
         end
@@ -805,13 +812,10 @@ module i3c_target_fsm
   assign tx_targ_id = 'b0;  // TODO(#31337): FSM Tracks target.
   i3c_tti_tx_desc_t tx_desc_curr;
   assign tx_desc_curr = i3c_tti_tx_desc_t'(tx_desc_rdata_i[Log2NT'(tx_targ_id)]);
-  i3c_tti_ibi_status_t ibi_desc;
-  assign ibi_desc = i3c_tti_ibi_status_t'(ibi_desc_rdata_i);
 
   // TODO(#31337): Status outcomes.
-  i3c_err_status_e txd_status, ibi_status;
+  i3c_err_status_e txd_status;
   assign txd_status = ErrStatus_SUCCESS;
-  assign ibi_status = ErrStatus_SUCCESS;
 
   // TODO(#31337): Remaining byte count; this is multiplexed from the various transmission paths.
   logic [15:0] tx_bytes_left;
@@ -1027,39 +1031,69 @@ module i3c_target_fsm
      - Pending Read Data notifications.
   */
 
-  // Remove the IBI Status Descriptor from the FIFO once we've been granted the bus.
-  assign ibi_desc_rready_o = enable_i & ((arb_toggle_edge & arb_gnt_q[0]) | sink_rready[1]);
-  // TODO(#31337): Drop the IBI data immediately for now...
-  assign ibi_rready_o = enable_i & ((ibi_desc_rvalid_i & ibi_rvalid_i) | sink_rready[0]);
+  // Current IBI source.
+  localparam int unsigned IBIArbW = $clog2(NumTargets + 2);
+  logic [IBIArbW-1:0] ibi_src;
+  logic ibi_src_valid;
+  logic ibi_dispatch;
+  logic ibi_reject;
 
-  wire         ibi_desc_consumed = 1'b0;
-  // TODO(#31337): Currently unused, should be multiplexed into arb_data_o, after the arbiter.
+  // Remove the IBI Status Descriptor from the FIFO only once the IBI transmission has completed;
+  // we may need its content in order to post an outcome into the Async Event Queue.
+  // TODO(#31337): must handle IBI Data Buffer underrun here.
+  wire ibi_txbuf_valid = &{ibi_src_valid, ~|ibi_src, ibi_rvalid_i};
+  logic ibi_txbuf_consume;
+  assign ibi_desc_rready_o = enable_i & |{ibi_tx_complete[0], sink_rready[1], ibi_reject};
+  assign ibi_rready_o = enable_i & (ibi_txbuf_consume | sink_rready[0]);
+
+  // Collect a DWORD of IBI payload data from the current IBI source.
+  logic [DataWidth-1:0] ibi_tx_data;
+  logic ibi_tx_valid;
+  always_comb begin
+    // Most IBI payload data comes from the IBI Data Buffer.
+    ibi_tx_valid = ibi_txbuf_valid & ibi_txbuf_consume;
+    ibi_tx_data  = ibi_rdata_i;
+    for (int unsigned t = 0; t < NumTargets; t++) begin
+      // If it's a Pending Read Notification (PRN), there may be up to 2 bytes in the descriptor.
+      if (ibi_src == (t + 2)) begin
+        ibi_tx_valid = ibi_src_valid;
+        ibi_tx_data = DataWidth'(tx_desc[t].prn.data);
+      end
+    end
+  end
+
+  // Decompose the DWORDs from the IBI Data Buffer into bytes (IBIs are SDR only), and similarly
+  // for the partial DWORD in a PRN Tx Descriptor from a Virtual Target.
   logic [15:0] ibi_unit_data;
   logic        ibi_unit_valid;
   logic        ibi_unit_ready;
+  // Data consumption and IBI completion signals.
+  logic        ibi_consume_data;
+  logic        ibi_completion;
 
-  // Decompose the DWORDs from the IBI Data Buffer into bytes (IBIs are SDR only).
   i3c_dword_splitter u_ibi_split (
     .clk_i     (clk_i),
     .rst_ni    (rst_ni),
 
-    .clr_i     (ibi_desc_consumed),
+    .clr_i     (sw_reset_i | ibi_completion),
+    .enable_i  (enable_i),
 
     // Input DWORDs.
     // - full DWORDs are supplied and `clr_i` is then asserted at the end of the transfer;
     //   this also supports easier recovery.
-    .valid_i   (ibi_rvalid_i & ibi_rready_o),
-    .data_i    (ibi_rdata_i),
+    .valid_i   (ibi_tx_valid),
+    .data_i    (ibi_tx_data),
 
     // Output data units.
     .valid_o   (ibi_unit_valid),
-    .ready_i   (ibi_unit_ready),
+    .ready_i   (ibi_consume_data),
     .ddr_mode_i(1'b0),  // IBIs are always sent in SDR mode.
     .data_o    (ibi_unit_data)
   );
 
-  // TODO(#31337): Splitter is not used because IBI transmission is incomplete.
-  assign ibi_unit_ready = ibi_unit_valid;
+  // - only the IBI Data Buffer source requires a data consumption signal.
+  assign ibi_txbuf_consume = ibi_txbuf_valid & !ibi_unit_valid;
+  assign ibi_unit_ready = ibi_consume_data;
 
   // Is the first Target operating as a Standby Controller that requires attention?
   wire hotjoin_stby_ctrl = (stby_cr_enable_init_i == StbyCrEn_SCMHotJoin);
@@ -1092,63 +1126,71 @@ module i3c_target_fsm
                                                      reg2hw_i.targ_ibi_len[ibi_targ_id].q)
                                                   : ~|ibi_stat_desc.data_length;
 
-  logic ibi_dispatch, ibi_stat_desc_valid;
-  assign ibi_stat_desc_valid = ibi_targ_valid & ibi_targ_en[ibi_targ_id] & ibi_len_ok;
-  assign ibi_dispatch = ibi_desc_rvalid_i & ibi_stat_desc_valid;
+  // Auto-suspend IBI transmission in the event of a failed request?
+  wire ibi_suspend_auto = reg2hw_i.targ_pio_control.ibi_suspend_auto.q;
+  // Currently suspended?
+  wire ibi_suspended = reg2hw_i.targ_pio_control.ibi_suspended.q;
+  wire ibi_stat_desc_valid = &{ibi_targ_valid, ibi_targ_en[ibi_targ_id], ibi_len_ok};
+  // An IBI must be neither dispatched nor rejected whilst IBI transmission is suspended.
+  assign ibi_dispatch = &{ibi_desc_rvalid_i,  ibi_stat_desc_valid, !ibi_suspended};
+  assign ibi_reject   = &{ibi_desc_rvalid_i, !ibi_stat_desc_valid, !ibi_suspended};
 
   // IBI Transmission suspended.
-  // TODO(#31337): We may want to make the IBI suspension configurable.
-  assign ibi_suspend_tx_o = ibi_desc_rvalid_i & !ibi_stat_desc_valid;
+  // - this is configurable, since suspending IBI transmission impacts _all_ Virtual Targets.
+  assign ibi_suspend_tx_o = &{ibi_desc_rvalid_i, ibi_suspend_auto, !ibi_stat_desc_valid};
   // Clear the 'Abort' status when resuming.
   assign ibi_abort_clr_o  = reg2hw_i.targ_pio_control.ibi_suspended.qe &
                             reg2hw_i.targ_pio_control.ibi_suspended.q;
 
   // Arbitrate amongst IBI, HJ/CRR and any Pending Read Notifications.
-  // TODO(#31337): Arbitration result needs to be remembered and then used to track the amount of
-  // data consumed by the transceiver as the payload is consumed, rather than formatting the data
-  // here, before the arbiter.
-  localparam int unsigned IBIArbDataW = $bits(i3c_targ_trx_arb_t);
-  i3c_targ_trx_arb_t ibi_arb_in[NumTargets + 2];
-  logic  [NumTargets+1:0] ibi_arb_req, ibi_arb_gnt;
+  typedef struct packed {
+    logic [6:0] addr;      // Address to be
+    logic       ibi;       // IBI indicator
+    logic       payload;   // Any IBI payload bytes at all, including the MDB?
+    logic [8:0] rdata_nq;  // MDB, if any, followed by the 'more data' indication.
+    logic [7:0] data_len;  // The number of additional data bytes, iff `payload` is true.
+  } ibi_arb_data_t;
+
+  localparam int unsigned IBIArbDataW = $bits(ibi_arb_data_t);
+  ibi_arb_data_t ibi_arb_in[NumTargets + 2];
+  
+  logic  [NumTargets+1:0] ibi_arb_req;
   always_comb begin : gen_ibi_arb
     for (int unsigned c = 0; c < NumTargets + 2; c++) ibi_arb_in[c] = '0;
     // The highest-priority contender is any In-Band Interrupt from the queue.
     ibi_arb_req[0] = ibi_dispatch;
     // `ibi_arb_req` determines the validity of `ibi_stat_desc.targ_id` and `ibi_arb_in`; otherwise
     // they will not be used, and the arbiter will not propagate them.
-    ibi_arb_in[0].targ_id  = TargIDW'(ibi_stat_desc.targ_id);
     ibi_arb_in[0].addr     = targ_dev_i[Log2NT'(ibi_stat_desc.targ_id)].addr;
     ibi_arb_in[0].ibi      = 1'b1;
     ibi_arb_in[0].payload  = Log2NT'(targ_payload_cfg[ibi_stat_desc.targ_id]);
     ibi_arb_in[0].rdata_nq = {ibi_stat_desc.mdb, |ibi_stat_desc.data_length};
+    ibi_arb_in[0].data_len = ibi_stat_desc.data_length;
     // Hot-Join Request/Controller Role Request; single contender. No associated payload.
     ibi_arb_req[1] = ibi_stby_ctrl | hotjoin_targ_ctrl;
     ibi_arb_in[1].addr = (hotjoin_stby_ctrl | hotjoin_targ_ctrl) ? 7'h02 : targ_dev_i[0].addr;
     // This is followed by any Pending Read Notifications from the Virtual Targets.
     for (int unsigned t = 0; t < NumTargets; t++) begin
-      ibi_arb_req[t + 2] = prn_rvalid[t] & tx_desc_valid[t];
-      ibi_arb_in[t + 2].targ_id  = TargIDW'(t);
+      // PRNs are not considered eligible for dispatch until there is at least another queued
+      // descriptor available; this avoids a race in which the Active Controller could be notified
+      // of Private Read data that is not yet available.
+      ibi_arb_req[t + 2] = prn_desc_avail[t] & tx_desc_valid[t] & |(tx_desc_rused_i[t] >> 1);
       ibi_arb_in[t + 2].addr     = targ_dev_i[t].addr;
       ibi_arb_in[t + 2].ibi      = 1'b1;
-      ibi_arb_in[t + 2].payload  = |tx_desc[t].prn.len;
+      ibi_arb_in[t + 2].payload  = 1'b1;
       ibi_arb_in[t + 2].rdata_nq = {3'b101, tx_desc[t].prn.lsbs,  // MDB.
                                            |tx_desc[t].prn.len};  // More bytes?
+      ibi_arb_in[t + 2].data_len = 8'(tx_desc[t].prn.len);
     end
   end
-
-  // IBI, CRR/HJ and PRN (one per target) arbitration results.
-  localparam int unsigned IBIArbW = $clog2(NumTargets + 2);
-  i3c_targ_trx_arb_t ibi_arb_data;
-  logic ibi_arb_valid;
 
   // Arbitrate amongst the Virtual Targets that currently want the attention of the Controller.
   // - Pending Read Notifications (1 per target).
   // - Hot-Join/Controller Role Request come from Standby Controller/Virtual Target 0.
   // - All In-Band Interrupts come from the associated queue.
-
-  // TODO(#31337): Arbitration result needs to be remembered until the IBI has been completely
-  // transferred or it has failed in some way.
   logic [IBIArbW-1:0] ibi_arb_winner;
+  ibi_arb_data_t ibi_arb_data;
+  logic ibi_arb_valid;
 
   prim_arbiter_fixed #(
     .N(NumTargets + 2),
@@ -1160,7 +1202,7 @@ module i3c_target_fsm
 
     .req_i  (ibi_arb_req),
     .data_i (ibi_arb_in),
-    .gnt_o  (ibi_arb_gnt),
+    .gnt_o  (),
     .idx_o  (ibi_arb_winner),
 
     .valid_o(ibi_arb_valid),
@@ -1168,26 +1210,90 @@ module i3c_target_fsm
     .ready_i(1'b1)
   );
 
+  // The Target ID is returned to us by the transceiver logic to indicate the outcome of the IBI
+  // transmission attempt; we may map the arbitration winner to a Target ID by co-opting the NoMatch
+  // and Broadcast values to represent IBI and Hot-Join, respectively.
+  logic [Log2MT-1:0] ibi_arb_targ_id;
+  always_comb begin : gen_ibi_arb_targ_id
+    // This reshuffle is necessitated by the IBI priority order used during arbitration, see above.
+    unique case (ibi_arb_winner)
+      0:       ibi_arb_targ_id = TargIDNoMatch;
+      1:       ibi_arb_targ_id = TargIDBroadcast;
+      default: ibi_arb_targ_id = ibi_arb_winner - IBIArbW'('h2);
+    endcase    
+  end
+
+  // IBI transmission state, augmenting the information in `arb_data_o`.
+  logic [7:0] ibi_tx_len;
+  wire        ibi_tx_last = ~|ibi_tx_len;
+  // The number of payload bytes remaining after the current byte.
+  wire  [7:0] ibi_next_len = ibi_tx_len - 8'h01;
+  assign ibi_consume_data = &{ibi_src_valid, arb_accepted, !ibi_tx_last};
+
+  // Completion of an IBI transmission attempt, whether successful or not; completion shall be
+  // signaled only when a final verdict - after any retrying - is reached.
+  assign ibi_completion = &{ibi_src_valid, arb_accepted,  ibi_tx_last};
+  // TODO(#31337): We must accept transceiver responses too to catch all completion events.
+  // If the transceiver indicates a NACK then we start the retry timer, to be used in the event that
+  // a Controller does not disable the IBI. If it does get disabled, post the outcome immediately.
+  assign ibi_nacked_o   = 1'b0;
+
+  // Post the outcome of IBI transmission?
+  i3c_err_status_e ibi_status;
+  assign ibi_status = ErrStatus_SUCCESS;
+  wire ibi_result = ibi_completion & ((ibi_status != ErrStatus_SUCCESS) | ibi_stat_desc.wroc);
+
   // Present the arbitration request of the winning target to the transceiver.
-  // TODO(#31337): Consider whether we shall ever need to retract an arbitration request or
-  // re-prioritize.
-  // The Bus Available Condition is 1us.
+  // TODO(#31337): Consider whether we shall ever need/want to re-prioritize IBIs. Retraction is
+  // certainly required, to handle abort/software reset etc.
   always_ff @(posedge clk_i or negedge trx_rst_ni) begin
     if (!trx_rst_ni) begin
-      arb_toggle_o      <= 1'b0;
-      arb_data_o        <= '0;
-      arb_gnt_q         <= '0;
-      prev_arb_toggle   <= 1'b0;
+      arb_toggle_o    <= 1'b0;
+      arb_data_o      <= 'b0;
+      prev_arb_toggle <= 1'b0;
+      ibi_src_valid   <= 1'b0;
+      ibi_src         <= 'b0;
+      ibi_tx_len      <= 'b0;
+    end else if (sw_reset_i) begin
+      // Reset the arbitration state within the FSM without affecting the transceiver.
+      arb_toggle_o    <= arb_toggle_i;
+      prev_arb_toggle <= arb_toggle_i;
+      // No in-progress IBI.
+      ibi_src_valid   <= 1'b0;
     end else if (enable_i) begin
-      if (ibi_arb_valid & (arb_toggle_o == prev_arb_toggle)) begin
-        arb_toggle_o      <= !arb_toggle_o;
-        arb_data_o        <= ibi_arb_data;
-        arb_gnt_q         <= ibi_arb_gnt;
-      end else if (arb_toggle_edge) begin
-        prev_arb_toggle   <= arb_toggle_o;
+      if (ibi_completion) begin
+        ibi_src_valid       <= 1'b0;
+      end else if (ibi_consume_data) begin
+        // Track the remaining payload bytes.
+        ibi_tx_len          <= ibi_next_len;
+        // Continue supplying data from this IBI source.
+        arb_toggle_o        <= !arb_toggle_o;
+        arb_data_o.is_mdb   <= 1'b0;
+        arb_data_o.rdata_nq <= {ibi_unit_data[7:0], |ibi_next_len};
+      end else if (ibi_arb_valid & (arb_toggle_o == prev_arb_toggle)) begin
+        // Capture the source of the IBI request.
+        ibi_src_valid       <= 1'b1;
+        ibi_src             <= ibi_arb_winner;
+        arb_toggle_o        <= !arb_toggle_o;
+        // Capture the number of additional payload data bytes, if any.
+        ibi_tx_len          <= ibi_arb_data.data_len;
+        // Complete the arbitration request to the transceiver.
+        arb_data_o.targ_id  <= ibi_arb_targ_id;
+        arb_data_o.addr     <= ibi_arb_data.addr;
+        arb_data_o.ibi      <= ibi_arb_data.ibi;
+        arb_data_o.is_mdb   <= ibi_arb_data.payload;
+        arb_data_o.rdata_nq <= ibi_arb_data.rdata_nq;
       end
+      // Update toggle state when the transceiver accepts an item.
+      if (arb_accepted) prev_arb_toggle <= arb_toggle_o;
     end
   end
+
+  // IBI, CRR/HJ and PRN (one per target) arbitration results.
+  wire [NumTargets+1:0] ibi_sel = (NumTargets + 2)'(1'b1) << ibi_src;
+  // - signals to the individual IBI sources; note that they must still be qualified with `enable_i`
+  //   before they are safe to use as `rready` signals to the external message buffer, for example.
+  assign ibi_tx_complete = ibi_sel & {(NumTargets + 2){ibi_completion}};
 
   // Start request to the transceiver.
   // - this is needed to raise IBI and CRR requests when there is no activity on the I3C bus.
@@ -1225,12 +1331,7 @@ module i3c_target_fsm
   // transmission. We then have a question what we should do if the transfer did not complete
   // successfully; leave software to purge the Tx and Tx Desc FIFOs? Does it even have the means to
   // do that yet?
-  logic ibi_result;
-  logic txd_result;
-  always_comb begin
-    ibi_result = 1'b0;
-    txd_result = 1'b0;
-  end
+  wire txd_result = 1'b0;
 
   logic [TTIBusEv_Count-1:0] bus_events;
   logic target_rst_detected;
@@ -1277,9 +1378,9 @@ module i3c_target_fsm
 
     .ibi_result_i    (ibi_result),
     .ibi_status_i    (ibi_status),
-    .ibi_targ_id_i   (Log2NT'(ibi_desc.targ_id)),
-    .ibi_tid_i       (ibi_desc.tid),
-    .ibi_data_left_i (tx_bytes_left),
+    .ibi_targ_id_i   (Log2NT'(ibi_stat_desc.targ_id)),
+    .ibi_tid_i       (ibi_stat_desc.tid),
+    .ibi_data_left_i (ibi_tx_len),
 
     // Suspending transmission.
     .suspend_tx_i    (suspend_tx_o),
@@ -1472,8 +1573,7 @@ module i3c_target_fsm
     unused_targ_dev = 1'b0;
     for (int unsigned t = 0; t < NumTargets; t++) begin
       unused_targ_dev ^= ^{targ_info[t], tx_desc[t].prn.reserved, tx_desc[t].prn.tid,
-                           tx_desc[t].prn.wroc, tx_desc_rused_i[t], tx_desc_ravail_i[t],
-                           targ_dev_i[t]};
+                           tx_desc[t].prn.wroc, targ_dev_i[t]};
     end
     // - the Direct Read CCC data of the Virtual Targets that are not implemented.
     for (int unsigned t = NumTargets; t < MaxTargets; t++) begin
@@ -1490,18 +1590,19 @@ module i3c_target_fsm
       end
     end
   end
+  // - IBI-related unused signals:
+  logic unused_ibi_signals;
+  assign unused_ibi_signals = ^{ibi_tx_complete[1]};
   // - inputs that are not used yet (see the TODOs at their declarations).
   logic unused_fsm_inputs;
   assign unused_fsm_inputs = ^{rstact_i, bus_avail_i, rx_desc_wused_i, rx_desc_wfull_i,
                                ibi_rused_i, rxbuf_wavail_i, stby_bcst_wready_i};
   // - descriptor fields, grants, DAA state and the Virtual Target Detect bit that are not used yet.
   logic unused_fsm_signals;
-  assign unused_fsm_signals = ^{ccc_rsp.inc_idx, ccc_rsp.rst_idx, arb_gnt_q[1],
+  assign unused_fsm_signals = ^{ccc_rsp.inc_idx, ccc_rsp.rst_idx,
                                 tx_desc_curr.tx.data_length, tx_desc_curr.tx.notify,
-                                tx_desc_curr.tx.reserved, tx_desc_curr.tx.wroc,
-                                ibi_desc.data_length, ibi_desc.mdb, ibi_desc.reserved,
-                                ibi_desc.wroc, ibi_unit_data,
-                                ibi_stat_desc.reserved, ibi_stat_desc.tid, ibi_stat_desc.wroc,
-                                ibi_arb_winner, virt_targ_det};
+                                tx_desc_curr.tx.reserved, tx_desc_curr.tx.wroc, ibi_unit_data[15:8],
+                                ibi_stat_desc.reserved, ibi_stat_desc.wroc,
+                                ibi_retry_i};
 
 endmodule

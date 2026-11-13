@@ -53,7 +53,7 @@ module i3c_sync_data
   logic [Width-1:0] dst_data_q;
 
   // Anchor point for CDC exclusion; this data word effectively overtakes the toggle signal by
-  // two destination clock cycles and changes infrequently relative to the destination clock,
+  // one to two destination clock cycles and changes infrequently relative to the destination clock,
   // so metastability is not an issue when capturing the data in the destination domain.
   assign dst_data = src_data_i;
 

@@ -69,7 +69,7 @@ package i3c_tti_pkg;
   typedef struct packed {
     logic                 wroc;         // Write Response even On successful Completion.
     logic   [10-Log2MT:0] reserved;     // Reserved for future use.
-    logic    [Log2MT-1:0] targ_id;      // The Virtual Target sending the IBI/CRR/HotJoin.
+    logic    [Log2MT-1:0] targ_id;      // The Virtual Target sending the IBI request.
     logic           [7:0] mdb;          // Mandatory Data Byte.
     logic           [3:0] tid;          // Transaction ID.
     logic           [7:0] data_length;  // Count of the additional payload bytes, if any.

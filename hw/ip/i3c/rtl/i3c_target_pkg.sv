@@ -121,10 +121,10 @@ package i3c_target_pkg;
   // Description of an Arbitration request to the Target transceiver.
   // - In-Band Interrupt or Controller-Role Request.
   typedef struct packed {
-    logic [TargIDW-1:0] targ_id;   // ID of Target. TODO: Required only if _trx signals back to core
+    logic [TargIDW-1:0] targ_id;   // ID of Target; transceiver requires this to reply to the core.
     logic         [6:0] addr;      // Address to be used in arbitration request, or ensuing data.
     logic               ibi;       // 1 for true IBI, 0 for Controller-Role or Hot-Join Request.
-    logic               payload;   // Does this IBI have payload bytes, including MDB?
+    logic               is_mdb;    // Is `rdata_nq` holding the Mandatory Data Byte (MDB)?
     logic         [8:0] rdata_nq;  // SDR word for transmission, including 'last' bit.
   } i3c_targ_trx_arb_t;
 

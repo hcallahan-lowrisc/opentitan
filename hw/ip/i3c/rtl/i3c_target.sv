@@ -160,6 +160,10 @@ module i3c_target
   input                     ibi_rempty_i,
   input      [FIFODepthW:0] ibi_rused_i,
 
+  // Retrying of NACKed IBIs.
+  output                    ibi_nacked_o,
+  input                     ibi_retry_i,
+
   // Transmit data to the transceiver, for Private Read transfers.
   output logic              trx_dvalid_o[NumTargets],
   input                     trx_dready_i[NumTargets],
@@ -466,7 +470,6 @@ module i3c_target
     .tx_desc_rdata_i      (tx_desc_rdata_i),
     .tx_desc_rempty_i     (tx_desc_rempty_i),
     .tx_desc_rused_i      (tx_desc_rused_i),
-    .tx_desc_ravail_i     (tx_desc_ravail_i),
 
     // Reception Descriptor access.
     .rx_desc_wvalid_o     (rx_desc_wvalid_o),
@@ -494,6 +497,10 @@ module i3c_target
     .ibi_rdata_i          (ibi_rdata_i),
     .ibi_rempty_i         (ibi_rempty_i),
     .ibi_rused_i          (ibi_rused_i),
+
+    // Retrying of NACKed IBIs.
+    .ibi_nacked_o         (ibi_nacked_o),
+    .ibi_retry_i          (ibi_retry_i),
 
     // Requests/status information to the transceiver.
     .txd_toggle_o         (txd_toggle_out),
@@ -647,7 +654,7 @@ module i3c_target
   );
 
   // Interrupt generation.
-  // Gate all interrupts that depend on a threshold value with the threshold value being non-zero.
+  // - where a threshold is used, a threshold of zero deactivates the interrupt.
   always_comb begin
     // Reception uses a single buffer for all Targets.
     intr_o = '0;  // Note: this provides drivers for non-extant Virtual Targets.
@@ -657,7 +664,8 @@ module i3c_target
     intr_o.ibi_status_thld = |reg2hw_i.targ_queue_thld_ctrl.ibi_status_thld.q &&
                              (32'(ibi_desc_ravail_i) >=
                               32'(reg2hw_i.targ_queue_thld_ctrl.ibi_status_thld.q));
-    intr_o.async_evt_ready = !async_empty_i;  // TODO: Need to reconsider if CCC becomes multi-desc?
+    // TODO(#31337): reporting of CCC data requires multiple DWORDs in the async event queue.
+    intr_o.async_evt_ready = !async_empty_i;
     intr_o.transfer_abort  = transfer_aborted;
     intr_o.transfer_err    = transfer_err;
     intr_o.rx_desc_ovf     = rx_desc_ovf;
