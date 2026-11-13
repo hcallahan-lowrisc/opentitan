@@ -1102,12 +1102,6 @@ module i3c_target_fsm
   assign ibi_abort_clr_o  = reg2hw_i.targ_pio_control.ibi_suspended.qe &
                             reg2hw_i.targ_pio_control.ibi_suspended.q;
 
-  // Return the 9 SDR bits to be transmitted for the Mandatory Data byte of an In-Band Interrupt
-  // request; the final bit indicates whether there is more data to follow.
-  function automatic logic [8:0] mand_data_nq(logic [7:0] rdata, logic [7:0] len);
-    return {rdata[7:0], |len};
-  endfunction
-
   // Arbitrate amongst IBI, HJ/CRR and any Pending Read Notifications.
   // TODO(#31337): Arbitration result needs to be remembered and then used to track the amount of
   // data consumed by the transceiver as the payload is consumed, rather than formatting the data
@@ -1124,8 +1118,9 @@ module i3c_target_fsm
     ibi_arb_in[0].targ_id  = TargIDW'(ibi_stat_desc.targ_id);
     ibi_arb_in[0].addr     = targ_dev_i[Log2NT'(ibi_stat_desc.targ_id)].addr;
     ibi_arb_in[0].ibi      = 1'b1;
-    ibi_arb_in[0].rdata_nq = mand_data_nq(ibi_stat_desc.mdb, ibi_stat_desc.data_length);
-    // Hot-Join Request/Controller Role Request; single contender.
+    ibi_arb_in[0].payload  = Log2NT'(targ_payload_cfg[ibi_stat_desc.targ_id]);
+    ibi_arb_in[0].rdata_nq = {ibi_stat_desc.mdb, |ibi_stat_desc.data_length};
+    // Hot-Join Request/Controller Role Request; single contender. No associated payload.
     ibi_arb_req[1] = ibi_stby_ctrl | hotjoin_targ_ctrl;
     ibi_arb_in[1].addr = (hotjoin_stby_ctrl | hotjoin_targ_ctrl) ? 7'h02 : targ_dev_i[0].addr;
     // This is followed by any Pending Read Notifications from the Virtual Targets.
@@ -1134,8 +1129,9 @@ module i3c_target_fsm
       ibi_arb_in[t + 2].targ_id  = TargIDW'(t);
       ibi_arb_in[t + 2].addr     = targ_dev_i[t].addr;
       ibi_arb_in[t + 2].ibi      = 1'b1;
-      ibi_arb_in[t + 2].rdata_nq = mand_data_nq({3'b101, tx_desc[t].prn.lsbs},  // MDB.
-                                                {6'b0,   tx_desc[t].prn.len});  // More bytes?
+      ibi_arb_in[t + 2].payload  = |tx_desc[t].prn.len;
+      ibi_arb_in[t + 2].rdata_nq = {3'b101, tx_desc[t].prn.lsbs,  // MDB.
+                                           |tx_desc[t].prn.len};  // More bytes?
     end
   end
 

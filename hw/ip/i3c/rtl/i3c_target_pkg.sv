@@ -124,6 +124,7 @@ package i3c_target_pkg;
     logic [TargIDW-1:0] targ_id;   // ID of Target. TODO: Required only if _trx signals back to core
     logic         [6:0] addr;      // Address to be used in arbitration request, or ensuing data.
     logic               ibi;       // 1 for true IBI, 0 for Controller-Role or Hot-Join Request.
+    logic               payload;   // Does this IBI have payload bytes, including MDB?
     logic         [8:0] rdata_nq;  // SDR word for transmission, including 'last' bit.
   } i3c_targ_trx_arb_t;
 

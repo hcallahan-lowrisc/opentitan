@@ -261,7 +261,7 @@ module i3c_target
     end
     // The Standby Controller, when enabled, replacing the first Target.
     if (stby_cr_enabled_i) begin
-      targ_dev[0].en            = reg2hw_i.targ_control.stby_cr_support.q;
+      targ_dev[0].en            = 1'b1;
       targ_dev[0].addr          = stby_cr_addr;
       targ_dev[0].addr_valid    = stby_cr_dynaddr_valid | stby_cr_staddr_valid;
       targ_dev[0].addr_dynamic  = stby_cr_dynaddr_valid;

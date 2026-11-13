@@ -408,7 +408,7 @@ module i3c_target_trx
     // --- Single Data Rate (SDR) traffic ---
     State_RxSDR,
     State_TxSDR,
-    State_WaitStop,
+    State_WaitSrP,
 
     // --- Double Data Rate (HDR-DDR) Transmission ---
     State_TxPreDDR,
@@ -504,6 +504,9 @@ module i3c_target_trx
   wire arb_reqd = trx_avalid_i;
   assign trx_aready_o = arb_won;
 
+  // Does the current IBI have _any_ payload bytes, including the Mandatory Data Byte (MDB)?
+  wire ibi_payload = trx_areq_i.payload;
+
   // -----------------------------------------------------------------------------------------------
 
   // There are two reasons for detecting a mismatch between the observed SDA state and the SDA
@@ -531,7 +534,7 @@ module i3c_target_trx
   // ignoring the remainder of the frame.
   // TODO(#31065): This logic has been added recently and is not handling the transition into these
   // states (This SCL-driven logic needs to have everything ready _before_ the SCL edge).
-  wire drv_release = state_q inside {State_Idle, State_WaitStop, State_Ignore};
+  wire drv_release = state_q inside {State_Idle, State_WaitSrP, State_Ignore};
 
   // Is there something to transmit on behalf of the addressed target?
   wire tx_avail = sel_valid;
@@ -656,19 +659,20 @@ module i3c_target_trx
         // the address and even the RnW match against what the Controller is driving; if everything
         // matches we're supposed to await an ACK that never arrives. NACK -> try again later.
         State_ArbCont: state_d = arb_lost ? (penult_bit ? (ack_addr ? State_AckAddr
-                                                                    : State_WaitStop)
+                                                                    : State_WaitSrP)
                                                         : State_ArbCede)  // Yield.
                                           : (penult_bit ? State_WaitAck
                                                         : State_ArbCont);  // Still contending.
-        State_ArbCede: state_d = penult_bit ? (ack_addr ? State_AckAddr : State_WaitStop)
+        State_ArbCede: state_d = penult_bit ? (ack_addr ? State_AckAddr : State_WaitSrP)
                                             : State_ArbCede;
         // The Active Controller's ACK/NACK of an Arbitrable Address Header is sampled on the rising
         // edge within the ACK bit. On the addressed-target path we drive that bit low ourselves, so
         // the same test covers both cases and also catches a driver conflict on the ACK bit.
-        State_AckAddr: state_d = sda_pq[0][0] ? State_WaitStop
+        State_AckAddr: state_d = sda_pq[0][0] ? State_WaitSrP
                                               : (trans.rnw ? State_TxSDR : State_RxSDR);
         // Awaiting a response from the Active Controller to an IBI request.
-        State_WaitAck: state_d = ack_recvd ? State_TxSDR : State_WaitStop;
+        // - if accepted (ACK rather than NACK)
+        State_WaitAck: state_d = (ack_recvd & ibi_payload) ? State_TxSDR : State_WaitSrP;
 
         // --- Receiving in SDR mode ---
         State_RxSDR: begin
@@ -676,9 +680,9 @@ module i3c_target_trx
           state_d = entddr_det ? State_RxCmdDDR : (enthdr_det ? State_Ignore : State_RxSDR);
         end
         // --- Transmitting in SDR mode ---
-        State_TxSDR: state_d = (last_bit & tx_sdr_ending) ? State_WaitStop : State_TxSDR;
+        State_TxSDR: state_d = (last_bit & tx_sdr_ending) ? State_WaitSrP : State_TxSDR;
         // --- Ignoring SDR traffic, awaiting stoP or Sr ---
-        State_WaitStop: state_d = State_WaitStop;  // stoP and repeated Start are handled above.
+        State_WaitSrP: state_d = State_WaitSrP;  // stoP and repeated Start are handled above.
 
         // --- Expecting an HDR-DDR Command word ---
         // TODO(#31065): Check the expected 2'b01 preamble; what do we do if we get something else?

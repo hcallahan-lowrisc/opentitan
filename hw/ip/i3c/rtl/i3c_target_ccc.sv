@@ -127,6 +127,10 @@ module i3c_target_ccc
     RData_MAXRDTURN1,
     RData_MAXRDTURN2,
     RData_CRHDLY1,
+    RData_RSTACTDEFB,
+    RData_RSTPERIPH,
+    RData_RSTTARGET,
+    RData_RSTVTDET,
     // Development/diagnostic aid; should never occur because the transceiver logic should
     // accept only supported CCCs.
     RData_UNDEF
@@ -194,7 +198,7 @@ module i3c_target_ccc
         end else begin
           unique case (ccc_req_i.idx)
             0: rdata_src = RData_MAXWR;
-            1: rdata_src = RData_MAXRD;
+              1: rdata_src = RData_MAXRD;
             2: rdata_src = RData_MAXRDTURN0;
             3: rdata_src = RData_MAXRDTURN1;
             4: rdata_src = RData_MAXRDTURN2;
@@ -236,7 +240,20 @@ module i3c_target_ccc
             default: begin end
           endcase
         end
-      // TODO(#31128): entry for RSTACT currently missing.
+      RSTACT: begin
+        if (has_defb) begin
+          // Single-byte GET operations.
+          unique case (defb)
+            RstAct_ResetPeriphTime: rdata_src = RData_RSTPERIPH;
+            RstAct_ResetTargetTime: rdata_src = RData_RSTTARGET;
+            RstAct_VirtTargIndican: rdata_src = RData_RSTVTDET;
+            RstAct_NoReset,
+            RstAct_ResetPeripheral,
+            RstAct_VirtualTargDet:  rdata_src = RData_RSTACTDEFB;
+            default: begin end
+          endcase
+        end
+      end
       default: begin end
     endcase
   end
@@ -354,12 +371,18 @@ module i3c_target_ccc
         RData_MAXRDTURN2: rdata[t] = maxrdturn[t][7:0];
         RData_CRHDLY1: rdata[t] = {5'b0, reg2hw_i.targ_control.crhdly1_set_as.q,
                                          reg2hw_i.targ_control.crhdly1_as.q};
+        RData_RSTACTDEFB: rdata[t] = reg2hw_i.stby_cr_ccc_config_rstact_params.rst_action.q;
+        RData_RSTPERIPH:
+          rdata[t] = reg2hw_i.stby_cr_ccc_config_rstact_params.reset_time_peripheral.q;
+        RData_RSTTARGET: rdata[t] = reg2hw_i.stby_cr_ccc_config_rstact_params.reset_time_target.q;
+        RData_RSTVTDET:  rdata[t] = 8'h00;  // TODO(#31337): Dummy data for now!
         // Debugging/diagnostic aid; should never occur.
-        default: rdata[t] = 8'hbd;
+        default: rdata[t] = 8'hbd;  // 'B'ad 'D'ata.
       endcase
     end
 
     // Is this the final byte of read data?
+    // TODO(#31337): rlast must be per-VT too, because in some cases it is configuration-dependent.
     rlast = 1'b0;
     unique case (rdata_src)
       // Reading from these data sources signals the end of the command.
@@ -375,7 +398,11 @@ module i3c_target_ccc
       RData_DYNADDR,
       RData_ENDXFER,
       RData_MAXRDTURN2,
-      RData_CRHDLY1: rlast = 1'b1;
+      RData_CRHDLY1,
+      RData_RSTACTDEFB,
+      RData_RSTPERIPH,
+      RData_RSTTARGET,
+      RData_RSTVTDET: rlast = 1'b1;
 
       // On MRL1, we can only continue to the IBI byte if the currently addressed target is
       // IBI capable. Watch out for group addresses.

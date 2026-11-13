@@ -826,9 +826,6 @@ module i3c_core
     .stby_cr_enabled_i    (stby_cr_enabled),
     .sw_reset_i           (targ_sw_reset),
     .async_evt_rst_i      (async_evt_rst),
-    // TODO(#31035): Target core logic will need to be aware of reset/enable of transceiver logic.
-
-    // HDR pattern detection.
     .hdr_exit_det_i       (hdr_exit_det),
     .hdr_restart_det_i    (hdr_restart_det),
 
@@ -2484,5 +2481,8 @@ module i3c_core
   // - TODO(#31307): these timers need associated interrupts to inform software drivers.
   logic unused_timers_dead;
   assign unused_timers_dead = ^{dead_ctrl, dead_targ};
+  // - Unused Controller Role Handoff signals (no Standby Controller support yet).
+  logic unused_crr;
+  assign unused_crr = reg2hw_i.targ_control.stby_cr_support.q;
 
 endmodule
