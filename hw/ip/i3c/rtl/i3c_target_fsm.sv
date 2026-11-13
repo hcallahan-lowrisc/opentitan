@@ -134,12 +134,12 @@ module i3c_target_fsm
   input     [DataWidth-1:0] ibi_desc_rdata_i,
   input                     ibi_desc_rempty_i,
 
-  // Buffer reading.
-  output                    buf_rready_o[NumTargets],
-  input                     buf_rvalid_i[NumTargets],
-  input     [DataWidth-1:0] buf_rdata_i[NumTargets],
-  input                     buf_rempty_i[NumTargets],
-  input      [FIFODepthW:0] buf_rused_i[NumTargets],
+  // Reading from Tx Data Buffers.
+  output                    txbuf_rready_o[NumTargets],
+  input                     txbuf_rvalid_i[NumTargets],
+  input     [DataWidth-1:0] txbuf_rdata_i[NumTargets],
+  input                     txbuf_rempty_i[NumTargets],
+  input      [FIFODepthW:0] txbuf_rused_i[NumTargets],
 
   // In-Band Interrupt reading.
   output                    ibi_rready_o,
@@ -169,11 +169,11 @@ module i3c_target_fsm
   input  i3c_targ_trx_rxd_t trx_rxd_i,
   output logic              trx_rready_o,
 
-  // Buffer writing.
-  output                    buf_wvalid_o,
-  output    [DataWidth-1:0] buf_wdata_o,
-  input                     buf_wready_i,
-  input      [FIFODepthW:0] buf_wavail_i, // TODO: Currently unused.
+  // Writing to Rx Data Buffer.
+  output                    rxbuf_wvalid_o,
+  output    [DataWidth-1:0] rxbuf_wdata_o,
+  input                     rxbuf_wready_i,
+  input      [FIFODepthW:0] rxbuf_wavail_i, // TODO: Currently unused.
 
   // Asynchronous Event Queue.
   output                    async_wvalid_o,
@@ -349,7 +349,7 @@ module i3c_target_fsm
   // - each Virtual Target has its own Transmit Data Buffer and Tx Descriptor Queue in order to
   //   be ready to respond promptly to a Private Read transfer from the Active Controller.
   // - Tx Descriptor and Tx Data word are prefetched from shared storage and handled here.
-  for (genvar t = 0; t < NumTargets; t++) begin : gen_splitters
+  for (genvar t = 0; t < NumTargets; t++) begin : gen_txd
     logic        tx_desc_consumed;
     logic  [3:0] tx_start_thld;
     logic        tx_thld_reached;
@@ -382,8 +382,8 @@ module i3c_target_fsm
     // - At least as many DWORDs in buffer as dictated in descriptor, or
     // - At least as many DWORDs in buffer as dictated by tx threshold (threshold is power-of-two)
     assign tx_start_thld       = reg2hw_i.targ_tx_thld_ctrl[t].tx_start_thld.q;
-    assign tx_desc_len_reached = 16'({buf_rused_i[t], 2'b00}) >= tx_desc[t].tx.data_length;
-    assign tx_thld_reached     = |(buf_rused_i[t][FIFODepthW:1] >> tx_start_thld);
+    assign tx_desc_len_reached = 16'({txbuf_rused_i[t], 2'b00}) >= tx_desc[t].tx.data_length;
+    assign tx_thld_reached     = |(txbuf_rused_i[t][FIFODepthW:1] >> tx_start_thld);
 
     assign tx_start = (tx_desc_len_reached || tx_thld_reached) && !tx_suspended;
 
@@ -405,8 +405,8 @@ module i3c_target_fsm
       // Input DWORDs.
       // - full DWORDs are supplied and `clr_i` is then asserted at the end of the transfer;
       //   this also supports easier recovery.
-      .valid_i   (buf_rvalid_i[t] & buf_rready_o[t]),
-      .data_i    (buf_rdata_i[t]),
+      .valid_i   (txbuf_rvalid_i[t] & txbuf_rready_o[t]),
+      .data_i    (txbuf_rdata_i[t]),
 
       // Output data units.
       .valid_o   (unit_valid),
@@ -416,8 +416,8 @@ module i3c_target_fsm
     );
 
     // Collect DWORD from buffer.
-    assign buf_rready_o[t] = &{enable_i, tx_rvalid, !unit_valid, tx_start | tx_active} |
-                              (enable_i & sink_rready[2 * (t + 1)]);  // Data Sink.
+    assign txbuf_rready_o[t] = &{enable_i, tx_rvalid, !unit_valid, tx_start | tx_active} |
+                                (enable_i & sink_rready[2 * (t + 1)]);  // Data Sink.
 
     // Since we are driving data into an irregularly-clocked domain, new data is supplied by
     // inverting a toggle signal and waiting for it to be echoed back to us.
@@ -546,6 +546,7 @@ module i3c_target_fsm
     // PrivWrite,
 
     // --- IBI delivery ---
+    IBI,
 
     // --- CCC handling ---
     CCC,
@@ -846,38 +847,38 @@ module i3c_target_fsm
   // Widen the write mask to bit level, so that unused bytes will be written as zeros.
   // - this may be helpful to software, although it shouldn't be using those bytes, but it's mainly
   //   useful in modeling the hardware for verification purposes.
-  logic [DataWidth/8-1:0] buf_wmask;
-  logic   [DataWidth-1:0] buf_wmask_full;
+  logic [DataWidth/8-1:0] rxbuf_wmask;
+  logic   [DataWidth-1:0] rxbuf_wmask_full;
   for (genvar b = 0; b < DataWidth/8; b++) begin : gen_wmask_full
-    assign buf_wmask_full[8*b +: 8] = {8{buf_wmask[b]}};
+    assign rxbuf_wmask_full[8*b +: 8] = {8{rxbuf_wmask[b]}};
   end
 
   // Note also that i3c_dword_collector does not store the DWORD presently, so we do that here.
   // TODO(#31337): Adjust the i3c_dword_collector for a better fit.
-  logic                 buf_wvalid;
-  logic                 buf_wvalid_q;
-  logic [DataWidth-1:0] buf_wdata;
-  logic [DataWidth-1:0] buf_wdata_q;
+  logic                 rxbuf_wvalid;
+  logic                 rxbuf_wvalid_q;
+  logic [DataWidth-1:0] rxbuf_wdata;
+  logic [DataWidth-1:0] rxbuf_wdata_q;
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
-      buf_wvalid_q <= 1'b0;
-      buf_wdata_q  <= '0;
+      rxbuf_wvalid_q <= 1'b0;
+      rxbuf_wdata_q  <= '0;
     end else if (sw_reset_i) begin
-      buf_wvalid_q <= 1'b0;
+      rxbuf_wvalid_q <= 1'b0;
       // No need to initialize the write data.
     end else if (enable_i) begin
-      if (buf_wvalid | buf_wready_i) buf_wvalid_q <= buf_wvalid;
-      if (buf_wvalid) buf_wdata_q <= buf_wmask_full & buf_wdata;
+      if (rxbuf_wvalid | rxbuf_wready_i) rxbuf_wvalid_q <= rxbuf_wvalid;
+      if (rxbuf_wvalid) rxbuf_wdata_q <= rxbuf_wmask_full & rxbuf_wdata;
     end
   end
 
-  assign buf_wvalid_o = buf_wvalid_q;
-  assign buf_wdata_o  = buf_wdata_q;
+  assign rxbuf_wvalid_o = rxbuf_wvalid_q;
+  assign rxbuf_wdata_o  = rxbuf_wdata_q;
 
   // Broadcast CCCs received in Standby Controller Mode.
   // - these must be posted into HCI IBI Queue (HCI 8.6.7)
-  assign stby_bcst_wvalid_o = buf_wvalid_q; // TODO(#31308): This must be further qualified.
-  assign stby_bcst_wdata_o  = buf_wdata_q;
+  assign stby_bcst_wvalid_o = rxbuf_wvalid_q; // TODO(#31308): This must be further qualified.
+  assign stby_bcst_wdata_o  = rxbuf_wdata_q;
 
   // Excess Private Write Data from the Active Controller must just be dropped; there is no
   // accept/reject signaling mechanism on I3C SDR.
@@ -931,9 +932,9 @@ module i3c_target_fsm
   // Will we have to drop any more read data at this point?
   // - note that `rx_flood_q` makes any drop persistent for the remainder of the transfer,
   //   whatever its cause, so that a transfer is never captured only in part.
-  assign rx_drop = |{buf_wvalid_q & !buf_wready_i, // Transient: Data path full.
-                     rx_desc_stall,                // Transient: Descriptor path full.
-                     rx_flood_q, rx_max_len};      // Persistent until the end of the transfer.
+  assign rx_drop = |{rxbuf_wvalid_q & !rxbuf_wready_i,  // Transient: Data path full.
+                     rx_desc_stall,                     // Transient: Descriptor path full.
+                     rx_flood_q, rx_max_len};           // Persistent until the end of the transfer.
 
   // TODO(#31337): For SDR, flush is currently only triggered on a per-frame basis on a P. This
   //       means that frames which contain segments to multiple targets (separated via Sr), all
@@ -1014,9 +1015,9 @@ module i3c_target_fsm
     .data_i    (trx_rxd_i.wdata),
 
     // Output DWORDs.
-    .valid_o   (buf_wvalid),
-    .mask_o    (buf_wmask),
-    .data_o    (buf_wdata)
+    .valid_o   (rxbuf_wvalid),
+    .mask_o    (rxbuf_wmask),
+    .data_o    (rxbuf_wdata)
   );
 
   /* In-Band Interrupts.
@@ -1366,7 +1367,7 @@ module i3c_target_fsm
   // Supply the 'data available' indications to the data sink.
   logic [SinkBuffers-1:0] sink_rvalid;
   for (genvar t = 0; t < NumTargets; t++) begin : gen_sink_rvalid
-    assign sink_rvalid[2*t + 2] = buf_rvalid_i[t];
+    assign sink_rvalid[2*t + 2] = txbuf_rvalid_i[t];
     assign sink_rvalid[2*t + 3] = tx_desc_rvalid_i[t];
   end
   assign sink_rvalid[0] = ibi_rvalid_i;
@@ -1374,7 +1375,7 @@ module i3c_target_fsm
   // Supply the 'buffer empty' indications to the data sink.
   logic [SinkBuffers-1:0] sink_empty;
   for (genvar t = 0; t < NumTargets; t++) begin : gen_sink_empty
-    assign sink_empty[2*t + 2] = buf_rempty_i[t];
+    assign sink_empty[2*t + 2] = txbuf_rempty_i[t];
     assign sink_empty[2*t + 3] = tx_desc_rempty_i[t];
   end
   assign sink_empty[0] = ibi_rempty_i;
@@ -1492,7 +1493,7 @@ module i3c_target_fsm
   // - inputs that are not used yet (see the TODOs at their declarations).
   logic unused_fsm_inputs;
   assign unused_fsm_inputs = ^{rstact_i, bus_avail_i, rx_desc_wused_i, rx_desc_wfull_i,
-                               ibi_rused_i, buf_wavail_i, stby_bcst_wready_i};
+                               ibi_rused_i, rxbuf_wavail_i, stby_bcst_wready_i};
   // - descriptor fields, grants, DAA state and the Virtual Target Detect bit that are not used yet.
   logic unused_fsm_signals;
   assign unused_fsm_signals = ^{ccc_rsp.inc_idx, ccc_rsp.rst_idx, arb_gnt_q[1],

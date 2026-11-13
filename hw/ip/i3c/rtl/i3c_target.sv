@@ -145,13 +145,13 @@ module i3c_target
   input                     ibi_desc_rempty_i,
   input      [FIFODepthW:0] ibi_desc_ravail_i,
 
-  // Buffer reading.
-  output                    buf_rready_o[NumTargets],
-  input                     buf_rvalid_i[NumTargets],
-  input     [DataWidth-1:0] buf_rdata_i[NumTargets],
-  input                     buf_rempty_i[NumTargets],
-  input      [FIFODepthW:0] buf_rused_i[NumTargets],
-  input      [FIFODepthW:0] buf_ravail_i[NumTargets],
+  // Reading from Tx Data Buffers.
+  output                    txbuf_rready_o[NumTargets],
+  input                     txbuf_rvalid_i[NumTargets],
+  input     [DataWidth-1:0] txbuf_rdata_i[NumTargets],
+  input                     txbuf_rempty_i[NumTargets],
+  input      [FIFODepthW:0] txbuf_rused_i[NumTargets],
+  input      [FIFODepthW:0] txbuf_ravail_i[NumTargets],
 
   // In-Band Interrupt reading.
   output                    ibi_rready_o,
@@ -179,12 +179,12 @@ module i3c_target
   input                     trx_rtoggle_i,
   input  i3c_targ_trx_rxd_t trx_rxd_i,
 
-  // Buffer writing.
-  output                    buf_wvalid_o,
-  output    [DataWidth-1:0] buf_wdata_o,
-  input                     buf_wready_i,
-  input      [FIFODepthW:0] buf_wused_i,  // TODO: Unused, possibly not needed
-  input      [FIFODepthW:0] buf_wavail_i,
+  // Writing to Rx Data Buffer.
+  output                    rxbuf_wvalid_o,
+  output    [DataWidth-1:0] rxbuf_wdata_o,
+  input                     rxbuf_wready_i,
+  input      [FIFODepthW:0] rxbuf_wused_i,  // TODO: Unused, possibly not needed
+  input      [FIFODepthW:0] rxbuf_wavail_i,
 
   // Asynchronous Event Queue.
   output                    async_wvalid_o,
@@ -481,12 +481,12 @@ module i3c_target
     .ibi_desc_rdata_i     (ibi_desc_rdata_i),
     .ibi_desc_rempty_i    (ibi_desc_rempty_i),
 
-    // Buffer reading.
-    .buf_rready_o         (buf_rready_o),
-    .buf_rvalid_i         (buf_rvalid_i),
-    .buf_rdata_i          (buf_rdata_i),
-    .buf_rempty_i         (buf_rempty_i),
-    .buf_rused_i          (buf_rused_i),
+    // Reading from Tx Data Buffers.
+    .txbuf_rready_o       (txbuf_rready_o),
+    .txbuf_rvalid_i       (txbuf_rvalid_i),
+    .txbuf_rdata_i        (txbuf_rdata_i),
+    .txbuf_rempty_i       (txbuf_rempty_i),
+    .txbuf_rused_i        (txbuf_rused_i),
 
     // In-Band Interrupt reading.
     .ibi_rready_o         (ibi_rready_o),
@@ -515,11 +515,11 @@ module i3c_target
     .trx_rxd_i            (trx_rxd),
     .trx_rready_o         (trx_rready),
 
-    // Buffer writing.
-    .buf_wvalid_o         (buf_wvalid_o),
-    .buf_wdata_o          (buf_wdata_o),
-    .buf_wready_i         (buf_wready_i),
-    .buf_wavail_i         (buf_wavail_i),
+    // Writing to Rx Data Buffer.
+    .rxbuf_wvalid_o       (rxbuf_wvalid_o),
+    .rxbuf_wdata_o        (rxbuf_wdata_o),
+    .rxbuf_wready_i       (rxbuf_wready_i),
+    .rxbuf_wavail_i       (rxbuf_wavail_i),
 
     // Asynchronous Event Queue.
     .async_wvalid_o       (async_wvalid_o),
@@ -667,7 +667,7 @@ module i3c_target
     // Transmission requires per-Target buffers.
     for (int unsigned t = 0; t < NumTargets; t++) begin
       intr_o.tx_thld[t] = |reg2hw_i.targ_tx_thld_ctrl[t].tx_buf_free_thld.q &&
-        (32'(buf_ravail_i[t]) >= 32'(reg2hw_i.targ_tx_thld_ctrl[t].tx_buf_free_thld.q));
+        (32'(txbuf_ravail_i[t]) >= 32'(reg2hw_i.targ_tx_thld_ctrl[t].tx_buf_free_thld.q));
       intr_o.tx_desc_ready[t] = |reg2hw_i.targ_tx_thld_ctrl[t].tx_desc_empty_thld.q &&
         (32'(tx_desc_ravail_i[t]) >= 32'(reg2hw_i.targ_tx_thld_ctrl[t].tx_desc_empty_thld.q));
     end
@@ -697,9 +697,9 @@ module i3c_target
 
   // Signals that the logic does not use (yet).
   // - TODO(#31035): HDR Exit and HDR Restart are not handled yet.
-  // - TODO: Most of `rstdet_rsp_sync`, and `buf_wused_i`, are not used yet (see above).
+  // - TODO: Most of `rstdet_rsp_sync`, and `rxbuf_wused_i`, are not used yet (see above).
   logic unused_targ_inputs;
-  assign unused_targ_inputs = ^{hdr_exit_det_i, hdr_restart_det_i, buf_wused_i,
+  assign unused_targ_inputs = ^{hdr_exit_det_i, hdr_restart_det_i, rxbuf_wused_i,
                                 rstdet_rsp_sync.active, rstdet_rsp_sync.deep_sleep_en,
                                 rstdet_rsp_sync.rst_periph_en, rstdet_rsp_sync.rst_target_en,
                                 rstdet_rsp_sync.wake_up_det, rstdet_rsp_sync.peri_rst_det,

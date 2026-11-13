@@ -649,7 +649,7 @@ module i3c_core
 
   // Indicate whether Tx data/descriptors are available for each virtual target.
   logic                 targ_tx_desc_rready[NumTargets];
-  logic                 targ_buf_rready[NumTargets];
+  logic                 targ_txbuf_rready[NumTargets];
 
   logic                 targ_tx_desc_rvalid[NumTargets];
   logic [DataWidth-1:0] targ_tx_desc_rdata[NumTargets];
@@ -657,17 +657,17 @@ module i3c_core
   logic [FIFODepthW:0]  targ_tx_desc_rused[NumTargets];
   logic [FIFODepthW:0]  targ_tx_desc_ravail[NumTargets];
 
-  logic                 targ_buf_rvalid[NumTargets];
-  logic [DataWidth-1:0] targ_buf_rdata[NumTargets];
-  logic                 targ_buf_rempty[NumTargets];
-  logic [FIFODepthW:0]  targ_buf_rused[NumTargets];
-  logic [FIFODepthW:0]  targ_buf_ravail[NumTargets];
+  logic                 targ_txbuf_rvalid[NumTargets];
+  logic [DataWidth-1:0] targ_txbuf_rdata[NumTargets];
+  logic                 targ_txbuf_rempty[NumTargets];
+  logic [FIFODepthW:0]  targ_txbuf_rused[NumTargets];
+  logic [FIFODepthW:0]  targ_txbuf_ravail[NumTargets];
 
   always_comb begin
     // Read access to the message buffer for the configured, existing Virtual Targets.
     for (int unsigned t = 0; t < NumTargets; t++) begin
       fifo_in[FIFO_TxDTarg0 + t].rready = targ_tx_desc_rready[t];
-      fifo_in[FIFO_TxTarg0  + t].rready = targ_buf_rready[t];
+      fifo_in[FIFO_TxTarg0  + t].rready = targ_txbuf_rready[t];
 
       targ_tx_desc_rvalid[t] = fifo_out[FIFO_TxDTarg0 + t].rvalid;
       targ_tx_desc_rdata[t]  = fifo_out[FIFO_TxDTarg0 + t].rdata;
@@ -675,11 +675,11 @@ module i3c_core
       targ_tx_desc_rused[t]  = fifo_state[FIFO_TxDTarg0 + t].used;
       targ_tx_desc_ravail[t] = fifo_state[FIFO_TxDTarg0 + t].avail;
 
-      targ_buf_rvalid[t] = fifo_out[FIFO_TxTarg0 + t].rvalid;
-      targ_buf_rdata[t]  = fifo_out[FIFO_TxTarg0 + t].rdata;
-      targ_buf_rempty[t] = fifo_state[FIFO_TxTarg0 + t].empty;
-      targ_buf_rused[t]  = fifo_state[FIFO_TxTarg0 + t].used;
-      targ_buf_ravail[t] = fifo_state[FIFO_TxTarg0 + t].avail;
+      targ_txbuf_rvalid[t] = fifo_out[FIFO_TxTarg0 + t].rvalid;
+      targ_txbuf_rdata[t]  = fifo_out[FIFO_TxTarg0 + t].rdata;
+      targ_txbuf_rempty[t] = fifo_state[FIFO_TxTarg0 + t].empty;
+      targ_txbuf_rused[t]  = fifo_state[FIFO_TxTarg0 + t].used;
+      targ_txbuf_ravail[t] = fifo_state[FIFO_TxTarg0 + t].avail;
     end
     // Any Virtual Targets that are excluded from the design.
     for (int unsigned t = NumTargets; t < MaxTargets; t++) begin
@@ -934,13 +934,13 @@ module i3c_core
     .ibi_desc_rempty_i    (fifo_state[FIFO_IBIDTarg].empty),
     .ibi_desc_ravail_i    (fifo_state[FIFO_IBIDTarg].avail),
 
-    // Buffer reading.
-    .buf_rready_o         (targ_buf_rready),
-    .buf_rvalid_i         (targ_buf_rvalid),
-    .buf_rdata_i          (targ_buf_rdata),
-    .buf_rempty_i         (targ_buf_rempty),
-    .buf_rused_i          (targ_buf_rused),
-    .buf_ravail_i         (targ_buf_ravail),
+    // Reading from Tx Data Buffers.
+    .txbuf_rready_o       (targ_txbuf_rready),
+    .txbuf_rvalid_i       (targ_txbuf_rvalid),
+    .txbuf_rdata_i        (targ_txbuf_rdata),
+    .txbuf_rempty_i       (targ_txbuf_rempty),
+    .txbuf_rused_i        (targ_txbuf_rused),
+    .txbuf_ravail_i       (targ_txbuf_ravail),
 
     // In-Band Interrupt reading.
     .ibi_rready_o         (fifo_in[FIFO_IBITarg].rready),
@@ -968,12 +968,12 @@ module i3c_core
     .trx_rtoggle_i        (targ_trx_rtoggle),
     .trx_rxd_i            (targ_trx_rxd),
 
-    // Buffer writing.
-    .buf_wvalid_o         (fifo_in[FIFO_RxTarg].wvalid),
-    .buf_wdata_o          (fifo_in[FIFO_RxTarg].wdata),
-    .buf_wready_i         (fifo_out[FIFO_RxTarg].wready),
-    .buf_wused_i          (fifo_state[FIFO_RxTarg].used),
-    .buf_wavail_i         (fifo_state[FIFO_RxTarg].avail),
+    // Writing to Rx Data Buffer.
+    .rxbuf_wvalid_o       (fifo_in[FIFO_RxTarg].wvalid),
+    .rxbuf_wdata_o        (fifo_in[FIFO_RxTarg].wdata),
+    .rxbuf_wready_i       (fifo_out[FIFO_RxTarg].wready),
+    .rxbuf_wused_i        (fifo_state[FIFO_RxTarg].used),
+    .rxbuf_wavail_i       (fifo_state[FIFO_RxTarg].avail),
 
     // Asynchronous Event Queue.
     .async_wvalid_o       (fifo_in[FIFO_AsyncTarg].wvalid),
