@@ -53,9 +53,12 @@ module i3c_queues
 );
 
   // A read from an empty queue will be more apparent if we return all '1's rather than zeros.
-  // localparam logic [DataWidth-1:0] NoRData = '1;
-  // TODO(#31307): This is a development aid; replace with the above at some point.
+  `ifdef SIMULATION
+  // TODO(#31307): This is a development aid; replace with all '1's when it's no longer aiding DV.
   localparam logic [DataWidth-1:0] NoRData = 32'hdece_a5ed;
+  `else
+  localparam logic [DataWidth-1:0] NoRData = '1;
+  `endif
 
   // Read operations from logical queues.
   logic [NumQueues-1:0] gnt_rd;
