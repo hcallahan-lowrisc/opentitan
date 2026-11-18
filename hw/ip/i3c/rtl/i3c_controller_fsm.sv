@@ -1643,10 +1643,6 @@ module i3c_controller_fsm
     .clk_i        (clk_i),
     .rst_ni       (rst_ni),
 
-    // Control inputs.
-    .enable_i     (enable_i),
-    .sw_reset_i   (sw_reset_i),
-
     // Driver updates to cache entries.
     .we_i         (sw_datc_we_i),
     .widx_i       (sw_datc_widx_i),
@@ -1661,13 +1657,7 @@ module i3c_controller_fsm
     .ibi_payload_o(ibi_payload),
     .ibi_reject_o (ibi_reject),
     .crr_reject_o (crr_reject),
-    .xfer_mode_o  (xfer_mode),
-
-    // Interface to DAT memory for walking the table.
-    // TODO(#31304): We are likely to drop this interface.
-    .dat_re_o     (),
-    .dat_idx_o    (),
-    .dat_rdata_i  (i3c_dat_mem_t'('b0))
+    .xfer_mode_o  (xfer_mode)
   );
 
   // If we're accepting an IBI, we must read from the associated DAT entry.

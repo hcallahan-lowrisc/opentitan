@@ -22,10 +22,6 @@ module i3c_dat_cache
   input                   clk_i,
   input                   rst_ni,
 
-  // Control inputs.
-  input                   enable_i,
-  input                   sw_reset_i,
-
   // Update an entry within the cache, if present.
   // - used when the driver software writes to a DAT entry.
   input             [1:0] we_i,
@@ -46,14 +42,7 @@ module i3c_dat_cache
   output                  ibi_payload_o,
   output                  ibi_reject_o,
   output                  crr_reject_o,
-  output i3c_xfer_mode_e  xfer_mode_o,
-
-  // Interface to DAT memory for walking the table.
-  // - TODO(#31304): With the present simple implementation this is not required.
-  //                 Once ratified, decide whether these ports should persist or be removed.
-  output                  dat_re_o,
-  output [DATAddrW-1:0]   dat_idx_o,
-  input  i3c_dat_mem_t    dat_rdata_i
+  output i3c_xfer_mode_e  xfer_mode_o
 );
 
   // This module implements a small cache of DAT fields that are required quickly when responding to
@@ -163,13 +152,6 @@ module i3c_dat_cache
       if (we_i[1]) entry[widx_i].autocmd_mode <= wdata_i.autocmd_mode;
     end
   end
-
-  // Read requests to the Device Address Table; not required with this simple implementation.
-  assign dat_re_o   = 1'b0;
-  assign dat_idx_o  = DATAddrW'('b0);
-  wire unused_rdata = ^dat_rdata_i;
-  // `enable_i` and `sw_reset_i` do not affect the cache; see the note on cache updates above.
-  wire unused_ctrl = ^{enable_i, sw_reset_i};
 
   // This simple implementation requires that the cache has the same number of entries as the
   // Device Address Table (DAT) itself.
