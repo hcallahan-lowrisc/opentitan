@@ -31,6 +31,7 @@ module i3c_cmd_decode
 
   // Configuration.
   input                             use_bcst_addr_i,
+  input                             ccc_framing_i,  // I3C Broadcast Address to be sent (framing).
   input                       [6:0] addr_blocked_i[NumBlocked],
   input                       [6:0] mask_blocked_i[NumBlocked],
 
@@ -275,10 +276,15 @@ module i3c_cmd_decode
     logic [6:0] addr_cand;
 
     // Using I3C Broadcast Address to commence a transfer?
-    // - do NOT use the I3C Broadcast Address after a Repeated Start (Sr); for either CCC or Private
-    //   transfers. TODO(#31304): ENTDAA is an exception here.
-    cmd_attrs_o.addr_bcst = |{cmd_attrs_o.is_ccc, cmd_attrs_o.ddr, use_bcst_addr_i} &
-                             ~cmd_state_i.rep_start;
+    // - a CCC uses it until its framing has been sent, even after a Repeated Start (Sr) when the
+    //   previous Command Descriptor was not part of the same CCC (TCRI 6.3); a Direct CCC then
+    //   addresses its Target after a further Sr.
+    // - a Private Transfer uses it after an Sr only to end the framing of a preceding Direct CCC.
+    // - otherwise do NOT use the I3C Broadcast Address after a Repeated Start (Sr).
+    //   TODO(#31304): ENTDAA is an exception here.
+    cmd_attrs_o.addr_bcst = ccc_framing_i |
+                            &{!cmd_attrs_o.is_ccc, |{cmd_attrs_o.ddr, use_bcst_addr_i},
+                              ~cmd_state_i.rep_start};
 
     // Candidate Target/Group/I3C Broadcast Address.
     /// - I3C Broadcast address is used for SDR Private Transfers iff explicitly requested.
