@@ -1248,7 +1248,10 @@ module i3c_target_trx
       trx_rtoggle_o <= 1'b0;
       trx_rxd_o     <= '0;
     end else begin
-      if (rxd_reqd) begin
+      // The first SCL edge after a START or STOP belongs to a new frame, so nothing pending from
+      // the previous one is reported there: e.g. the address segment that a Controller-ended Read
+      // opens with its Repeated START, when the Controller then sends a STOP.
+      if (rxd_reqd & ~(starting | stopping)) begin
         // Capture the SDR or HDR-DDR data without the parity bits, because this information is
         // required in the final SCL cycle in preparation for sending read data.
         if (penult_bit | rxd_sr) begin
