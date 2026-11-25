@@ -502,18 +502,23 @@ module i3c_target_fsm
                              reg2hw_i.targ_pio_control.tx_suspended.q[t];
   end
 
-  // Similarly, we supply data for Direct GET CCCs using another inverting toggle.
-  logic prev_txc_toggle;
-  assign txc_toggle_o = ccc_rsp.req_cvalid ^ prev_txc_toggle;
+  // Similarly, we supply data for Direct GET CCCs using another inverting toggle. Each word is
+  // registered together with its toggle and held until the transceiver side echoes the toggle, as
+  // `i3c_sync_data` requires; the CCC response may change in the meantime.
+  logic              txc_toggle_q;
+  logic              prev_txc_toggle;  // The echo last seen.
+  logic              txc_last_q;       // The word sent last is the final one of the response.
+  i3c_targ_trx_txc_t txc_data_d, txc_data_q;
+  assign txc_toggle_o = txc_toggle_q;
+  assign txc_data_o   = txc_data_q;
 
-  // We want to supply the next data as soon as possible.
+  logic              txc_push;         // Send the next word.
+  // A word is outstanding until its toggle is echoed.
+  wire txc_busy = txc_toggle_q ^ txc_toggle_i;
+
+  // The echo of the outstanding word: the transceiver has taken it for transmission, or discarded
+  // it at a START or Repeated Start.
   wire ccc_unit_ready = txc_toggle_i ^ prev_txc_toggle;
-
-  always_ff @(posedge clk_i or negedge rst_ni) begin
-    if (!rst_ni) prev_txc_toggle <= 1'b0;
-    else if (sw_reset_i) prev_txc_toggle <= 1'b0;
-    else if (enable_i & ccc_rsp.req_cvalid & ccc_unit_ready) prev_txc_toggle <= !prev_txc_toggle;
-  end
 
   // Steer the DAA properties of the Virtual Target that won internal arbitration onto the first
   // lane of the CCC read data to the transceiver; the transceiver will always use that lane for
@@ -526,18 +531,18 @@ module i3c_target_fsm
   always_comb begin : drv_txc_data
     // Slices belonging to Virtual Targets that are not present keep this default of zero.
     // Note: we do not support CCC handling in HDR-DDR mode, just SDR modes.
-    txc_data_o = 'b0;
+    txc_data_d = 'b0;
 
     // The first channel carries DAA information too.
     // - CCC logic returns the DAA information for all of the target because it is known at this
     //   point which will win.
-    fmt_data_out(txc_data_o.rdata_nq[0], txc_data_o.rdata_pq[0], txc_data_o.rlast[0],
+    fmt_data_out(txc_data_d.rdata_nq[0], txc_data_d.rdata_pq[0], txc_data_d.rlast[0],
                  {8'b0, ccc_rsp.req_cdata[ccc_daa_steer ? daa_targ_id : 'b0]},
                   1'b0, {1'b0, ccc_rsp.req_clast});
 
     // Other channels just carry the regular CCC read data.
     for (int unsigned t = 1; t < NumTargets; t++) begin
-      fmt_data_out(txc_data_o.rdata_nq[t], txc_data_o.rdata_pq[t], txc_data_o.rlast[t],
+      fmt_data_out(txc_data_d.rdata_nq[t], txc_data_d.rdata_pq[t], txc_data_d.rlast[t],
                    {8'b0, ccc_rsp.req_cdata[t]}, 1'b0, {1'b0, ccc_rsp.req_clast});
     end
   end
@@ -629,7 +634,7 @@ module i3c_target_fsm
                      rep_start_det_i ? CCC_Sr : CCC_Tx;
       // TODO(#31333): ENTDAA perhaps requires a transmission back to CCC?
       CCC_Tx:   state_d = stop_det_i ? CCC_P  :
-                     rep_start_det_i ? CCC_Sr : (ccc_rsp.req_clast ? CCC : CCC_Tx);
+                     rep_start_det_i ? CCC_Sr : (txc_last_q ? CCC : CCC_Tx);
       CCC_Sr:   state_d = CCC;
       CCC_P:    state_d = Inactive;
       default:  state_d = Inactive;
@@ -644,10 +649,13 @@ module i3c_target_fsm
     end else if (sw_reset_i) begin
       state_q <= Inactive;
       ccc_txd_idx <= 'b0;
-    end else if (enable_i & proceed) begin  // The progress of the state machine is conditional.
-      state_q <= state_d;
-      // We must track the current position within transmitted data, for the CCC decoding to use.
-      ccc_txd_idx <= ccc_tx_start ? 'b1 : (ccc_txd_idx + ccc_unit_ready);
+    end else if (enable_i) begin
+      // The progress of the state machine is conditional.
+      if (proceed) state_q <= state_d;
+      // We must track the current position within transmitted data, for the CCC decoding to use;
+      // this is the index of the next word to send.
+      if (ccc_tx_start) ccc_txd_idx <= 'b0;
+      else if (txc_push) ccc_txd_idx <= ccc_txd_idx + 1'b1;
     end
   end
 
@@ -658,7 +666,47 @@ module i3c_target_fsm
   wire ccc_rd_prefetch = direct_get(reg_state[TargCR_CCC]) &&
                          (trx_rxd_i.ccc_state inside {CCC_SegAddr, CCC_SegData});
 
-  assign ccc_tx_start = &{trx_rvalid_i, trx_rxd_i.sr, ccc_rd_prefetch};
+  // The transceiver reports the address segment of a Direct GET more than once (at the RnW bit and
+  // again at the ACK), so prefetch only once per segment.
+  logic ccc_prefetched_q;
+  assign ccc_tx_start = &{state_q == CCC, trx_rvalid_i, trx_rxd_i.sr, ccc_rd_prefetch,
+                          ~ccc_prefetched_q};
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) ccc_prefetched_q <= 1'b0;
+    else if (sw_reset_i) ccc_prefetched_q <= 1'b0;
+    else if (enable_i) begin
+      if (state_q inside {Inactive, CCC_Sr, CCC_P}) ccc_prefetched_q <= 1'b0;
+      else if (ccc_tx_start) ccc_prefetched_q <= 1'b1;
+    end
+  end
+
+  // Send the words of a Direct GET response one at a time, each once the previous one has been
+  // taken, until the final word has been sent or the transfer ends.
+  assign txc_push = &{enable_i, state_q == CCC_Tx, ~txc_busy, ~ccc_unit_ready, ~txc_last_q,
+                      ~stop_det_i, ~rep_start_det_i};
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      txc_toggle_q    <= 1'b0;
+      prev_txc_toggle <= 1'b0;
+      txc_last_q      <= 1'b0;
+      txc_data_q      <= '0;
+    end else if (sw_reset_i) begin
+      // The transceiver side is not reset by `sw_reset_i`; leave nothing outstanding.
+      txc_toggle_q    <= txc_toggle_i;
+      prev_txc_toggle <= txc_toggle_i;
+      txc_last_q      <= 1'b0;
+    end else if (enable_i) begin
+      prev_txc_toggle <= txc_toggle_i;
+      if (ccc_tx_start) txc_last_q <= 1'b0;
+      else if (txc_push) begin
+        txc_toggle_q <= ~txc_toggle_q;
+        txc_last_q   <= ccc_rsp.req_clast;
+        txc_data_q   <= txc_data_d;
+      end
+    end
+  end
 
   //always_ff @(posedge clk_i or negedge rst_ni) begin
   //  if (!rst_ni) txc_toggle_o <= 1'b0;
@@ -678,7 +726,7 @@ module i3c_target_fsm
     unique case (state_q)
       Inactive: ccc_req.en = trx_rvalid_i & (trx_rxd_i.ccc_state == CCC_Setup);
       CCC:      ccc_req.en = trx_rvalid_i;
-      CCC_Tx:   ccc_req.en = ccc_unit_ready;
+      CCC_Tx:   ccc_req.en = txc_push;
       CCC_Sr,
       CCC_P:    ccc_req.en = 1'b1;
       default:  ccc_req.en = 1'b0;

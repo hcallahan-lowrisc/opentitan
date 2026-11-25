@@ -1185,7 +1185,10 @@ module i3c_target_trx
   // TODO(#31337): Re Direct GET read data:
   // Note: we consume data from all targets rather than the specific one that is transmitting
   // because this is easier than trying to retract the data later. Also, the target count is low.
-  assign trx_ctready_o = rd_starting & ccc_command;
+  // Read data that was prefetched but not sent (the address was not ours or was NACKed, or the
+  // Controller ended the Read early) is discarded at the next START or Repeated Start, so that it
+  // is not returned for a later Direct GET.
+  assign trx_ctready_o = (rd_starting & ccc_command) | starting | rep_starting;
 
   // Signaling mode, such that the core knows how much of the presented read data each
   // `trx_dready_o`/`trx_ctready_o` pulse is valid (two bytes for HDR-DDR, one byte for SDR).
